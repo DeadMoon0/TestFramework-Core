@@ -12,11 +12,9 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines.Builder.TimelineRunBuilder;
 using TestFramework.Core.Variables;
-using TestFrameworkCore.Debugger;
-using TestFrameworkCore.Logging.BuildInEvents;
-using TestFrameworkCore.Runner;
-using TestFrameworkCore.Steps.Options;
-using TestFrameworkCore.Steps.SystemSteps;
+using TestFramework.Core.Logging.BuildInEvents;
+using TestFramework.Core.Runner;
+using TestFramework.Core.Steps.SystemSteps;
 using Xunit.Abstractions;
 
 namespace TestFramework.Core.Timelines;

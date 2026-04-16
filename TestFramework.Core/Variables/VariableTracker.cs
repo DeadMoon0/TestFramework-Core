@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using TestFrameworkCore.Exceptions;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Variables;
 

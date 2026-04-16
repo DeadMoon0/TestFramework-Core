@@ -1,7 +1,7 @@
 using System;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
-using TestFrameworkCore.Exceptions;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 

@@ -45,22 +45,4 @@
 	  </None>
 	</ItemGroup>
 
-	<Target Name="GenerateBuildInfo" BeforeTargets="BeforeCompile">
-		<PropertyGroup>
-			<GeneratedBuildInfo>$(IntermediateOutputPath)GeneratedBuildInfo.g.cs</GeneratedBuildInfo>
-		</PropertyGroup>
-
-		<MakeDir Directories="$(IntermediateOutputPath)" />
-
-		<!-- WriteLinesToFile replaces the CodeTaskFactory inline task that is not
-		     supported by the .NET SDK MSBuild. Produces the same output: a single-line
-		     C# file exposing the project directory as BuildInfo.ProjectDir. -->
-		<WriteLinesToFile File="$(GeneratedBuildInfo)" Lines="namespace TestFrameworkCore { internal static class BuildInfo { public const string ProjectDir = @&quot;$(MSBuildProjectDirectory)&quot;%3B } }" Overwrite="true" Encoding="utf-8" />
-
-		<ItemGroup>
-			<Compile Include="$(GeneratedBuildInfo)" AutoGen="True" DesignTime="True" />
-		</ItemGroup>
-	</Target>
-
-
 </Project>

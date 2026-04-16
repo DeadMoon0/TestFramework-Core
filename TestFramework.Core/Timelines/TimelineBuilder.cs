@@ -9,8 +9,8 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
-using TestFrameworkCore.Steps.Preprocessor;
-using TestFrameworkCore.Steps.SystemSteps;
+using TestFramework.Core.Steps.Preprocessor;
+using TestFramework.Core.Steps.SystemSteps;
 
 namespace TestFramework.Core.Timelines;
 

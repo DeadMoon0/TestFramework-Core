@@ -1,5 +1,5 @@
 ﻿using TestFramework.Core.Timelines.Assertions;
-using TestFrameworkCore.Logging.BuildInEvents;
+using TestFramework.Core.Logging.BuildInEvents;
 using Xunit.Abstractions;
 
 namespace TestFramework.Core.Logging;

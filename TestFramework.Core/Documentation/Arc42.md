@@ -673,9 +673,9 @@ mindmap
 ### 13.2 First Test
 
 ```csharp
-using TestFrameworkCore.Timelines;
-using TestFrameworkCore.Variables;
-using TestFrameworkCore.Steps.Options;
+using TestFramework.Core.Timelines;
+using TestFramework.Core.Variables;
+using TestFramework.Core.Steps.Options;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -708,8 +708,8 @@ public class MyFirstTest(ITestOutputHelper output)
 ### 13.3 Writing a Custom Step
 
 ```csharp
-using TestFrameworkCore.Steps;
-using TestFrameworkCore.Steps.Options;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
 
 public class MyCustomStep : Step<string>
 {
