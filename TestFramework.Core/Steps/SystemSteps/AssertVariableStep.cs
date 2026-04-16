@@ -5,8 +5,7 @@ using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
-using TestFrameworkCore.Exceptions;
-using TestFrameworkCore.Steps.Options;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 

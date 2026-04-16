@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
-using TestFrameworkCore.Exceptions;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Steps;
 

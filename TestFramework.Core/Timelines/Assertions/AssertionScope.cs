@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using TestFramework.Core.Logging;
-using TestFrameworkCore.Exceptions;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 

@@ -9,7 +9,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
-using TestFrameworkCore.Logging.BuildInEvents;
+using TestFramework.Core.Logging.BuildInEvents;
 
 namespace TestFramework.Core.Runner;
 

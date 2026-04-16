@@ -29,8 +29,8 @@ dotnet add package TestFrameworkCore
 ## Quick Start
 
 ```csharp
-using TestFrameworkCore.Timelines;
-using TestFrameworkCore.Variables;
+using TestFramework.Core.Timelines;
+using TestFramework.Core.Variables;
 using Xunit;
 
 public class CoreSample
