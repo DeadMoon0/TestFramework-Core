@@ -4,7 +4,7 @@ using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
 
-namespace TestFrameworkSimple;
+namespace TestFramework.Simple;
 
 public static class Simple
 {

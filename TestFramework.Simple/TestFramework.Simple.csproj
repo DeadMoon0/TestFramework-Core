@@ -5,13 +5,13 @@
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<Title>TestFramework Core</Title>
+		<Title>TestFramework Simple</Title>
 		<Authors>DeadMoon0</Authors>
 		<Product>TestFramework</Product>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageTags>Test;UnitTest;IntegrationTest,Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
-		<Description>The core package of the TestFramework ecosystem for building integration-style and end-to-end test workflows. Provides the timeline engine for steps, events, variables, artifacts, retries, timeouts, and assertions, and serves as the foundation for extension packages like Azure, LocalIO, and Simple.</Description>
+		<Description>A wrapper for simple tasks the Timeline should perform. Like C# Actions, MessageBoxes</Description>
 		<Version>0.1.0</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
@@ -27,22 +27,21 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <None Include="..\Modules\TestFramework-Common\Assets\Icon.png">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
+		<None Include="..\Modules\TestFramework-Common\Assets\Icon.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+	
+	<ItemGroup>
+		<PackageReference Include="TestFramework.Core" Version="0.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="xunit.abstractions" Version="2.0.3" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Update="README.md">
-	    <Pack>True</Pack>
-	    <PackagePath>\</PackagePath>
-	  </None>
+		<None Update="README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
 	</ItemGroup>
 
 </Project>
