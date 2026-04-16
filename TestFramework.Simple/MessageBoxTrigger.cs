@@ -8,7 +8,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 
-namespace TestFrameworkSimple;
+namespace TestFramework.Simple;
 
 public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<string> caption) : Step<object?>
 {
