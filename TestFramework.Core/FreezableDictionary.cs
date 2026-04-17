@@ -12,7 +12,7 @@ internal class FreezableDictionary<TKey, TValue> : IFreezableDictionary<TKey, TV
     public void Freeze()
     {
         IsFrozen = true;
-        if (default(TValue) is IFreezable)
+        if (typeof(IFreezable).IsAssignableFrom(typeof(TValue)))
         {
             foreach (IFreezable? item in _dictionary.Values)
             {

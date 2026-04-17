@@ -59,6 +59,7 @@ public abstract class StepGeneric : IFreezable
         from.RetryOptions.CloneTo(RetryOptions);
         from.ErrorHandlingOptions.CloneTo(ErrorHandlingOptions);
         from.TimeOutOptions.CloneTo(TimeOutOptions);
+        from.LabelOptions.CloneTo(LabelOptions);
         from.ExecutionOptions.CloneTo(ExecutionOptions);
         from.IOContract.CloneTo(IOContract);
         return this;

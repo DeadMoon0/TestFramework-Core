@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 namespace TestFramework.Core;
 
@@ -54,7 +55,7 @@ internal class FreezableCollection<T> : IFreezableCollection<T>
     public void Freeze()
     {
         IsFrozen = true;
-        if (default(T) is IFreezable)
+        if (typeof(IFreezable).IsAssignableFrom(typeof(T)))
         {
             foreach (IFreezable? item in _collection)
             {
