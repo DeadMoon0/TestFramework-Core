@@ -1,4 +1,7 @@
 <Solution>
+  <Project Path="UnitTests/TestFramework.Config.Tests/TestFramework.Config.Tests.csproj" />
+  <Project Path="UnitTests/TestFramework.Core.Tests/TestFramework.Core.Tests.csproj" />
+  <Project Path="UnitTests/TestFramework.Simple.Tests/TestFramework.Simple.Tests.csproj" />
   <Project Path="TestFramework.Config/TestFramework.Config.csproj" />
   <Project Path="TestFramework.Core/TestFramework.Core.csproj" />
   <Project Path="TestFramework.Simple/TestFramework.Simple.csproj" />
