@@ -46,7 +46,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
 
         for (int i = 0; i < artifacts.Count; i++)
         {
-            ArtifactIdentifier identifier = (identifiers.Length - 1) > i ? identifiers[i] : (identifiers[identifiers.Length - 1] + "_" + (i - identifiers.Length + 1));
+            ArtifactIdentifier identifier = i < identifiers.Length ? identifiers[i] : (identifiers[identifiers.Length - 1] + "_" + (i - identifiers.Length + 1));
             artifacts[i].PinReference(variableStore, logger);
             artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], (await artifacts[i].ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger)).Data)
             {
