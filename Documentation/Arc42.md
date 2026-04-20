@@ -1,4 +1,4 @@
-# TestFrameworkCore — arc42 Architecture Documentation
+# TestFramework.Core — arc42 Architecture Documentation
 
 > **Version:** 1.1
 > **Date:** April 2026
@@ -28,7 +28,7 @@
 
 ### 1.1 Purpose
 
-**TestFrameworkCore** is the technology-agnostic engine of an integration testing framework. It defines a **Timeline-based DSL** (Domain-Specific Language) for declaratively describing, executing, and evaluating integration test workflows.
+**TestFramework.Core** is the technology-agnostic engine of an integration testing framework. It defines a **Timeline-based DSL** (Domain-Specific Language) for declaratively describing, executing, and evaluating integration test workflows.
 
 **Core responsibility:** Provide a reproducible, structured test run that:
 
@@ -72,8 +72,8 @@
 
 | Constraint | Detail |
 |------------|--------|
-| Extension projects | `TestFrameworkAzure`, `TestFrameworkLocalIO`, `TestFrameworkArtifactTracker` depend on Core |
-| Configuration | Provided by `TestFrameworkConfig.ConfigInstance` — not part of Core itself |
+| Extension projects | `TestFramework.Azure`, `TestFramework.LocalIO`, `TestFrameworkArtifactTracker` depend on Core |
+| Configuration | Provided by `TestFramework.Config.ConfigInstance` — not part of Core itself |
 
 ---
 
@@ -83,13 +83,13 @@
 
 ```mermaid
 C4Context
-    title TestFrameworkCore — Business Context
+    title TestFramework.Core — Business Context
 
     Person(dev, "Test Developer", "Defines and runs integration tests")
-    System(core, "TestFrameworkCore", "Timeline-based test execution framework")
-    System_Ext(azure, "TestFrameworkAzure", "Azure-specific triggers, artifacts, events")
-    System_Ext(localio, "TestFrameworkLocalIO", "Local I/O artifacts")
-    System_Ext(config, "TestFrameworkConfig", "Configuration builder (ConfigInstance)")
+    System(core, "TestFramework.Core", "Timeline-based test execution framework")
+    System_Ext(azure, "TestFramework.Azure", "Azure-specific triggers, artifacts, events")
+    System_Ext(localio, "TestFramework.LocalIO", "Local I/O artifacts")
+    System_Ext(config, "TestFramework.Config", "Configuration builder (ConfigInstance)")
     System_Ext(tracker, "ArtifactTracker", "Artifact emitter tracking (IL patching)")
     System_Ext(xunit, "xUnit", "Test runner")
 
@@ -105,7 +105,7 @@ C4Context
 
 ```mermaid
 graph LR
-    subgraph TestFrameworkCore
+    subgraph TestFramework.Core
         TB[TimelineBuilder]
         TL[Timeline]
         TRB[TimelineRunBuilder]
@@ -147,7 +147,7 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph TestFrameworkCore
+    subgraph TestFramework.Core
         direction TB
         subgraph "Timeline System"
             TL[Timeline]
@@ -362,7 +362,7 @@ sequenceDiagram
     participant VS as VariableStore
     participant TR as TimelineRun
 
-    Test->>TB: Timeline.Create("MyTest")
+    Test->>TB: Timeline.Create()
     Test->>TB: .SetVariable("url", Var.Const("..."))
     Test->>TB: .Trigger(myStep).WithRetry(3)
     Test->>TB: .Build()
@@ -438,15 +438,15 @@ sequenceDiagram
 
 ## 7. Deployment View
 
-TestFrameworkCore is a **pure class library** with no deployment unit of its own.
+TestFramework.Core is a **pure class library** with no deployment unit of its own.
 
 ```mermaid
 graph LR
     subgraph "Developer machine / CI agent"
         subgraph "Test process (dotnet test)"
-            Core[TestFrameworkCore.dll]
-            Azure[TestFrameworkAzure.dll]
-            Config[TestFrameworkConfig.dll]
+            Core[TestFramework.Core.dll]
+            Azure[TestFramework.Azure.dll]
+            Config[TestFramework.Config.dll]
             Tests[MyTests.dll]
         end
     end
@@ -653,7 +653,7 @@ mindmap
 | **CalcDelay** | `TimeSpan(int iteration)` delegate. **Iteration starts at 1.** |
 | **CalcDelays** | Static helpers: `Exponential`, `Fixed(t)`, `Linear(t)`, `None` |
 | **EmptyServiceProvider** | No-op `IServiceProvider`; writes a `Debug` warning when a service is requested |
-| **ConfigInstance** | Builder in `TestFrameworkConfig` for constructing `IServiceProvider` + `IConfiguration` |
+| **ConfigInstance** | Builder in `TestFramework.Config` for constructing `IServiceProvider` + `IConfiguration` |
 
 ---
 
@@ -663,11 +663,13 @@ mindmap
 
 ```xml
 <!-- Minimal — Core only -->
-<ProjectReference Include="..\TestFrameworkCore\TestFrameworkCore.csproj" />
+<PackageReference Include="TestFramework.Core" Version="0.1.0" />
 
-<!-- For Azure integration tests -->
-<ProjectReference Include="..\TestFrameworkAzure\TestFrameworkAzure.csproj" />
-<ProjectReference Include="..\TestFrameworkConfig\TestFrameworkConfig.csproj" />
+<!-- Add when you need DI/config composition for runs -->
+<PackageReference Include="TestFramework.Config" Version="0.1.0" />
+
+<!-- Add for lightweight helper triggers -->
+<PackageReference Include="TestFramework.Simple" Version="0.1.0" />
 ```
 
 ### 13.2 First Test
@@ -685,7 +687,7 @@ public class MyFirstTest(ITestOutputHelper output)
     public async Task Simple_Timeline_Test()
     {
         // 1. BUILD — define the test plan
-        var timeline = Timeline.Create("MyTest")
+        var timeline = Timeline.Create()
             .SetVariable("greeting", Var.Const("Hello World"))
             .Trigger(new MyCustomStep())
                 .WithTimeOut(TimeSpan.FromSeconds(30))
@@ -739,7 +741,7 @@ public class MyCustomStep : Step<string>
 ### 13.4 Using Artifacts
 
 ```csharp
-var timeline = Timeline.Create("Artifact-Test")
+var timeline = Timeline.Create()
     .SetupArtifact("myBlob")             // setup (upload)
     .Trigger(new ProcessingStep())
     .CaptureArtifactVersion("myBlob")    // snapshot state after processing
@@ -771,12 +773,16 @@ run.Artifact<MyData>("myBlob").Should().HaveBeenSetUp();
 ### 13.6 Configuration via ConfigInstance
 
 ```csharp
-using TestFrameworkConfig;
+using Microsoft.Extensions.DependencyInjection;
+using TestFramework.Config;
 
-// Loads local.testSettings.json, wires Azure configs, builds IServiceProvider
+// Load config, register services, then build IServiceProvider for SetupRun(...)
 var sp = ConfigInstance
     .FromJsonFile("local.testSettings.json")
-    .LoadAzureConfig()
+    .AddService(services =>
+    {
+        services.AddHttpClient();
+    })
     .BuildServiceProvider();
 
 var run = await timeline

@@ -1,27 +1,20 @@
-# TestFrameworkSimple
+# TestFramework.Simple
 
-## Introduction
+`TestFramework.Simple` is an extension package for `TestFramework.Core`.
 
-TestFrameworkSimple is an extension package for TestFrameworkCore.
-
-If you are new: TestFrameworkCore provides the timeline engine.
-This package adds easy, lightweight triggers so you can inject custom actions quickly without building full step classes.
-
-Simple triggers for quick custom actions inside a timeline.
-
-Use TestFrameworkSimple when you want to run lightweight inline logic without creating full custom step classes.
+It adds lightweight triggers for common cases where you do not want to create a full custom `Step<T>` class.
 
 ## Install
 
 ```bash
-dotnet add package TestFrameworkSimple
+dotnet add package TestFramework.Simple
 ```
 
 ## Quick Start
 
 ```csharp
-using TestFrameworkCore.Timelines;
-using TestFrameworkSimple;
+using TestFramework.Core.Timelines;
+using TestFramework.Simple;
 using Xunit;
 
 public class SimpleSample
@@ -38,7 +31,8 @@ public class SimpleSample
             }))
             .Build();
 
-        TimelineRun run = await timeline.SetupRun()
+        TimelineRun run = await timeline
+            .SetupRun()
             .RunAsync();
 
         run.EnsureRanToCompletion();
@@ -50,7 +44,8 @@ public class SimpleSample
 ## Variable-Aware Action
 
 ```csharp
-using TestFrameworkCore.Variables;
+using TestFramework.Core.Variables;
+using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
     .SetVariable("name", Var.Const("Alex"))

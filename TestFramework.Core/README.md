@@ -1,29 +1,17 @@
-# TestFrameworkCore
+# TestFramework.Core
 
-## Introduction
+`TestFramework.Core` is the timeline engine of the TestFramework ecosystem.
 
-TestFrameworkCore is the foundation of the whole TestFramework package family.
+It provides the public API to:
 
-If you are new: this package gives you the timeline engine that executes your test workflow step by step.
-Other packages like TestFrameworkAzure, TestFrameworkLocalIO, and TestFrameworkSimple plug into this core engine.
-
-In short:
-- build a timeline
-- run it
-- assert variables and artifacts
-
-Core timeline engine for integration-style test workflows.
-
-TestFrameworkCore gives you a fluent pipeline to:
-- trigger actions and steps
-- wait for events
-- manage variables and artifacts
-- run and assert execution results
+- define integration-test workflows
+- execute them with runtime inputs
+- assert outcomes from an immutable run result
 
 ## Install
 
 ```bash
-dotnet add package TestFrameworkCore
+dotnet add package TestFramework.Core
 ```
 
 ## Quick Start
@@ -48,17 +36,17 @@ public class CoreSample
             .RunAsync();
 
         run.EnsureRanToCompletion();
+        run.Variable<string>("greeting").Should().Exist().And().Be("Hello Alex");
     }
 }
 ```
 
 ## Common Building Blocks
 
-- `Timeline.Create()` to start a timeline
-- `SetVariable`, `Transform`, `AssertVariable` for data flow
-- `Trigger(...)` for executing steps
-- `WaitForEvent(...)` for polling/event-based waits
-- `WithTimeOut(...)`, `WithRetry(...)` for resilience
+- `Timeline.Create()` to start the builder
+- `SetVariable`, `Transform`, `AssertVariable` for variable-driven data flow
+- `Trigger(...)` and `WaitForEvent(...)` for actions and external synchronization
+- `WithTimeOut(...)`, `WithRetry(...)` for reliability on unstable systems
 
 ## Typical Pattern
 
