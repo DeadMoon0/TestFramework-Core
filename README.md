@@ -1,42 +1,120 @@
 # TestFramework Core
 
-## What TestFramework Is
+TestFramework is a timeline-based framework for integration-style tests.
+You define test workflows once (build phase), execute them with run-specific inputs (run phase), and validate immutable results (result phase).
 
-TestFramework is a timeline-based test framework for building integration-style test workflows.
-It gives you a fluent way to compose triggers, waits, variables, artifacts, and assertions into a reproducible execution flow.
+This repository is the foundation of the wider TestFramework ecosystem.
 
-This solution is the foundation of the wider TestFramework ecosystem.
+## Packages
 
-## What This Solution Covers
+- `TestFramework.Core`: timeline engine, steps, variables, artifacts, assertions
+- `TestFramework.Config`: `ConfigInstance` for configuration and dependency injection setup
+- `TestFramework.Simple`: lightweight triggers for fast onboarding and simple flows
 
-TestFramework-Core contains the packages that define the main runtime and the first layers around it:
+## Install Via NuGet
 
-- `TestFramework.Core` for the timeline engine and execution model
-- `TestFramework.Config` for configuration loading and service setup
-- `TestFramework.Simple` for lightweight helpers and simpler entry points
+Install the minimal set first:
 
-If you are new to the ecosystem, this is the best place to understand the core mental model before adding environment-specific extensions.
+```bash
+dotnet add package TestFramework.Core
+```
 
-## What You Can Do With It
+Add optional companion packages as needed:
 
-With this solution you can:
+```bash
+dotnet add package TestFramework.Config
+dotnet add package TestFramework.Simple
+```
 
-- build timelines that execute test workflows step by step
-- manage variables, artifacts, and execution state across a run
-- add assertions and validation logic to integration-style tests
-- prepare a base runtime that other solutions such as Azure and LocalIO extend
+## Quickstart
+
+The following example shows the end-to-end path that a new team member needs:
+installation, configuration via `ConfigInstance`, timeline definition, run execution, and assertion.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using TestFramework.Config;
+using TestFramework.Core.Timelines;
+using TestFramework.Core.Variables;
+using Xunit;
+
+public class SampleIntegrationTest
+{
+	[Fact]
+	public async Task CanRunTimeline()
+	{
+		var serviceProvider = ConfigInstance
+			.Create()
+			.OverrideConfig("TestSettings:Environment", "Local")
+			.AddService(services =>
+			{
+				services.AddSingleton<ISystemClock, SystemClock>();
+			})
+			.BuildServiceProvider();
+
+		Timeline timeline = Timeline.Create()
+			.SetVariable("name", Var.Const("Alex"))
+			.Transform("greeting", Var.Ref<string>("name"), n => $"Hello {n}")
+			.AssertVariable(Var.Ref<string>("greeting"), g => g == "Hello Alex")
+			.Build();
+
+		TimelineRun run = await timeline
+			.SetupRun(serviceProvider)
+			.RunAsync();
+
+		run.EnsureRanToCompletion();
+		run.Variable<string>("greeting").Should().Exist().And().Be("Hello Alex");
+	}
+
+	private interface ISystemClock { }
+	private sealed class SystemClock : ISystemClock { }
+}
+```
+
+## Core Concepts
+
+### Timeline
+
+A timeline is the test workflow definition.
+You compose actions in order and call `Build()` to freeze the plan.
+
+### Steps
+
+Steps are executable units (trigger external systems, wait for events, transform or assert data).
+Step-level options such as retry and timeout can be applied fluently.
+
+### Variables
+
+Variables are the data flow channel between steps and between builder/run phases.
+Use `Var.Const(...)` for constants and `Var.Ref<T>(...)` for runtime-resolved values.
+
+### Artifacts
+
+Artifacts represent external resources that are created, registered, versioned, and cleaned up as part of the run.
+This enables deterministic setup/cleanup in integration tests.
+
+## Documentation Map
+
+- Architecture overview (arc42): [Documentation/Arc42.md](./Documentation/Arc42.md)
+- Core architecture details: [Documentation/CoreArchitecture.md](./Documentation/CoreArchitecture.md)
+- Concept deep dive: [Documentation/Documentation.md](./Documentation/Documentation.md)
+- Core package guide: [TestFramework.Core/README.md](./TestFramework.Core/README.md)
+- Config package guide: [TestFramework.Config/README.md](./TestFramework.Config/README.md)
+- Simple package guide: [TestFramework.Simple/README.md](./TestFramework.Simple/README.md)
+
+## Examples
+
+For runnable consumer examples see the showroom repository and start with:
+
+- `TestFramework.Showroom.Basic/01_MinimalTimeline.cs`
+- `TestFramework.Showroom.Basic/04_Variables.cs`
+- `TestFramework.Showroom.Basic/09_StepValidations.cs`
 
 ## Related Repositories
 
 - [TestFramework-Azure](https://github.com/DeadMoon0/TestFramework-Azure) for Azure-specific triggers, events, and artifact helpers
 - [TestFramework-LocalIO](https://github.com/DeadMoon0/TestFramework-LocalIO) for local machine commands, files, and IO-driven workflows
 - [TestFramework-Showroom](https://github.com/DeadMoon0/TestFramework-Showroom) for runnable examples across the ecosystem
-
-## Where To Start
-
-- Start with the package overview in [TestFramework.Core/README.md](./TestFramework.Core/README.md)
-- Use [TestFramework.Simple/README.md](./TestFramework.Simple/README.md) if you want a lighter first contact with the framework
-- Then open the Showroom repository and begin with `TestFramework.Showroom.Basic/01_MinimalTimeline.cs`, `04_Variables.cs`, and `09_StepValidations.cs`
 
 ## CI Pull Requests
 
