@@ -37,3 +37,16 @@ With this solution you can:
 - Start with the package overview in [TestFramework.Core/README.md](./TestFramework.Core/README.md)
 - Use [TestFramework.Simple/README.md](./TestFramework.Simple/README.md) if you want a lighter first contact with the framework
 - Then open the Showroom repository and begin with `TestFramework.Showroom.Basic/01_MinimalTimeline.cs`, `04_Variables.cs`, and `09_StepValidations.cs`
+
+## CI Pull Requests
+
+- Pull requests run unit tests through the GitHub Actions workflow `unit-tests`.
+- If branch protection requires status checks, `unit-tests` must pass before merge.
+
+Local pre-PR test commands:
+
+```bash
+dotnet test UnitTests/TestFramework.Config.Tests/TestFramework.Config.Tests.csproj --configuration Release
+dotnet test UnitTests/TestFramework.Core.Tests/TestFramework.Core.Tests.csproj --configuration Release
+dotnet test UnitTests/TestFramework.Simple.Tests/TestFramework.Simple.Tests.csproj --configuration Release
+```
