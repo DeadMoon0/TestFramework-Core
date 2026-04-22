@@ -92,6 +92,20 @@
     - guessing config paths instead of using the real final key path structure
 </anti_patterns>
 
+<important_type_map>
+    Common type map for discovery and error interpretation:
+    - ConfigInstance: layered config builder and root entry point for this package
+    - IConfigInstanceBuilder: fluent builder interface used before Build() materializes the instance
+    - ConfigServiceDeltaCollection: ordered set of configuration and service-registration deltas
+    - IConfiguration: merged configuration view made available during materialization and in DI
+    - IServiceProvider: built provider typically passed into SetupRun(...)
+
+    Discovery heuristics for the agent:
+    - If users talk about test settings files, overrides, or shared config roots, they usually mean ConfigInstance.
+    - If errors mention missing services after BuildServiceProvider(), inspect AddService(...) registrations and the merged IConfiguration.
+    - If users describe parent-child config variants, they usually need SetupSubInstance().
+</important_type_map>
+
 <sources>
     TestFramework-Core/TestFramework.Config/README.md
     TestFramework-Core/TestFramework.Config/ConfigInstance.cs
