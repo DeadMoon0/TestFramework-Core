@@ -81,6 +81,19 @@
     - using Simple as the main abstraction for a growing workflow
 </anti_patterns>
 
+<important_type_map>
+    Common type map for discovery and error interpretation:
+    - Simple: package facade exposing Trigger helpers
+    - ActionTrigger: inline action step implementation behind Simple.Trigger.Action(...)
+    - MessageBoxTrigger: interactive debug/demo trigger behind Simple.Trigger.MessageBox(...)
+    - ScopedLogger: logger commonly passed into inline action delegates
+
+    Discovery heuristics for the agent:
+    - If users talk about a tiny inline step, lambda trigger, or one-off delegate, they usually mean ActionTrigger.
+    - If users mention a popup, manual pause, or demo interaction, they usually mean MessageBoxTrigger.
+    - If errors happen inside inline trigger delegates, inspect the ActionTrigger inputs and delegate dependencies before suggesting a custom step.
+</important_type_map>
+
 <sources>
     TestFramework-Core/TestFramework.Simple/README.md
     TestFramework-Core/TestFramework.Simple/ActionTrigger.cs

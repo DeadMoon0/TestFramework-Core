@@ -42,7 +42,22 @@ Expected working flow:
 
 Prefer a good test over a clever test.
 Keep moving forward until the test is working or a real blocker is reached.
+Do not default to inventing custom Step, Artifact, Event, or other framework component types for user tests.
+Treat framework extension as an exception path, not the normal solution path.
 </workflow>
+
+<component_policy>
+Default policy for user-facing test work:
+- Prefer the existing Timeline structure and existing package primitives.
+- Prefer composition of existing triggers, waits, variable transforms, config adapters, and artifact operations.
+- Strongly discourage creating custom Steps, custom Artifacts, custom Events, or similar new framework primitives during normal test authoring.
+- Only consider framework extension if the user explicitly wants to extend TestFramework itself or the scenario cannot be expressed with the existing global components after careful verification.
+
+If the task is normal test creation, conversion, or repair:
+- first search for an existing package capability
+- then compose existing pieces into the timeline
+- only raise custom framework components as a last resort and describe why the existing primitives are insufficient
+</component_policy>
 
 <skill_discovery>
 Do not rely on a hardcoded package list.
