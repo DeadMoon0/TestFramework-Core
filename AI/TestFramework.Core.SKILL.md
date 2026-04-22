@@ -5,7 +5,7 @@
 
 <objective>
     Provide the reusable framework knowledge for the TestFramework agent.
-    Explain the timeline model, extension seams, assertion style, API vocabulary, and test-writing conventions shared across all addon skills.
+    Explain the timeline model, execution pipeline, assertion style, extension seams, API vocabulary, and test-writing conventions shared across all addon skills.
 </objective>
 
 <package_scope>
@@ -17,6 +17,7 @@
     Other packages extend this engine with package-specific triggers, events, artifacts, configuration, or helper APIs.
     The base mental model is not "call helper methods until the test passes".
     The base mental model is "describe a run as a readable timeline, then inspect the resulting run object".
+    Build, run, and result are intentionally separated. The timeline is the reusable template, SetupRun(...) creates the runtime instance, and TimelineRun is the frozen result snapshot.
 </architecture>
 
 <best_practices>
@@ -26,6 +27,8 @@
     Keep shared conventions in this Core skill and package-specific knowledge in addon skills.
     Prefer one obvious flow over deeply nested helper abstractions.
     Keep setup, execution, and assertions conceptually separate even when they live in one short test method.
+    Prefer data flow through variables and artifacts over ad-hoc mutable local state.
+    Prefer extension packages when the test touches a real external system instead of inventing custom plumbing in Core.
 </best_practices>
 
 <test_conventions>
@@ -63,7 +66,40 @@
     - EnsureRanToCompletion() is the default post-run success guard.
     - run.Step(name), run.Steps(name), run.Variable<T>(name), and run.AssertionScope() are important assertion surfaces.
     - Var.Const(...) and Var.Ref<T>(...) express static versus runtime-resolved values.
+
+    Builder actions the agent should recognize:
+    - Trigger(step)
+    - SetVariable(identifier, value)
+    - Transform(...)
+    - AssertVariable(...)
+    - WaitForEvent(...)
+    - SetupArtifact(...), RegisterArtifact(...), RemoveArtifact(...)
+    - Conditional(...)
+    - ForEach(...)
+
+    Step modifiers the agent should recognize:
+    - Name(string) //Use only when nessesary - dont Spam
+    - WithTimeOut(...)
+    - WithRetry(...)
+    - ExpectExceptions(...)
 </api_hints>
+
+<runtime_behavior>
+    Execution pipeline:
+    - The built Timeline is reused.
+    - SetupRun(...) creates a per-run builder.
+    - RunAsync() preprocesses and validates the run, then executes steps and cleanup.
+    - The final TimelineRun is frozen and intended for inspection, not mutation.
+
+    Variable model:
+    - Var.Const(value) is static.
+    - Var.Ref<T>(identifier) is runtime-resolved from the VariableStore.
+    - RefImmutable should be used when control flow depends on values that must not be changed later in the run.
+
+    Artifact model:
+    - Artifacts are first-class tracked objects with describers, data, and references.
+    - Core expects explicit artifact lifecycle operations instead of hidden file or database handling.
+</runtime_behavior>
 
 <sample_patterns>
     Minimal pattern from the showroom:
@@ -79,6 +115,10 @@
     Variable-driven pattern:
     - Use variables for values that differ per run.
     - Keep the timeline readable by making the variable names communicate intent.
+
+    Extension pattern:
+    - Use Core for the test shape and flow.
+    - Add package-specific triggers, events, artifacts, or config only where the scenario actually needs them.
 </sample_patterns>
 
 <decision_rules>
@@ -88,12 +128,32 @@
     Prefer fluent run assertions over ad-hoc debugging code for normal test verification.
 </decision_rules>
 
+<anti_patterns>
+    Avoid:
+    - positional assertions like run.Steps()[0] when named steps are possible
+    - hiding the core timeline flow inside large helper methods
+    - using mutable local control flow when variables communicate intent better
+    - mixing environment setup logic into the assertion section
+    - reimplementing package-level capabilities in custom Core-only code when an addon already models the interaction
+</anti_patterns>
+
 <sources>
     TestFramework-Core/Documentation/Arc42.md
+    TestFramework-Core/Documentation/CoreArchitecture.md
     TestFramework-Core/TestFramework.Core/README.md
     TestFramework-Showroom/README.md
     TestFramework-Showroom/TestFramework.Showroom.Basic
 </sources>
+
+<grounding_files>
+    Most important files for expert grounding:
+    - TestFramework-Core/TestFramework.Core/Timelines/Timeline.cs
+    - TestFramework-Core/TestFramework.Core/Variables/Var.cs
+    - TestFramework-Core/TestFramework.Core/Steps/Step.cs
+    - TestFramework-Core/TestFramework.Core/Events/Event.cs
+    - TestFramework-Core/Documentation/CoreArchitecture.md
+    - TestFramework-Showroom/TestFramework.Showroom.Basic
+</grounding_files>
 
 <repo_resolution>
     Do not assume or hardcode repository URLs.
