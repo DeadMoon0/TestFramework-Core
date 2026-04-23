@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Environment;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
@@ -20,6 +21,7 @@ public class TimelineRun : IFreezable
         IsFrozen = true;
         ArtifactStore.Freeze();
         VariableStore.Freeze();
+        EnvironmentContext.Freeze();
         Stages.Freeze();
     }
 
@@ -27,17 +29,19 @@ public class TimelineRun : IFreezable
 
     public ArtifactStore ArtifactStore { get; }
     public VariableStore VariableStore { get; }
+    public EnvComponentContext EnvironmentContext { get; }
 
     public IFreezableCollection<StageInstance> Stages { get; }
 
     private readonly ScopedLogger? _logger;
 
-    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, ScopedLogger? logger = null)
+    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, EnvComponentContext environmentContext, ScopedLogger? logger = null)
     {
         Timeline = timeline;
         Stages = stages;
         ArtifactStore = artifactStore;
         VariableStore = variableStore;
+        EnvironmentContext = environmentContext;
         _logger = logger;
     }
 
