@@ -14,6 +14,7 @@ using TestFramework.Core.Timelines.Builder.TimelineRunBuilder;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Logging.BuildInEvents;
 using TestFramework.Core.Runner;
+using TestFramework.Core.Environment;
 using TestFramework.Core.Steps.SystemSteps;
 using Xunit.Abstractions;
 
@@ -27,11 +28,13 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     private readonly IServiceProvider _serviceProvider;
     private readonly ArtifactStore _newArtifactStore;
     private readonly VariableStore _newVariableStore;
+    private readonly EnvComponentContext _environmentContext;
 
     private readonly DebuggingRunSession _debuggingSession;
 
     private readonly List<VariableIdentifier> _externalVariables = [];
     private readonly List<ArtifactIdentifier> _externalArtifacts = [];
+    private IEnvironmentProvider? _environment;
 
     internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage)
     {
@@ -45,6 +48,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         _newArtifactStore = new ArtifactStore(logger, _debuggingSession);
         _newVariableStore = new VariableStore(logger, _debuggingSession);
+        _environmentContext = new EnvComponentContext();
     }
 
     public async Task<TimelineRun> RunAsync()
@@ -53,7 +57,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps);
         logger.LogInformation("─────────────────────────────────────────────");
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts);
-        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, logger);
+        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, logger);
 
         await _debuggingSession.InitSessionAsync(new TimelineRunStructure
         {
@@ -139,6 +143,10 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         var artifactTracker = new ArtifactTracker();
         var variableTracker = new VariableTracker();
 
+        List<StepGeneric> bufferedPreSetupSteps = [];
+        List<StepGeneric> bufferedMainSteps = [];
+        List<StepGeneric> bufferedCleanupSteps = [];
+
         using (var _ = logger.EnterIndentScope())
         {
             foreach (var stepEmitter in _mainStage.Steps)
@@ -148,14 +156,26 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                     step.Step.DeclareIO(step.Step.IOContract);
                     if (step.Step.DoesReturn) step.Step.IOContract.Outputs.Add(new StepIOEntry("out", StepIOKind.Variable));
                     if (step.RedirectToCleanUp)
-                        cleanUpStage.Steps.Add(step.Step);
+                        bufferedCleanupSteps.Add(step.Step);
                     else if (step.RunInPreSetupStage)
-                        preSetupStage.Steps.Add(step.Step);
+                        bufferedPreSetupSteps.Add(step.Step);
                     else
-                        mainStage.Steps.Add(step.Step);
+                        bufferedMainSteps.Add(step.Step);
                 }
             }
         }
+
+        IReadOnlyCollection<EnvironmentRequirement> environmentRequirements = CollectEnvironmentRequirements(bufferedMainSteps, variableStore);
+
+        if (_environment is not null)
+            preSetupStage.Steps.Add(new CreateEnvComponentsStep(_environment, _environmentContext, environmentRequirements));
+
+        foreach (StepGeneric step in bufferedPreSetupSteps)
+            preSetupStage.Steps.Add(step);
+        foreach (StepGeneric step in bufferedMainSteps)
+            mainStage.Steps.Add(step);
+        foreach (StepGeneric step in bufferedCleanupSteps)
+            cleanUpStage.Steps.Add(step);
 
         // Always append DeconstructAllArtifactsStep as the very last cleanup step,
         // after all IHasCleanupStep contributions. Errors are ignored so cleanup
@@ -163,6 +183,13 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         var deconstructStep = new DeconstructAllArtifactsStep();
         deconstructStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
         cleanUpStage.Steps.Add(deconstructStep);
+
+        if (_environment is not null)
+        {
+            var deconstructEnvStep = new DeconstructEnvComponentsStep(_environment, _environmentContext);
+            deconstructEnvStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
+            cleanUpStage.Steps.Add(deconstructEnvStep);
+        }
 
         logger.LogInformation("Stage '{0}': {1} step(s)  pre-setup: {2}  cleanup: {3}",
             _mainStage.Name, mainStage.Steps.Count, preSetupStage.Steps.Count, cleanUpStage.Steps.Count);
@@ -183,6 +210,18 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         return stageInstances;
     }
 
+    private static IReadOnlyCollection<EnvironmentRequirement> CollectEnvironmentRequirements(IEnumerable<StepGeneric> steps, VariableStore variableStore)
+    {
+        List<EnvironmentRequirement> requirements = [];
+        foreach (StepGeneric step in steps)
+        {
+            if (step is IHasEnvironmentRequirements provider)
+                requirements.AddRange(provider.GetEnvironmentRequirements(variableStore));
+        }
+
+        return requirements;
+    }
+
     public ITimelineRunBuilder AddArtifact<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference, ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference> data)
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
@@ -190,6 +229,15 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     {
         _newArtifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(reference.GetArtifactDescriber(), identifier, (TArtifactReference)reference, (TArtifactData)data));
         _externalArtifacts.Add(identifier);
+        return this;
+    }
+
+    public ITimelineRunBuilder SetEnv(IEnvironmentProvider environment)
+    {
+        if (_environment is not null)
+            throw new InvalidOperationException("Only one environment can be configured for a timeline run.");
+
+        _environment = environment;
         return this;
     }
 
