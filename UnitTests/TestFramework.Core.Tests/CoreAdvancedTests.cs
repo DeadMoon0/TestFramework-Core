@@ -5,6 +5,8 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Steps.Preprocessor;
+using TestFramework.Core.Timelines;
+using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Tests;
@@ -100,6 +102,20 @@ public class CoreAdvancedTests
             runtime.Logger).ToArray());
     }
 
+    [Fact]
+    public async Task TimelineRun_TimesOutStep_WhenStepIgnoresCancellation()
+    {
+        Timeline timeline = Timeline.Create()
+            .Trigger(new NonCooperativeStep())
+            .Name("hang")
+            .WithTimeOut(TimeSpan.FromMilliseconds(100))
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun().RunAsync();
+
+        run.Step("hang").Should().HaveTimedOut();
+    }
+
     private static RuntimeContext CreateRuntime() => new();
 
     private sealed class RuntimeContext
@@ -132,5 +148,26 @@ public class CoreAdvancedTests
         }
 
         public override StepInstance<Step<object?>, object?> GetInstance() => throw new NotSupportedException();
+    }
+
+    private sealed class NonCooperativeStep : Step<object?>
+    {
+        public override string Name => "non-cooperative";
+        public override string Description => "Never completes and ignores cancellation.";
+        public override bool DoesReturn => false;
+
+        public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan);
+            return null;
+        }
+
+        public override Step<object?> Clone() => new NonCooperativeStep().WithClonedOptions(this);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
     }
 }

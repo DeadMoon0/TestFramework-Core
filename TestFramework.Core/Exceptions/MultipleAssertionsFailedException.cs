@@ -16,7 +16,7 @@ public class MultipleAssertionsFailedException : Exception
 
     private static string BuildMessage(IReadOnlyList<string> failures)
     {
-        var lines = string.Join(Environment.NewLine, failures.Select((f, i) => $"  [{i + 1}] {f}"));
-        return $"{failures.Count} assertion(s) failed:{Environment.NewLine}{lines}";
+        var lines = string.Join(System.Environment.NewLine, failures.Select((f, i) => $"  [{i + 1}] {f}"));
+        return $"{failures.Count} assertion(s) failed:{System.Environment.NewLine}{lines}";
     }
 }

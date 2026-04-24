@@ -40,13 +40,25 @@ internal class CoreRunner
 
                 var stopwatch = Stopwatch.StartNew();
                 StepResultGeneric stepResult = new StepResultGeneric();
-                CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(step.Step.TimeOutOptions.TimeOut.GetValue(variableStore));
+                TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+                using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(timeout);
                 try
                 {
-                    var r = await step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
+                    Task<object?> executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
+                    var r = await executionTask.WaitAsync(timeout);
                     stepResult.Result = r;
                     stepResult.State = StepState.Complete;
                     if (step.Step.DoesReturn) variableStore.SetVariable("out", r);
+                }
+                catch (TimeoutException e)
+                {
+                    stepResult.Exception = e;
+                    stepResult.State = StepState.Timeout;
+                }
+                catch (OperationCanceledException e) when (cancellationTokenSource.IsCancellationRequested)
+                {
+                    stepResult.Exception = new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", e);
+                    stepResult.State = StepState.Timeout;
                 }
                 catch (Exception e)
                 {
