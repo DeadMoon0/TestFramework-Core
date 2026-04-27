@@ -93,6 +93,37 @@ Use `Var.Const(...)` for constants and `Var.Ref<T>(...)` for runtime-resolved va
 Artifacts represent external resources that are created, registered, versioned, and cleaned up as part of the run.
 This enables deterministic setup/cleanup in integration tests.
 
+## Public Contract Layers
+
+For the 1.0 push, treat the Core surface in this order:
+
+### Consumer-First API
+
+This is the primary API most test authors should learn first.
+
+- `Timeline.Create()`
+- fluent builder verbs such as `SetVariable`, `Transform`, `Trigger`, `WaitForEvent`, `AssertVariable`, `Conditional`, and `ForEach`
+- `Build()`, `SetupRun(...)`, and `RunAsync()`
+- `TimelineRun`, `StepHandle`, assertion handles, and `Var`
+
+If you are writing tests rather than extending the framework, this is the contract to optimize for.
+
+### Advanced Extension API
+
+These surfaces are intended for package authors and deeper framework integrations:
+
+- artifact describers, artifact references, and artifact data types
+- environment-provider abstractions and environment requirements
+- event base types and selected step/runtime options
+
+These APIs are valid but are not the recommended starting point for new consumers.
+
+### Visible Scaffolding
+
+Some public interfaces are currently exposed because the fluent builder is composed from many action interfaces.
+They are part of the visible package surface today, but they are not the recommended mental model for learning Core.
+When in doubt, follow the `Timeline.Create()` path and the runnable showroom examples first.
+
 ## Documentation Map
 
 - Architecture overview (arc42): [Documentation/Arc42.md](./Documentation/Arc42.md)
@@ -101,6 +132,13 @@ This enables deterministic setup/cleanup in integration tests.
 - Core package guide: [TestFramework.Core/README.md](./TestFramework.Core/README.md)
 - Config package guide: [TestFramework.Config/README.md](./TestFramework.Config/README.md)
 - Simple package guide: [TestFramework.Simple/README.md](./TestFramework.Simple/README.md)
+
+Recommended reading order for new users:
+
+1. This README for the consumer-first workflow.
+2. `TestFramework.Core/README.md` for package-local usage.
+3. Showroom examples for runnable patterns.
+4. `Documentation/Arc42.md` only when you need extension or architecture detail.
 
 ## Examples
 

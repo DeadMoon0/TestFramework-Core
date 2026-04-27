@@ -26,6 +26,7 @@
     Use Config for setup concerns, not for test assertions.
     Keep configuration mutation close to the test that needs it.
     Load JSON once and derive multiple scenario-specific providers from the built base instance.
+    Prefer documenting or asserting the final override path clearly instead of hiding it in helper code.
 </best_practices>
 
 <api_hints>
@@ -59,7 +60,20 @@
     - service registrations see the merged IConfiguration at materialization time
     - IConfiguration is registered into the provider automatically
     - null values from imported JSON are skipped
+    - missing files, invalid JSON, and registration failures should be treated as public setup-contract errors, not as vague downstream runtime surprises
 </runtime_behavior>
+
+<usage_guidance>
+    Overwrite precedence mental model:
+    - base JSON or Create() establishes the root layer
+    - parent overrides apply before child overrides
+    - SetupSubInstance() is the preferred branching point for scenario variants
+    - the final Build()/BuildServiceProvider() materialization is where merged config and service registration actually become concrete
+
+    Agent recommendation:
+    - when a user wants project-wide test configuration reuse, propose one shared base ConfigInstance plus scenario-specific sub-instances
+    - when a failure looks like a missing service, inspect AddService(...) and the final merged key paths before changing timeline code
+</usage_guidance>
 
 <style_guide>
     Prefer one shared base config per fixture or class when several tests differ only by a few values.

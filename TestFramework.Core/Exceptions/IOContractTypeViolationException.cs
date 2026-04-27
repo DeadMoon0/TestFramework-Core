@@ -12,7 +12,18 @@ public class IOContractTypeViolationException(string stepName, StepIOEntry input
                 $"of type '{input.DeclaredType?.Name}' but the producer declared type '{producerType.Name}', " +
                 $"which is not assignable to the required input type.")
 {
+    /// <summary>
+    /// Gets the name of the step with the invalid typed input contract.
+    /// </summary>
     public string StepName { get; } = stepName;
+
+    /// <summary>
+    /// Gets the input contract entry that was violated.
+    /// </summary>
     public StepIOEntry Input { get; } = input;
+
+    /// <summary>
+    /// Gets the produced CLR type that failed the assignability check.
+    /// </summary>
     public Type ProducerType { get; } = producerType;
 }

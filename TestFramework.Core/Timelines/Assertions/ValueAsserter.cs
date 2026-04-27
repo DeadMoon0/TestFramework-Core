@@ -6,6 +6,10 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
+/// <summary>
+/// Provides fluent assertions for a concrete value.
+/// </summary>
+/// <typeparam name="T">The asserted value type.</typeparam>
 public class ValueAsserter<T>
 {
     private readonly T _value;
@@ -45,6 +49,9 @@ public class ValueAsserter<T>
 
     // ── Null ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Asserts that the value is <see langword="null"/>.
+    /// </summary>
     public ValueAsserter<T> BeNull()
     {
         if (_value is not null)
@@ -52,6 +59,9 @@ public class ValueAsserter<T>
         return Pass(nameof(BeNull));
     }
 
+    /// <summary>
+    /// Asserts that the value is not <see langword="null"/>.
+    /// </summary>
     public ValueAsserter<T> NotBeNull()
     {
         if (_value is null)
@@ -61,6 +71,10 @@ public class ValueAsserter<T>
 
     // ── Equality ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Asserts that the value equals the expected value.
+    /// </summary>
+    /// <param name="expected">The expected value.</param>
     public ValueAsserter<T> Be(T expected)
     {
         if (!Equals(_value, expected))
@@ -68,6 +82,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(Be)}({V(expected)})");
     }
 
+    /// <summary>
+    /// Asserts that the value does not equal the expected value.
+    /// </summary>
+    /// <param name="expected">The value that must not match.</param>
     public ValueAsserter<T> NotBe(T expected)
     {
         if (Equals(_value, expected))
@@ -77,6 +95,11 @@ public class ValueAsserter<T>
 
     // ── Predicate ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Asserts that the value satisfies the provided predicate.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
+    /// <param name="description">A short description included in assertion output.</param>
     public ValueAsserter<T> Match(Func<T, bool> predicate, string description = "custom predicate")
     {
         if (!predicate(_value))
@@ -84,6 +107,11 @@ public class ValueAsserter<T>
         return Pass($"{nameof(Match)}({description})");
     }
 
+    /// <summary>
+    /// Asserts that the value does not satisfy the provided predicate.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
+    /// <param name="description">A short description included in assertion output.</param>
     public ValueAsserter<T> NotMatch(Func<T, bool> predicate, string description = "custom predicate")
     {
         if (predicate(_value))
@@ -93,6 +121,10 @@ public class ValueAsserter<T>
 
     // ── String ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Asserts that the string representation contains the specified substring.
+    /// </summary>
+    /// <param name="substring">The substring that must be present.</param>
     public ValueAsserter<T> Contain(string substring)
     {
         var s = _value?.ToString() ?? "";
@@ -101,6 +133,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(Contain)}(\"{substring}\")");
     }
 
+    /// <summary>
+    /// Asserts that the string representation does not contain the specified substring.
+    /// </summary>
+    /// <param name="substring">The substring that must not be present.</param>
     public ValueAsserter<T> NotContain(string substring)
     {
         var s = _value?.ToString() ?? "";
@@ -109,6 +145,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(NotContain)}(\"{substring}\")");
     }
 
+    /// <summary>
+    /// Asserts that the string representation starts with the specified prefix.
+    /// </summary>
+    /// <param name="prefix">The required prefix.</param>
     public ValueAsserter<T> StartWith(string prefix)
     {
         var s = _value?.ToString() ?? "";
@@ -117,6 +157,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(StartWith)}(\"{prefix}\")");
     }
 
+    /// <summary>
+    /// Asserts that the string representation ends with the specified suffix.
+    /// </summary>
+    /// <param name="suffix">The required suffix.</param>
     public ValueAsserter<T> EndWith(string suffix)
     {
         var s = _value?.ToString() ?? "";
@@ -125,6 +169,9 @@ public class ValueAsserter<T>
         return Pass($"{nameof(EndWith)}(\"{suffix}\")");
     }
 
+    /// <summary>
+    /// Asserts that the string representation is empty.
+    /// </summary>
     public ValueAsserter<T> BeEmpty()
     {
         var s = _value?.ToString() ?? "";
@@ -133,6 +180,9 @@ public class ValueAsserter<T>
         return Pass(nameof(BeEmpty));
     }
 
+    /// <summary>
+    /// Asserts that the string representation is not empty.
+    /// </summary>
     public ValueAsserter<T> NotBeEmpty()
     {
         var s = _value?.ToString() ?? "";
@@ -143,6 +193,10 @@ public class ValueAsserter<T>
 
     // ── Numeric / Comparable ────────────────────────────────────────────────
 
+    /// <summary>
+    /// Asserts that the value is greater than the provided threshold.
+    /// </summary>
+    /// <param name="threshold">The lower exclusive bound.</param>
     public ValueAsserter<T> BeGreaterThan(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) <= 0)
@@ -150,6 +204,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(BeGreaterThan)}({V(threshold)})");
     }
 
+    /// <summary>
+    /// Asserts that the value is greater than or equal to the provided threshold.
+    /// </summary>
+    /// <param name="threshold">The lower inclusive bound.</param>
     public ValueAsserter<T> BeGreaterThanOrEqualTo(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) < 0)
@@ -157,6 +215,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(BeGreaterThanOrEqualTo)}({V(threshold)})");
     }
 
+    /// <summary>
+    /// Asserts that the value is less than the provided threshold.
+    /// </summary>
+    /// <param name="threshold">The upper exclusive bound.</param>
     public ValueAsserter<T> BeLessThan(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) >= 0)
@@ -164,6 +226,10 @@ public class ValueAsserter<T>
         return Pass($"{nameof(BeLessThan)}({V(threshold)})");
     }
 
+    /// <summary>
+    /// Asserts that the value is less than or equal to the provided threshold.
+    /// </summary>
+    /// <param name="threshold">The upper inclusive bound.</param>
     public ValueAsserter<T> BeLessThanOrEqualTo(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) > 0)
@@ -171,6 +237,11 @@ public class ValueAsserter<T>
         return Pass($"{nameof(BeLessThanOrEqualTo)}({V(threshold)})");
     }
 
+    /// <summary>
+    /// Asserts that the value falls within the inclusive range.
+    /// </summary>
+    /// <param name="min">The inclusive lower bound.</param>
+    /// <param name="max">The inclusive upper bound.</param>
     public ValueAsserter<T> BeInRange(T min, T max)
     {
         if (_value is not IComparable<T> c || c.CompareTo(min) < 0 || c.CompareTo(max) > 0)
@@ -178,6 +249,11 @@ public class ValueAsserter<T>
         return Pass($"{nameof(BeInRange)}([{V(min)}, {V(max)}])");
     }
 
+    /// <summary>
+    /// Asserts that the value falls outside the inclusive range.
+    /// </summary>
+    /// <param name="min">The inclusive lower bound.</param>
+    /// <param name="max">The inclusive upper bound.</param>
     public ValueAsserter<T> NotBeInRange(T min, T max)
     {
         if (_value is IComparable<T> c && c.CompareTo(min) >= 0 && c.CompareTo(max) <= 0)
@@ -190,6 +266,10 @@ public class ValueAsserter<T>
     private static int CountItems(T value)
         => value is ICollection col ? col.Count : ((IEnumerable)value!).Cast<object>().Count();
 
+    /// <summary>
+    /// Asserts that the collection has the expected number of items.
+    /// </summary>
+    /// <param name="expected">The expected item count.</param>
     public ValueAsserter<T> HaveCount(int expected)
     {
         int count = CountItems(_value);
@@ -198,6 +278,9 @@ public class ValueAsserter<T>
         return Pass($"{nameof(HaveCount)}({expected})");
     }
 
+    /// <summary>
+    /// Asserts that the collection contains no items.
+    /// </summary>
     public ValueAsserter<T> HaveNoItems()
     {
         int count = CountItems(_value);
@@ -206,6 +289,9 @@ public class ValueAsserter<T>
         return Pass(nameof(HaveNoItems));
     }
 
+    /// <summary>
+    /// Asserts that the collection contains at least one item.
+    /// </summary>
     public ValueAsserter<T> HaveItems()
     {
         int count = CountItems(_value);
@@ -216,5 +302,8 @@ public class ValueAsserter<T>
 
     // ── Chaining ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Continues the fluent assertion chain.
+    /// </summary>
     public ValueAsserter<T> And() => this;
 }

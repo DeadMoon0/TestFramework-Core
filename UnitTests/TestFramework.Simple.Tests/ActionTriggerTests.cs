@@ -40,6 +40,56 @@ public class ActionTriggerTests
     }
 
     [Fact]
+    public async Task ActionFactory_CreatesExecutableTriggerForArtifactAwareAction()
+    {
+        RuntimeContext runtime = RuntimeContext.Create();
+        bool executed = false;
+
+        ActionTrigger trigger = Simple.Trigger.Action(
+            (vars, artifacts) =>
+            {
+                executed = true;
+                Assert.Empty(vars);
+                Assert.Empty(artifacts);
+            },
+            [],
+            []);
+
+        await trigger.Execute(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, CancellationToken.None);
+
+        Assert.True(executed);
+    }
+
+    [Fact]
+    public async Task ActionFactory_CreatesExecutableTriggerForFullContextAction()
+    {
+        RuntimeContext runtime = RuntimeContext.Create();
+        bool executed = false;
+
+        ActionTrigger trigger = Simple.Trigger.Action(
+            (serviceProvider, logger, vars, artifacts) =>
+            {
+                executed = true;
+                Assert.Same(runtime.ServiceProvider, serviceProvider);
+                Assert.Same(runtime.Logger, logger);
+                Assert.Empty(vars);
+                Assert.Empty(artifacts);
+            },
+            [],
+            []);
+
+        await trigger.Execute(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, CancellationToken.None);
+
+        Assert.True(executed);
+    }
+
+    [Fact]
+    public void ActionFactory_ThrowsImmediatelyForNullAction()
+    {
+        Assert.Throws<ArgumentNullException>(() => Simple.Trigger.Action((Action)null!));
+    }
+
+    [Fact]
     public void DeclareIO_AddsVariableIdentifiers()
     {
         ActionTrigger trigger = Simple.Trigger.Action(_ => { }, Var.Ref<string>("input"), Var.Ref<int>("count"));

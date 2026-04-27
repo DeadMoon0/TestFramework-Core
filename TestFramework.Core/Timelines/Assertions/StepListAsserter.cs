@@ -5,6 +5,9 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
+/// <summary>
+/// Provides fluent assertions for a group of executed steps that share a label or selection.
+/// </summary>
 public class StepListAsserter
 {
     private readonly IReadOnlyList<StepInstanceGeneric> _steps;
@@ -18,6 +21,9 @@ public class StepListAsserter
         _label = label is not null ? $"'{label}'" : $"{steps.Count} step(s)";
     }
 
+    /// <summary>
+    /// Asserts that every selected step completed successfully.
+    /// </summary>
     public StepListAsserter AllHaveCompleted()
     {
         for (int i = 0; i < _steps.Count; i++)
@@ -42,5 +48,8 @@ public class StepListAsserter
         return this;
     }
 
+    /// <summary>
+    /// Continues the fluent assertion chain.
+    /// </summary>
     public StepListAsserter And() => this;
 }

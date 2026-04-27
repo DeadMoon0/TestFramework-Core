@@ -4,6 +4,9 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
+/// <summary>
+/// Provides fluent assertions for an artifact lookup result.
+/// </summary>
 public class ArtifactAsserter
 {
     private readonly ArtifactInstanceGeneric _instance;
@@ -37,6 +40,9 @@ public class ArtifactAsserter
         throw new ValueAssertionException(message);
     }
 
+    /// <summary>
+    /// Asserts that the artifact has at least one data version.
+    /// </summary>
     public ArtifactAsserter Exist()
     {
         if (_instance.VersionCount == 0)
@@ -44,6 +50,9 @@ public class ArtifactAsserter
         return Pass(nameof(Exist));
     }
 
+    /// <summary>
+    /// Asserts that the artifact has no data versions.
+    /// </summary>
     public ArtifactAsserter NotExist()
     {
         if (_instance.VersionCount > 0)
@@ -51,5 +60,8 @@ public class ArtifactAsserter
         return Pass(nameof(NotExist));
     }
 
+    /// <summary>
+    /// Continues the fluent assertion chain.
+    /// </summary>
     public ArtifactAsserter And() => this;
 }

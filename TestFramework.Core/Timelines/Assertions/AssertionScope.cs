@@ -6,6 +6,9 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
+/// <summary>
+/// Collects assertion failures and throws them together when the scope is disposed.
+/// </summary>
 public class AssertionScope : IDisposable
 {
     private readonly ScopedLogger? _logger;
@@ -23,6 +26,9 @@ public class AssertionScope : IDisposable
         _failures.Add(message);
     }
 
+    /// <summary>
+    /// Ends the assertion scope and throws when one or more failures were recorded.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;

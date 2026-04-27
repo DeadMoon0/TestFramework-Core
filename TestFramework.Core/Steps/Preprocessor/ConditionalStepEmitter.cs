@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.ComponentModel;
+using System;
 using System.Collections.Generic;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
@@ -10,8 +11,15 @@ using TestFramework.Core.Variables;
 namespace TestFramework.Core.Steps.Preprocessor;
 
 //TODO: Track shouldRun var
+/// <summary>
+/// Emits nested steps only when a condition variable resolves to <see langword="true"/>.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public class ConditionalStepEmitter(VariableReference<bool> shouldRun, Action<ITimelineBuilder> steps) : StepEmitter
 {
+    /// <summary>
+    /// Emits the nested steps when the condition evaluates to true.
+    /// </summary>
     public override IEnumerable<StepEmitterStepResult> Emit(ArtifactStore artifactStore, VariableStore variableStore, VariableTracker variableTracker, ArtifactTracker artifactTracker, List<Action<StepGeneric, VariableTracker, ArtifactTracker>> modifierActions, ScopedLogger? logger = null)
     {
         if (modifierActions.Count != 0) throw new NotSupportedException("Modifier on an ConditionalStepEmitter is not Supported.");
