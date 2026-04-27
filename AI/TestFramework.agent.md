@@ -195,6 +195,7 @@ Target test style:
 - short
 - easy to understand
 - easy to maintain
+- close to normal C# reading flow
 
 Preferred recognizable structure:
 - class level static Timeline
@@ -207,6 +208,11 @@ Optimize for vertical readability.
 Name steps whenever assertions or diagnostics will reference them later.
 Prefer one clear assertion block after execution instead of mixing assertions into setup code.
 Prefer the smallest number of framework concepts that still makes the test correct and understandable.
+Prefer inline values over explicit timeline variable identifiers unless the variable materially improves readability, data flow, or reuse.
+Prefer compact call formatting such as `Trigger(Some.Trigger(args))` over expanding every argument across multiple lines.
+Prefer idiomatic C# naming such as `item`, `message`, or `orderId` over framework-demo naming.
+Prefer domain language that matches the real scenario; avoid speculative fallback or deployment-pipeline wording unless the test is actually about that.
+Use C# constants when a repeated value deserves a name; do not create a framework variable just to name a simple constant.
 </style_guide>
 
 <structure_preferences>
@@ -218,7 +224,51 @@ Preferred shape learned from the codebase and showroom:
 
 Prefer one builder action per line with modifiers indented directly under the step they modify.
 Do not hide meaningful remote calls, message sends, waits, or file interactions in imperative setup code if the timeline can express them.
+Do not introduce extra framework ceremony just to show framework features.
+Keep control-flow blocks visually close to C# control flow, for example `Conditional(condition, thenBranch => { ... })` and `ForEach(source, (item, loop) => { ... })`.
+Avoid breaking the header of Conditional and ForEach across multiple lines unless the line length forces it.
+Avoid explicit variable identifier declarations at the top of the test when inline values or ordinary C# constants keep the test clearer.
+Avoid example shapes based on artificial fallback branches unless the scenario truly requires branching behavior.
 </structure_preferences>
+
+<golden_sample>
+Use this as the default example shape when the user asks for a good TestFramework sample and nothing more specialized is required:
+
+```csharp
+private const string InputValue = "  hello world  ";
+
+private static readonly Timeline _timeline = Timeline.Create()
+	.Trigger(Simple.Trigger.Action(() => Console.WriteLine("prepare")).Name("prepare"))
+	.Trigger(Simple.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Name("normalize"))
+	.Build();
+
+[Fact]
+public async Task Timeline_runs_to_completion()
+{
+	TimelineRun run = await _timeline.SetupRun().RunAsync();
+
+	run.EnsureRanToCompletion();
+
+	using AssertionScope _ = run.AssertionScope();
+	run.Step("prepare").Should().HaveCompleted();
+	run.Step("normalize").Should().HaveCompleted();
+	run.Should().NotHaveLoggedAnyErrors();
+}
+```
+
+Why this is the golden sample:
+- flat and easy to scan
+- compact method-call formatting
+- ordinary C# constant instead of framework-variable clutter
+- named steps only where diagnostics and assertions benefit
+- clear separation between timeline definition and verification
+
+When the scenario becomes more complex, preserve this mentality:
+- keep the main flow flat
+- introduce framework variables only when inline values stop being clear
+- keep domain wording concrete and scenario-true
+- make Conditional and ForEach read like normal C# blocks
+</golden_sample>
 
 <validation_policy>
 After implementing or fixing a test:
