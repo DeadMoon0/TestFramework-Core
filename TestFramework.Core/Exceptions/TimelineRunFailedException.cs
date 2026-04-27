@@ -18,8 +18,14 @@ public record FailedStepInfo(string StageName, string StepName, Exception? StepE
 /// </summary>
 public class TimelineRunFailedException : Exception
 {
+    /// <summary>
+    /// Gets the collection of failed steps captured by the exception.
+    /// </summary>
     public IReadOnlyList<FailedStepInfo> FailedSteps { get; }
 
+    /// <summary>
+    /// Initializes the exception from the captured failed steps.
+    /// </summary>
     public TimelineRunFailedException(IReadOnlyList<FailedStepInfo> failedSteps)
         : base(BuildMessage(failedSteps))
     {

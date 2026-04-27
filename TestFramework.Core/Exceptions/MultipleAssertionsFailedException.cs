@@ -4,10 +4,20 @@ using System.Linq;
 
 namespace TestFramework.Core.Exceptions;
 
+/// <summary>
+/// Thrown when an <see cref="Timelines.Assertions.AssertionScope"/> collects multiple assertion failures.
+/// </summary>
 public class MultipleAssertionsFailedException : Exception
 {
+    /// <summary>
+    /// Gets the individual failure messages recorded in the assertion scope.
+    /// </summary>
     public IReadOnlyList<string> Failures { get; }
 
+    /// <summary>
+    /// Initializes a new exception that aggregates multiple assertion failures.
+    /// </summary>
+    /// <param name="failures">The failure messages recorded by the assertion scope.</param>
     public MultipleAssertionsFailedException(IReadOnlyList<string> failures)
         : base(BuildMessage(failures))
     {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.IO;
 using TestFramework.Config;
 
 namespace TestFramework.Config.Tests;
@@ -72,6 +73,48 @@ public class ConfigInstanceTests
                 File.Delete(tempFile);
             }
         }
+    }
+
+    [Fact]
+    public void FromJsonFile_ThrowsFileNotFoundException_WhenFileIsMissing()
+    {
+        string missingFile = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.json");
+
+        FileNotFoundException exception = Assert.Throws<FileNotFoundException>(() =>
+            ConfigInstance.FromJsonFile(missingFile));
+
+        Assert.Contains(Path.GetFileName(missingFile), exception.Message);
+    }
+
+    [Fact]
+    public void FromJsonFile_ThrowsInvalidDataException_WhenJsonIsInvalid()
+    {
+        string tempFile = Path.Combine(Path.GetTempPath(), $"invalid-config-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(tempFile, "{ \"App\": { \"Mode\": } }");
+
+            Assert.Throws<InvalidDataException>(() => ConfigInstance.FromJsonFile(tempFile));
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void BuildServiceProvider_PropagatesRegistrationFailures()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            ConfigInstance.Create()
+                .AddService((services, configuration) => throw new InvalidOperationException("boom"))
+                .BuildServiceProvider());
+
+        Assert.Equal("boom", exception.Message);
     }
 
     private sealed record BoundOptions(string Mode);

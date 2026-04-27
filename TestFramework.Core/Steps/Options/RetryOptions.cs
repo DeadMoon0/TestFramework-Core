@@ -4,6 +4,10 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.Options;
 
+/// <summary>
+/// Calculates the delay before the next retry attempt.
+/// </summary>
+/// <param name="currentIteration">The current retry iteration, starting at 1 for the first retry.</param>
 public delegate TimeSpan CalcDelay(int currentIteration);
 
 /// <summary>
@@ -35,17 +39,39 @@ public static class CalcDelays
     public static readonly CalcDelay None = _ => TimeSpan.Zero;
 }
 
+/// <summary>
+/// Configures retry behavior for a step.
+/// </summary>
 public class RetryOptions : IFreezable
 {
+    /// <summary>
+    /// Gets a value indicating whether the options object has been frozen against further mutation.
+    /// </summary>
     public bool IsFrozen { get; private set; }
+
+    /// <summary>
+    /// Freezes the options object.
+    /// </summary>
     public void Freeze() { IsFrozen = true; }
 
     private VariableReference<int> _maxRetryCount = 0;
+
+    /// <summary>
+    /// Gets or sets the maximum number of retries allowed for the step.
+    /// </summary>
     public VariableReference<int> MaxRetryCount { get => _maxRetryCount; set { ((IFreezable)this).EnsureNotFrozen(); _maxRetryCount = value; } }
 
     private VariableReference<CalcDelay> _calcDelay = Var.Const<CalcDelay>((i) => TimeSpan.FromSeconds(Math.Pow(2, i)));
+
+    /// <summary>
+    /// Gets or sets the retry delay strategy.
+    /// </summary>
     public VariableReference<CalcDelay> CalcDelay { get => _calcDelay; set { ((IFreezable)this).EnsureNotFrozen(); _calcDelay = value; } }
 
+    /// <summary>
+    /// Copies the current options to another instance.
+    /// </summary>
+    /// <param name="target">The target options instance.</param>
     public void CloneTo(RetryOptions target)
     {
         target.MaxRetryCount = MaxRetryCount;

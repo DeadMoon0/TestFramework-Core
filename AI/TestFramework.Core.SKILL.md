@@ -20,6 +20,16 @@
     Build, run, and result are intentionally separated. The timeline is the reusable template, SetupRun(...) creates the runtime instance, and TimelineRun is the frozen result snapshot.
 </architecture>
 
+<public_surface_model>
+    For 1.0 reasoning, treat the public Core surface as three layers:
+    - consumer-first API: Timeline.Create() -> Build() -> SetupRun(...) -> RunAsync(), TimelineRun, StepHandle, Var helpers, and fluent assertions
+    - advanced extension API: artifacts, environment providers, events, logging, and selected runtime abstractions used by addon packages
+    - compatibility-preserving scaffolding: builder action interfaces, debugger seams, and preprocessors that remain public but should not be presented as the normal learning path
+
+    Builder action interfaces, debugger records, and preprocessor emitters are intentionally de-emphasized in IntelliSense.
+    Do not route ordinary test-authoring guidance through those types unless the user is explicitly extending the framework itself.
+</public_surface_model>
+
 <best_practices>
     Prefer short, readable, vertically structured tests.
     Use named steps instead of positional indexing.
@@ -149,7 +159,19 @@
     Prefer fluent run assertions over ad-hoc debugging code for normal test verification.
     Discourage creating custom Step, Artifact, Event, or other framework component types unless the user explicitly asks for framework extension work and no existing package primitive can model the scenario.
     Prefer composing existing Timeline actions, variables, events, config integration, and package entry points over adding new reusable framework components.
+    When users discover builder-action interfaces, debugger types, or preprocessors directly, translate them back into the higher-level consumer surface before proposing changes.
 </decision_rules>
+
+<release_readiness_notes>
+    1.0 grounding the agent should preserve:
+    - package XML documentation generation is enabled and the current public surface is documented
+    - the consumer-first contract is the intended documentation anchor even though broader advanced surfaces remain public
+    - future cleanup candidates exist, but they belong to a later breaking-change window, not late 1.0 reshaping
+
+    Practical recommendation:
+    - for normal usage, keep guidance centered on timelines, run setup, variables, assertions, and addon-package entry points
+    - for extension work, explicitly say when the user is stepping from consumer API into extension API
+</release_readiness_notes>
 
 <anti_patterns>
     Avoid:
