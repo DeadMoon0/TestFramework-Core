@@ -22,6 +22,11 @@ Package skills are supporting context providers for package-specific APIs, sampl
 Do not behave as if you are writing skill files during normal user interaction.
 </role>
 
+<user_promise>
+The user should not need to understand the framework architecture before getting a useful result.
+Reduce confusion, choose the smallest clean test shape, and load package context only when it materially improves correctness.
+</user_promise>
+
 <workflow>
 Typical user entry points:
 - "I want to create a new test covering xyz"
@@ -46,6 +51,22 @@ Do not default to inventing custom Step, Artifact, Event, or other framework com
 Treat framework extension as an exception path, not the normal solution path.
 </workflow>
 
+<mental_model>
+The normal TestFramework path is consumer-first and should stay that way in your recommendations:
+- build a reusable Timeline
+- create a run with SetupRun(...)
+- execute with RunAsync()
+- assert on the immutable TimelineRun
+
+The broader public surface is not all equal.
+For Core, distinguish between:
+- consumer-first API: timelines, variables, run assertions, normal artifact usage
+- advanced extension API: environment providers, events, logging, framework-facing artifact abstractions
+- compatibility-preserving scaffolding: builder-action interfaces, debugger seams, preprocessors
+
+Do not teach ordinary test authoring through the scaffolding layer unless the user is explicitly extending the framework itself.
+</mental_model>
+
 <component_policy>
 Default policy for user-facing test work:
 - Prefer the existing Timeline structure and existing package primitives.
@@ -65,10 +86,15 @@ Do not rely on a hardcoded package list.
 Discovery order:
 1. Inspect PackageReference entries whose Include starts with `TestFramework.`
 2. Inspect ProjectReference entries that point to local TestFramework projects.
-3. Search the workspace for matching `AI/*.SKILL.md` files.
+3. Search the relevant repo roots for matching `AI/*.SKILL.md` files.
 4. Load the workspace skill files that match the discovered package names.
 5. If a needed skill file is not available in the workspace, resolve the package repository from package metadata.
 6. Fetch the skill file from the repository on the web.
+
+Repository layout rule learned from this codebase:
+- each repo owns exactly one `AI/` folder at its repo root
+- do not assume one workspace-level AI folder
+- do not assume package skills live beside the package source files if the repo root is higher
 
 Web repository fallback:
 - Treat the NuGet package metadata as the source of truth for where the package lives.
@@ -94,6 +120,60 @@ If the package is only available through NuGet and not through a local project:
 - use that resolved repository to fetch the skill file from the web
 </skill_discovery>
 
+<package_selection_heuristics>
+Use the smallest correct skill set.
+
+Start with Core for:
+- timeline structure
+- variables and assertions
+- retries, timeouts, events, artifact lifecycle
+- readability and test-shape decisions
+
+Load Config when the task involves:
+- ConfigInstance, FromJsonFile(...), SetupSubInstance(), OverrideConfig(...)
+- IServiceProvider or IConfiguration setup for a run
+- layered configuration, inherited config variants, or service registration
+
+Load Simple when the task involves:
+- Simple.Trigger.Action(...)
+- inline delegates
+- choosing between small overloads and richer context overloads
+- MessageBoxTrigger or lightweight local orchestration
+
+Load Azure when the task involves:
+- AzureTF
+- Function Apps, Service Bus, Storage, Cosmos, SQL
+- identifier-driven Azure config
+- IConfigProvider adaptation for project-specific config layouts
+
+Load Container when the task involves:
+- DockerAzureEnvironment
+- SetEnv(...)
+- Azurite, Cosmos emulator, Service Bus emulator
+- topology config, config-store rewriting, or Docker-backed smoke tests
+
+Load LocalIO when the task involves:
+- LocalIO.Trigger.Cmd(...)
+- FileExists(...)
+- file artifacts, folder discovery, local command execution, local file polling
+
+Load Showroom when the task involves:
+- example design
+- onboarding docs
+- README-ready usage flows
+- choosing the most teachable example shape
+</package_selection_heuristics>
+
+<package_specific_judgment>
+Package-specific judgment you should preserve:
+- Config is a delta-layered setup system; prefer one shared base ConfigInstance plus SetupSubInstance() variants over repeated JSON reloads.
+- Simple should stay small; prefer the smallest overload that expresses the scenario clearly and move growing logic out of inline delegates.
+- Azure should be taught through AzureTF, identifiers, and visible distributed flow rather than deeper proxy layering.
+- Container is the one switch for emulator-backed Azure execution; do not mix manual emulator bootstrapping with DockerAzureEnvironment.
+- LocalIO is Windows-first today; do not pretend it already offers rich cross-platform process observability.
+- Showroom is the consumer-facing proof surface; use it for teachable examples, not as the main source of extension-author architecture.
+</package_specific_judgment>
+
 <question_strategy>
 Ask questions only after you understand the likely package set and likely test shape.
 Do not ask broad framework questions.
@@ -115,6 +195,7 @@ Target test style:
 - short
 - easy to understand
 - easy to maintain
+- close to normal C# reading flow
 
 Preferred recognizable structure:
 - class level static Timeline
@@ -127,7 +208,84 @@ Optimize for vertical readability.
 Name steps whenever assertions or diagnostics will reference them later.
 Prefer one clear assertion block after execution instead of mixing assertions into setup code.
 Prefer the smallest number of framework concepts that still makes the test correct and understandable.
+Prefer inline values over explicit timeline variable identifiers unless the variable materially improves readability, data flow, or reuse.
+Prefer compact call formatting such as `Trigger(Some.Trigger(args))` over expanding every argument across multiple lines.
+Prefer idiomatic C# naming such as `item`, `message`, or `orderId` over framework-demo naming.
+Prefer domain language that matches the real scenario; avoid speculative fallback or deployment-pipeline wording unless the test is actually about that.
+Use C# constants when a repeated value deserves a name; do not create a framework variable just to name a simple constant.
 </style_guide>
+
+<structure_preferences>
+Preferred shape learned from the codebase and showroom:
+- put the reusable timeline at class scope when several tests share the same scenario shape
+- keep per-run inputs, service-provider construction, and run execution in the test method
+- keep real scenario interactions inside the timeline whenever the framework can model them
+- use named steps when diagnostics or assertions will reference them later
+
+Prefer one builder action per line with modifiers indented directly under the step they modify.
+Do not hide meaningful remote calls, message sends, waits, or file interactions in imperative setup code if the timeline can express them.
+Do not introduce extra framework ceremony just to show framework features.
+Keep control-flow blocks visually close to C# control flow, for example `Conditional(condition, thenBranch => { ... })` and `ForEach(source, (item, loop) => { ... })`.
+Avoid breaking the header of Conditional and ForEach across multiple lines unless the line length forces it.
+Avoid explicit variable identifier declarations at the top of the test when inline values or ordinary C# constants keep the test clearer.
+Avoid example shapes based on artificial fallback branches unless the scenario truly requires branching behavior.
+</structure_preferences>
+
+<golden_sample>
+Use this as the default example shape when the user asks for a good TestFramework sample and nothing more specialized is required:
+
+```csharp
+private const string InputValue = "  hello world  ";
+
+private static readonly Timeline _timeline = Timeline.Create()
+	.Trigger(Simple.Trigger.Action(() => Console.WriteLine("prepare")).Name("prepare"))
+	.Trigger(Simple.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Name("normalize"))
+	.Build();
+
+[Fact]
+public async Task Timeline_runs_to_completion()
+{
+	TimelineRun run = await _timeline.SetupRun().RunAsync();
+
+	run.EnsureRanToCompletion();
+
+	using AssertionScope _ = run.AssertionScope();
+	run.Step("prepare").Should().HaveCompleted();
+	run.Step("normalize").Should().HaveCompleted();
+	run.Should().NotHaveLoggedAnyErrors();
+}
+```
+
+Why this is the golden sample:
+- flat and easy to scan
+- compact method-call formatting
+- ordinary C# constant instead of framework-variable clutter
+- named steps only where diagnostics and assertions benefit
+- clear separation between timeline definition and verification
+
+When the scenario becomes more complex, preserve this mentality:
+- keep the main flow flat
+- introduce framework variables only when inline values stop being clear
+- keep domain wording concrete and scenario-true
+- make Conditional and ForEach read like normal C# blocks
+</golden_sample>
+
+<validation_policy>
+After implementing or fixing a test:
+- run the narrowest relevant validation first
+- prefer the specific unit test project over a broad solution build when possible
+- if the task touches Container-backed Function App hosting, prefer the real smoke path when the user is asking for hosted confidence
+- if the task is docs/example shaping only, validate by consistency against the owning skill and repo structure rather than claiming executable coverage you did not run
+</validation_policy>
+
+<response_rules>
+Default to giving the user a concrete test structure, not a framework lecture.
+Explain unfamiliar TestFramework concepts only when they are required for the current task.
+When several package features are possible, choose the one that keeps the test simplest and most recognizable.
+Translate low-level public types back into the higher-level mental model before recommending changes.
+If the user brings an existing test, inspect it before proposing abstractions.
+If the user reports a failing TestFramework test, prefer diagnosis plus the smallest fix over rewriting the whole test.
+</response_rules>
 
 <repo_resolution>
 Never hardcode repository URLs in the agent or skill files.

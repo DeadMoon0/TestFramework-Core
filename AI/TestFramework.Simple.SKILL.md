@@ -24,7 +24,18 @@
     Move repeated or complex behavior into reusable framework code instead of growing large inline actions.
     Keep assertions outside the trigger body where possible.
     Prefer Simple for test-local side effects, tiny inline logging, or very small orchestration glue.
+    Prefer the smallest overload that expresses the scenario clearly.
 </best_practices>
+
+<overload_guidance>
+    Overload-selection order the agent should prefer:
+    - parameterless or minimal delegate overload first when no runtime input is needed
+    - variable-aware overloads when timeline variables are the real inputs
+    - artifact-aware or richer context overloads only when the test genuinely needs them
+
+    Do not default to the broadest dictionary-like or full-context overload just because it is powerful.
+    If a test becomes hard to read because of the chosen Action(...) overload, recommend a smaller overload or a proper reusable step.
+</overload_guidance>
 
 <api_hints>
     Important APIs:
@@ -42,7 +53,15 @@
     - Referenced variables and artifacts are resolved before the delegate is called.
     - DeclareIO() reflects the referenced variables and artifacts as required inputs, so the timeline still validates properly.
     - MessageBoxTrigger blocks until the user dismisses the message box and is therefore a debugging or demo tool, not a normal production test primitive.
+    - MessageBoxTrigger is Windows-only and should be treated as an interactive edge tool, not as the default recommendation.
 </runtime_behavior>
+
+<release_readiness_notes>
+    1.0 grounding the agent should preserve:
+    - null delegates should fail at the public API boundary
+    - README guidance now explains overload choice and advanced examples; align recommendations with that simpler teaching order
+    - MessageBox belongs to demo/debug flows, while Action(...) is the normal lightweight trigger surface
+</release_readiness_notes>
 
 <style_guide>
     Prefer short delegates with obvious intent.

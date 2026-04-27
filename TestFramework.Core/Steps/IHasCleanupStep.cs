@@ -8,5 +8,8 @@ namespace TestFramework.Core.Steps;
 /// </summary>
 public interface IHasCleanupStep
 {
+    /// <summary>
+    /// Creates the cleanup step that should run after the main stage finishes.
+    /// </summary>
     StepGeneric? CreateCleanupStep(VariableStore variableStore);
 }

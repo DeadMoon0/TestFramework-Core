@@ -18,6 +18,10 @@ public readonly struct FormattableValue<T> : System.IEquatable<FormattableValue<
     /// <summary>The underlying raw value. Used for equality and comparisons.</summary>
     public T Raw { get; }
 
+    /// <summary>
+    /// Initializes a new wrapper for the provided raw value.
+    /// </summary>
+    /// <param name="value">The raw value to wrap.</param>
     public FormattableValue(T value) => Raw = value;
 
     /// <summary>Implicitly wraps any <typeparamref name="T"/> value.</summary>
@@ -32,14 +36,32 @@ public readonly struct FormattableValue<T> : System.IEquatable<FormattableValue<
     /// </summary>
     public override string ToString() => VariableFormatter.Format(Raw);
 
+    /// <summary>
+    /// Determines whether this instance equals another wrapped value.
+    /// </summary>
+    /// <param name="other">The other wrapped value to compare.</param>
     public bool Equals(FormattableValue<T> other) =>
         EqualityComparer<T>.Default.Equals(Raw, other.Raw);
 
+    /// <summary>
+    /// Determines whether this instance equals another object.
+    /// </summary>
+    /// <param name="obj">The object to compare.</param>
     public override bool Equals(object? obj) =>
         obj is FormattableValue<T> other && Equals(other);
 
+    /// <summary>
+    /// Returns the hash code for the wrapped value.
+    /// </summary>
     public override int GetHashCode() => Raw?.GetHashCode() ?? 0;
 
+    /// <summary>
+    /// Compares two wrapped values for equality.
+    /// </summary>
     public static bool operator ==(FormattableValue<T> left, FormattableValue<T> right) => left.Equals(right);
+
+    /// <summary>
+    /// Compares two wrapped values for inequality.
+    /// </summary>
     public static bool operator !=(FormattableValue<T> left, FormattableValue<T> right) => !left.Equals(right);
 }

@@ -1,9 +1,14 @@
+using System.ComponentModel;
 using System;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
+/// <summary>
+/// Adds fluent modifiers for declaring step input and output contracts.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public interface IStepIOModAction
 {
     /// <summary>Declares that this step reads a variable. With required=true (default) the validator errors if no prior step produces it.</summary>

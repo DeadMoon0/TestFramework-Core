@@ -48,6 +48,29 @@ public class CoreSample
 - `Trigger(...)` and `WaitForEvent(...)` for actions and external synchronization
 - `WithTimeOut(...)`, `WithRetry(...)` for reliability on unstable systems
 
+## Consumer-First Contract
+
+For most users, the Core contract is intentionally small:
+
+1. Start with `Timeline.Create()`.
+2. Compose fluent steps and modifiers.
+3. Freeze the plan with `Build()`.
+4. Create a run with `SetupRun(...)`.
+5. Execute with `RunAsync()` and assert through `TimelineRun`.
+
+The package exposes additional public types for artifacts, environment integration, debugging, and the fluent builder composition model, but those are advanced surfaces. If you are writing tests rather than framework extensions, prefer the timeline builder, `Var`, `TimelineRun`, and the assertion handles as your main API.
+
+## Extension-Facing Surface
+
+You only need the lower-level public abstractions when you are extending the framework itself, for example by adding:
+
+- custom triggers or events
+- artifact describers and references
+- environment-provider integrations
+- runtime or debugging integrations
+
+Those advanced surfaces are supported by the architecture docs, but they are secondary to the consumer workflow above.
+
 ## Typical Pattern
 
 1. Build timeline once (usually static in test classes).
