@@ -5,6 +5,9 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
+/// <summary>
+/// Provides fluent assertions for a single executed step.
+/// </summary>
 public class StepAsserter
 {
     private readonly StepInstanceGeneric _step;
@@ -40,6 +43,9 @@ public class StepAsserter
         throw new StepAssertionException(message);
     }
 
+    /// <summary>
+    /// Asserts that the step completed successfully.
+    /// </summary>
     public StepAsserter HaveCompleted()
     {
         if (_step.State != StepState.Complete)
@@ -47,6 +53,9 @@ public class StepAsserter
         return Pass(nameof(HaveCompleted));
     }
 
+    /// <summary>
+    /// Asserts that the step was skipped.
+    /// </summary>
     public StepAsserter HaveBeenSkipped()
     {
         if (_step.State != StepState.Skipped)
@@ -54,6 +63,9 @@ public class StepAsserter
         return Pass(nameof(HaveBeenSkipped));
     }
 
+    /// <summary>
+    /// Asserts that the step timed out.
+    /// </summary>
     public StepAsserter HaveTimedOut()
     {
         if (_step.State != StepState.Timeout)
@@ -61,6 +73,9 @@ public class StepAsserter
         return Pass(nameof(HaveTimedOut));
     }
 
+    /// <summary>
+    /// Asserts that the step ended in the error state.
+    /// </summary>
     public StepAsserter HaveErrored()
     {
         if (_step.State != StepState.Error)
@@ -68,6 +83,10 @@ public class StepAsserter
         return Pass(nameof(HaveErrored));
     }
 
+    /// <summary>
+    /// Asserts that the step threw an exception of the specified type.
+    /// </summary>
+    /// <typeparam name="TException">The expected exception type.</typeparam>
     public StepAsserter HaveThrown<TException>() where TException : Exception
     {
         var ex = _step.LastResult.Exception;
@@ -76,5 +95,8 @@ public class StepAsserter
         return Pass(nameof(HaveThrown));
     }
 
+    /// <summary>
+    /// Continues the fluent assertion chain.
+    /// </summary>
     public StepAsserter And() => this;
 }

@@ -8,5 +8,8 @@ namespace TestFramework.Core.Steps;
 /// </summary>
 public interface IHasPreStep
 {
+    /// <summary>
+    /// Creates the preparatory step that should run before the main stage begins.
+    /// </summary>
     StepGeneric? CreatePreStep(VariableStore variableStore);
 }

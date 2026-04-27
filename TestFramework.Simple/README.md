@@ -57,6 +57,70 @@ Timeline timeline = Timeline.Create()
     .Build();
 ```
 
+## Choosing An `Action(...)` Overload
+
+Use the smallest overload that matches the information you need:
+
+- `Action(Action action)` when the step only needs to run code.
+- `Action(Action<Dictionary<VariableIdentifier, object?>> action, params VariableReferenceGeneric[] variables)` when the step only needs resolved variables.
+- `Action(Action<Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> action, VariableReferenceGeneric[] variables, params ArtifactIdentifier[] artifacts)` when the step needs both variables and artifacts.
+- `Action(Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> action, VariableReferenceGeneric[] variables, params ArtifactIdentifier[] artifacts)` when the step also needs dependency-injected services or logging.
+
+The richer overloads intentionally trade some simplicity for flexibility. Variable and artifact values are exposed through dictionaries keyed by their identifiers.
+
+## Artifact-Aware Action
+
+```csharp
+using TestFramework.Core.Artifacts;
+using TestFramework.Core.Variables;
+using TestFramework.Simple;
+
+ArtifactIdentifier payloadArtifact = new("payload");
+
+Timeline timeline = Timeline.Create()
+    .Trigger(Simple.Trigger.Action(
+        (vars, artifacts) =>
+        {
+            string? name = (string?)vars[new VariableIdentifier("name")];
+            ArtifactInstanceGeneric payload = artifacts[payloadArtifact];
+            Console.WriteLine($"Processing {name} with artifact {payload.Identifier}");
+        },
+        [Var.Ref<string>("name")],
+        payloadArtifact))
+    .Build();
+```
+
+## Full-Context Action
+
+```csharp
+using TestFramework.Core.Logging;
+using TestFramework.Core.Variables;
+using TestFramework.Simple;
+
+Timeline timeline = Timeline.Create()
+    .Trigger(Simple.Trigger.Action(
+        (serviceProvider, logger, vars, artifacts) =>
+        {
+            logger.LogInformation("Executing inline action with {VariableCount} variables and {ArtifactCount} artifacts.", vars.Count, artifacts.Count);
+        },
+        [Var.Ref<string>("name")]))
+    .Build();
+```
+
+## Windows MessageBox Behavior
+
+`Simple.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`.
+
+- Use it only on Windows test machines.
+- Do not rely on it for unattended CI runs.
+- Prefer `Action(...)` when you need a cross-platform inline step.
+
+## Handling Failures
+
+- `Action(...)` fails immediately if you pass a null delegate.
+- Variable-based overloads require identifiers for every supplied variable reference.
+- `MessageBox(...)` requires Windows and will not behave correctly on non-Windows platforms.
+
 ## Includes
 
 - `Simple.Trigger.Action(...)` for inline custom actions

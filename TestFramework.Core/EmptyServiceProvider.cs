@@ -15,6 +15,9 @@ namespace TestFramework.Core;
 /// </summary>
 public class EmptyServiceProvider : IServiceProvider
 {
+    /// <summary>
+    /// Returns <see langword="null"/> for every requested service type.
+    /// </summary>
     public object? GetService(Type serviceType)
     {
         Debug.WriteLine(

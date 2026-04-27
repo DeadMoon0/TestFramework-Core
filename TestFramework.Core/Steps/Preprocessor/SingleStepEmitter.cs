@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.ComponentModel;
+using System;
 using System.Collections.Generic;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
@@ -7,8 +8,15 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.Preprocessor;
 
+/// <summary>
+/// Emits a single step, including any required pre-step or cleanup-step redirections.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public class SingleStepEmitter(StepGeneric step) : StepEmitter
 {
+    /// <summary>
+    /// Emits the wrapped step and any auxiliary pre-step or cleanup-step emissions.
+    /// </summary>
     public override IEnumerable<StepEmitterStepResult> Emit(ArtifactStore artifactStore, VariableStore variableStore, VariableTracker variableTracker, ArtifactTracker artifactTracker, List<Action<StepGeneric, VariableTracker, ArtifactTracker>> modifierActions, ScopedLogger? logger = null)
     {
         StepGeneric modifiedStep = step.CloneGeneric();
