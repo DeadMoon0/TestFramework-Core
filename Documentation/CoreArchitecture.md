@@ -163,13 +163,15 @@ classDiagram
 **Control-flow actions** (`Conditional`, `ForEach`) return `ITimelineBuilder` (not `ITimelineBuilderModifier`), because they wrap nested sub-builders:
 
 ```csharp
-.Conditional(Var.RefImmutable<bool>("flag"), inner => inner
-    .Trigger(someStep)
-    .SetVariable("x", 42)
-)
-.ForEach(Var.RefImmutable<string[]>("items"), "item", inner => inner
-    .Trigger(processStep)
-)
+.Conditional(Var.RefImmutable<bool>("flag"), thenBranch =>
+{
+    thenBranch.Trigger(someStep);
+    thenBranch.SetVariable("x", 42);
+})
+.ForEach(Var.RefImmutable<string[]>("items"), "item", loop =>
+{
+    loop.Trigger(processStep);
+})
 ```
 
 #### Complete Action Reference
@@ -980,15 +982,16 @@ Timeline timeline = Timeline.Create()
         s => s != null && s.StartsWith("HELLO"))
 
     // Conditional logic
-    .Conditional(Var.RefImmutable<bool>("verbose"), inner => inner
-        .Trigger(new GreetStep(
-            Var.Ref<string>("userName").Transform(n => n + " (verbose)")))
-    )
+    .Conditional(Var.RefImmutable<bool>("verbose"), thenBranch =>
+    {
+        thenBranch.Trigger(new GreetStep(Var.Ref<string>("userName").Transform(n => n + " (verbose)")));
+    })
 
     // ForEach loop
-    .ForEach(Var.RefImmutable<string[]>("extraNames"), "currentName", inner => inner
-        .Trigger(new GreetStep(Var.Ref<string>("currentName")))
-    )
+    .ForEach(Var.RefImmutable<string[]>("extraNames"), "item", loop =>
+    {
+        loop.Trigger(new GreetStep(Var.Ref<string>("item")));
+    })
 
     .Build();
 

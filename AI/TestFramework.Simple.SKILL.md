@@ -25,6 +25,7 @@
     Keep assertions outside the trigger body where possible.
     Prefer Simple for test-local side effects, tiny inline logging, or very small orchestration glue.
     Prefer the smallest overload that expresses the scenario clearly.
+    Prefer compact `Trigger(Simple.Trigger.Action(...))` shapes over needlessly expanded formatting.
 </best_practices>
 
 <overload_guidance>
@@ -56,18 +57,20 @@
     - MessageBoxTrigger is Windows-only and should be treated as an interactive edge tool, not as the default recommendation.
 </runtime_behavior>
 
-<release_readiness_notes>
-    1.0 grounding the agent should preserve:
+<documentation_notes>
+    Guidance the agent should preserve:
     - null delegates should fail at the public API boundary
-    - README guidance now explains overload choice and advanced examples; align recommendations with that simpler teaching order
+    - README guidance explains overload choice and advanced examples; align recommendations with that simpler teaching order
     - MessageBox belongs to demo/debug flows, while Action(...) is the normal lightweight trigger surface
-</release_readiness_notes>
+</documentation_notes>
 
 <style_guide>
     Prefer short delegates with obvious intent.
     If the action body starts to contain branching, repeated logic, or many dependencies, recommend a proper reusable step instead.
     Keep the delegate focused on the action and keep verification in the post-run assertion block.
     Prefer one tiny delegate with a clear side effect over a delegate that silently contains business workflow logic.
+    Prefer single-line delegates when they stay readable.
+    Use ordinary C# locals or constants for captured values before introducing timeline-variable machinery.
 </style_guide>
 
 <sample_patterns>

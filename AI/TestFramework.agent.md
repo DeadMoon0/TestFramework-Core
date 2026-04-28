@@ -249,7 +249,7 @@ public async Task Timeline_runs_to_completion()
 
 	run.EnsureRanToCompletion();
 
-	using AssertionScope _ = run.AssertionScope();
+	using var assertionScope = run.AssertionScope();
 	run.Step("prepare").Should().HaveCompleted();
 	run.Step("normalize").Should().HaveCompleted();
 	run.Should().NotHaveLoggedAnyErrors();
