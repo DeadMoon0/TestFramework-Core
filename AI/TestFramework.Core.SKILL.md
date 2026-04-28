@@ -21,7 +21,7 @@
 </architecture>
 
 <public_surface_model>
-    For 1.0 reasoning, treat the public Core surface as three layers:
+    Treat the public Core surface as three layers:
     - consumer-first API: Timeline.Create() -> Build() -> SetupRun(...) -> RunAsync(), TimelineRun, StepHandle, Var helpers, and fluent assertions
     - advanced extension API: artifacts, environment providers, events, logging, and selected runtime abstractions used by addon packages
     - compatibility-preserving scaffolding: builder action interfaces, debugger seams, and preprocessors that remain public but should not be presented as the normal learning path
@@ -37,7 +37,8 @@
     Keep shared conventions in this Core skill and package-specific knowledge in addon skills.
     Prefer one obvious flow over deeply nested helper abstractions.
     Keep setup, execution, and assertions conceptually separate even when they live in one short test method.
-    Prefer data flow through variables and artifacts over ad-hoc mutable local state.
+    Prefer inline values and normal C# constants until a timeline variable clearly improves readability, reuse, or runtime data flow.
+    Prefer compact call formatting when the line stays readable.
     Prefer extension packages when the test touches a real external system instead of inventing custom plumbing in Core.
     Strongly prefer the existing global TestFramework building blocks over custom Steps, custom Artifacts, or custom framework primitives.
 </best_practices>
@@ -57,11 +58,13 @@
     - Keep interaction code inside the timeline whenever the interaction is part of the scenario under test.
     - Outside the timeline, only prepare run-local input values, build providers/config, start the run, and assert on the result.
     - Do not hide remote calls, file operations, message sends, or other scenario interactions in imperative code before or after the run if the timeline can model them.
-    - Keep the timeline vertically readable: builder actions start on their own indentation level, modifiers such as Name(...), WithTimeOut(...), and WithRetry(...) continue directly under the step they modify.
+    - Keep the timeline vertically readable without turning every call into a staircase: builder actions should stay compact when short, and modifiers such as Name(...), WithTimeOut(...), and WithRetry(...) should stay visually attached to the step they modify.
+    - Make Conditional(...) and ForEach(...) read as close to normal C# control flow as possible.
 
     Visual shape to prefer:
     - one builder action per line
-    - chained modifiers indented one level deeper than the action they modify
+    - compact Trigger(...), WaitForEvent(...), SetVariable(...), and Transform(...) calls when they remain readable
+    - chained modifiers kept directly on the same visual block as the action they modify
     - Build() as the final line of the field initializer
 </structure_rules>
 
@@ -80,7 +83,9 @@
     - Avoid positional assertions like run.Steps()[0] when a named step is possible.
     - Avoid hiding the core timeline flow inside large helper methods.
     - Avoid mixing environment setup logic into assertion sections.
-    - Prefer timeline formatting where the action is the anchor line and its modifiers are indented below it.
+    - Prefer timeline formatting that reads like ordinary C# instead of framework ceremony.
+    - Prefer inline values over explicit variable identifiers when the variable name would only repeat the obvious.
+    - Prefer idiomatic names such as item, message, orderId, or inputValue over framework-demo naming.
     - Prefer run-local data setup outside the timeline, but keep scenario interaction steps inside the timeline.
 </style_guide>
 
@@ -144,8 +149,8 @@
     - Use run.AssertionScope() when several failures should be reported together.
 
     Variable-driven pattern:
-    - Use variables for values that differ per run.
-    - Keep the timeline readable by making the variable names communicate intent.
+    - Use variables for values that truly differ per run or make multi-step data flow clearer.
+    - Do not add variable identifiers just to name a one-off constant that could stay inline.
 
     Extension pattern:
     - Use Core for the test shape and flow.
@@ -162,22 +167,23 @@
     When users discover builder-action interfaces, debugger types, or preprocessors directly, translate them back into the higher-level consumer surface before proposing changes.
 </decision_rules>
 
-<release_readiness_notes>
-    1.0 grounding the agent should preserve:
+<documentation_notes>
+    Agent guidance to preserve:
     - package XML documentation generation is enabled and the current public surface is documented
     - the consumer-first contract is the intended documentation anchor even though broader advanced surfaces remain public
-    - future cleanup candidates exist, but they belong to a later breaking-change window, not late 1.0 reshaping
+    - future cleanup candidates exist, but they belong to a later breaking-change window rather than the normal guidance path
 
     Practical recommendation:
     - for normal usage, keep guidance centered on timelines, run setup, variables, assertions, and addon-package entry points
     - for extension work, explicitly say when the user is stepping from consumer API into extension API
-</release_readiness_notes>
+</documentation_notes>
 
 <anti_patterns>
     Avoid:
     - positional assertions like run.Steps()[0] when named steps are possible
     - hiding the core timeline flow inside large helper methods
     - using mutable local control flow when variables communicate intent better
+    - declaring explicit timeline variables when inline values or normal C# constants keep the test clearer
     - mixing environment setup logic into the assertion section
     - reimplementing package-level capabilities in custom Core-only code when an addon already models the interaction
     - putting real scenario interactions outside the timeline when they should be visible as triggers, waits, transforms, or artifact operations

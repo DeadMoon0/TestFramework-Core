@@ -27,6 +27,7 @@
     Keep configuration mutation close to the test that needs it.
     Load JSON once and derive multiple scenario-specific providers from the built base instance.
     Prefer documenting or asserting the final override path clearly instead of hiding it in helper code.
+    Keep config examples compact so the reader can still see the scenario, not only the wiring.
 </best_practices>
 
 <api_hints>
@@ -80,6 +81,8 @@
     Use override keys that mirror the final configuration path exactly.
     Do not hide important test inputs inside unrelated service-registration helpers.
     Keep the configuration section short enough that a reader can still see what is unique about the test.
+    Prefer ordinary C# constants or locals for one-off values instead of inventing extra framework-level naming.
+    Keep `SetupRun(provider).RunAsync()` examples compact when no extra explanation is needed.
 </style_guide>
 
 <sample_patterns>

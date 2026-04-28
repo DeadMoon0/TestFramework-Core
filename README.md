@@ -35,11 +35,20 @@ installation, configuration via `ConfigInstance`, timeline definition, run execu
 using Microsoft.Extensions.DependencyInjection;
 using TestFramework.Config;
 using TestFramework.Core.Timelines;
+using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Variables;
 using Xunit;
 
 public class SampleIntegrationTest
 {
+	private const string InputValue = "Alex";
+
+	private static readonly Timeline _timeline = Timeline.Create()
+		.SetVariable("name", Var.Const(InputValue))
+		.Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+		.AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
+		.Build();
+
 	[Fact]
 	public async Task CanRunTimeline()
 	{
@@ -52,18 +61,14 @@ public class SampleIntegrationTest
 			})
 			.BuildServiceProvider();
 
-		Timeline timeline = Timeline.Create()
-			.SetVariable("name", Var.Const("Alex"))
-			.Transform("greeting", Var.Ref<string>("name"), n => $"Hello {n}")
-			.AssertVariable(Var.Ref<string>("greeting"), g => g == "Hello Alex")
-			.Build();
-
-		TimelineRun run = await timeline
-			.SetupRun(serviceProvider)
-			.RunAsync();
+		TimelineRun run = await _timeline.SetupRun(serviceProvider).RunAsync();
 
 		run.EnsureRanToCompletion();
-		run.Variable<string>("greeting").Should().Exist().And().Be("Hello Alex");
+
+		using (var assertionScope = run.AssertionScope())
+		{
+			run.Variable<string>("greeting").Should().Exist().And().Be($"Hello {InputValue}");
+		}
 	}
 
 	private interface ISystemClock { }
@@ -95,7 +100,7 @@ This enables deterministic setup/cleanup in integration tests.
 
 ## Public Contract Layers
 
-For the 1.0 push, treat the Core surface in this order:
+Treat the Core surface in this order:
 
 ### Consumer-First API
 

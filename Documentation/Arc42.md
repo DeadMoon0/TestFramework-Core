@@ -1,6 +1,5 @@
 # TestFramework.Core — arc42 Architecture Documentation
 
-> **Version:** 0.1.1 codebase, maintained during the 1.0 readiness push
 > **Date:** April 2026
 > **Audience:** Team members who use, extend, or maintain the framework
 

@@ -59,15 +59,13 @@ Override precedence is last-write-wins within the active builder. A sub-instance
 using TestFramework.Config;
 using TestFramework.Core.Timelines;
 
-Timeline timeline = Timeline.Create().Build();
+private static readonly Timeline _timeline = Timeline.Create().Build();
 
 var provider = ConfigInstance
 	.Create()
 	.BuildServiceProvider();
 
-TimelineRun run = await timeline
-	.SetupRun(provider)
-	.RunAsync();
+TimelineRun run = await _timeline.SetupRun(provider).RunAsync();
 
 run.EnsureRanToCompletion();
 ```

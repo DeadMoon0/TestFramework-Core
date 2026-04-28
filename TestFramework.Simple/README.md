@@ -23,20 +23,16 @@ public class SimpleSample
     public async Task InlineAction()
     {
         string? message = null;
+        const string expectedMessage = "Action executed";
 
         Timeline timeline = Timeline.Create()
-            .Trigger(Simple.Trigger.Action(() =>
-            {
-                message = "Action executed";
-            }))
+            .Trigger(Simple.Trigger.Action(() => message = expectedMessage))
             .Build();
 
-        TimelineRun run = await timeline
-            .SetupRun()
-            .RunAsync();
+        TimelineRun run = await timeline.SetupRun().RunAsync();
 
         run.EnsureRanToCompletion();
-        Assert.Equal("Action executed", message);
+        Assert.Equal(expectedMessage, message);
     }
 }
 ```
@@ -49,11 +45,7 @@ using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
     .SetVariable("name", Var.Const("Alex"))
-    .Trigger(Simple.Trigger.Action(vars =>
-    {
-        var name = (string?)vars[new VariableIdentifier("name")];
-        Console.WriteLine($"Hello {name}");
-    }, Var.Ref<string>("name")))
+    .Trigger(Simple.Trigger.Action(vars => Console.WriteLine($"Hello {vars[new VariableIdentifier("name")]}"), Var.Ref<string>("name")))
     .Build();
 ```
 
@@ -78,15 +70,12 @@ using TestFramework.Simple;
 ArtifactIdentifier payloadArtifact = new("payload");
 
 Timeline timeline = Timeline.Create()
-    .Trigger(Simple.Trigger.Action(
-        (vars, artifacts) =>
-        {
-            string? name = (string?)vars[new VariableIdentifier("name")];
-            ArtifactInstanceGeneric payload = artifacts[payloadArtifact];
-            Console.WriteLine($"Processing {name} with artifact {payload.Identifier}");
-        },
-        [Var.Ref<string>("name")],
-        payloadArtifact))
+    .Trigger(Simple.Trigger.Action((vars, artifacts) =>
+    {
+        string? name = (string?)vars[new VariableIdentifier("name")];
+        ArtifactInstanceGeneric payload = artifacts[payloadArtifact];
+        Console.WriteLine($"Processing {name} with artifact {payload.Identifier}");
+    }, [Var.Ref<string>("name")], payloadArtifact))
     .Build();
 ```
 
@@ -98,12 +87,10 @@ using TestFramework.Core.Variables;
 using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
-    .Trigger(Simple.Trigger.Action(
-        (serviceProvider, logger, vars, artifacts) =>
-        {
-            logger.LogInformation("Executing inline action with {VariableCount} variables and {ArtifactCount} artifacts.", vars.Count, artifacts.Count);
-        },
-        [Var.Ref<string>("name")]))
+    .Trigger(Simple.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
+    {
+        logger.LogInformation("Executing inline action with {VariableCount} variables and {ArtifactCount} artifacts.", vars.Count, artifacts.Count);
+    }, [Var.Ref<string>("name")]))
     .Build();
 ```
 
