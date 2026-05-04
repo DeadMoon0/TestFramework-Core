@@ -115,17 +115,26 @@ internal class TimelineBuilder : ITimelineBuilderModifier
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
-        _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>([identifier], finder, true)));
+        _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, finder)));
 
         return this;
     }
 
-    public ITimelineBuilder FindArtifactMulti<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier[] identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public ITimelineBuilder FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
-        _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifiers, finder, false)));
+        _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(baseName, finder, FindArtifactNamingMode.Generated)));
+        return this;
+    }
+
+    public ITimelineBuilder FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+        where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
+        where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
+        where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
+    {
+        _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifiers, finder)));
         return this;
     }
 

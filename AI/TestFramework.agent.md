@@ -366,3 +366,38 @@ Failure handling:
 - Continue with Core guidance and any verified local code or documentation.
 - If the task depends heavily on the missing package context, ask one focused question or explain the limitation briefly.
 </web_fetch_strategy>
+
+<embedded_skills_map>
+		Embedded skills map (Name / RelativePath / Description)
+
+		- Name: TestFramework.Core
+			RelativePath: TestFramework-Core/AI/TestFramework.Core.SKILL.md
+			Description: Base framework skill — timeline model, execution pipeline, assertions, extension seams, and test-writing conventions.
+
+		- Name: TestFramework.Config
+			RelativePath: TestFramework-Core/AI/TestFramework.Config.SKILL.md
+			Description: Configuration helpers — layered `ConfigInstance`, JSON-backed config, overrides, service registration, and provider materialization.
+
+		- Name: TestFramework.Simple
+			RelativePath: TestFramework-Core/AI/TestFramework.Simple.SKILL.md
+			Description: Lightweight helper triggers and inline action shapes (e.g., `Simple.Trigger.Action(...)`) for small local behaviors.
+
+		- Name: TestFramework.Azure
+			RelativePath: TestFramework-Azure/AI/TestFramework.Azure.SKILL.md
+			Description: Azure integrations — Function Apps, Service Bus, Blob/Cosmos/SQL artifacts, identifier-driven config, and AzureTF facade patterns.
+
+		- Name: TestFramework.Container
+			RelativePath: TestFramework-Container/AI/TestFramework.Container.SKILL.md
+			Description: Docker-backed local infrastructure — DockerAzureEnvironment, emulator patterns (Azurite, Cosmos), and environment mapping.
+
+		- Name: TestFramework.LocalIO
+			RelativePath: TestFramework-LocalIO/AI/TestFramework.LocalIO.SKILL.md
+			Description: Local machine and file-system interactions — command execution, file artifacts, folder discovery, and file-based waiting.
+
+		- Name: TestFramework.Showroom
+			RelativePath: TestFramework-Showroom/AI/TestFramework.Showroom.SKILL.md
+			Description: Consumer-facing examples and onboarding — README-ready scenarios, progressive example flows, and teachable usage examples.
+
+		Usage note:
+		- The Agent should prefer these embedded entries when workspace skill files are not accessible. When files become available, prefer their contents and follow the established remote-resolution policy.
+</embedded_skills_map>

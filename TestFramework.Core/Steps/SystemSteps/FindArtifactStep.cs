@@ -10,12 +10,48 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
+internal enum FindArtifactNamingMode
+{
+    Single,
+    Generated,
+    Exact
+}
+
 //TODO: Find a way to not have loos identifiers when no Artifact is found
-internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier[] identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder, bool single) : Step<object?>
+internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<object?>
     where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
 {
+    private readonly ArtifactIdentifier[] _identifiers;
+    private readonly ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> _finder;
+    private readonly FindArtifactNamingMode _namingMode;
+
+    public FindArtifactStep(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+        : this([identifier], finder, FindArtifactNamingMode.Single)
+    {
+    }
+
+    public FindArtifactStep(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder, FindArtifactNamingMode namingMode)
+        : this([baseName], finder, namingMode)
+    {
+    }
+
+    public FindArtifactStep(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+        : this(identifiers.ToArray(), finder, FindArtifactNamingMode.Exact)
+    {
+    }
+
+    private FindArtifactStep(ArtifactIdentifier[] identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder, FindArtifactNamingMode namingMode)
+    {
+        if (identifiers.Length == 0)
+            throw new InvalidOperationException("At least one artifact identifier is required.");
+
+        _identifiers = identifiers;
+        _finder = finder;
+        _namingMode = namingMode;
+    }
+
     public override bool DoesReturn => false;
 
     public override string Name => "Find Artifact";
@@ -23,15 +59,15 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
 
     public override Step<object?> Clone()
     {
-        return new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifiers, finder, single).WithClonedOptions(this);
+        return new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(_identifiers, _finder, _namingMode).WithClonedOptions(this);
     }
 
     public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         List<TArtifactReference> artifacts = [];
-        if (single)
+        if (_namingMode == FindArtifactNamingMode.Single)
         {
-            ArtifactFinderResult? result = await finder.FindAsync(serviceProvider, variableStore, logger, cancellationToken);
+            ArtifactFinderResult? result = await _finder.FindAsync(serviceProvider, variableStore, logger, cancellationToken);
             if (result is null)
             {
                 logger.LogWarning("No Artifact Found.");
@@ -41,12 +77,14 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
         }
         else
         {
-            artifacts.AddRange((await finder.FindMultiAsync(serviceProvider, variableStore, logger, cancellationToken)).ArtifactReferences.Select(x => (TArtifactReference)x.Reference));
+            artifacts.AddRange((await _finder.FindMultiAsync(serviceProvider, variableStore, logger, cancellationToken)).ArtifactReferences.Select(x => (TArtifactReference)x.Reference));
         }
+
+        EnsureIdentifierCountMatches(artifacts.Count);
 
         for (int i = 0; i < artifacts.Count; i++)
         {
-            ArtifactIdentifier identifier = i < identifiers.Length ? identifiers[i] : (identifiers[identifiers.Length - 1] + "_" + (i - identifiers.Length + 1));
+            ArtifactIdentifier identifier = GetIdentifier(i);
             artifacts[i].PinReference(variableStore, logger);
             artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], (await artifacts[i].ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger)).Data)
             {
@@ -60,7 +98,27 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
 
     public override void DeclareIO(StepIOContract contract)
     {
-        foreach (var id in identifiers)
+        foreach (var id in _identifiers)
             contract.Outputs.Add(new StepIOEntry(id.Identifier, StepIOKind.Artifact));
+    }
+
+    private void EnsureIdentifierCountMatches(int artifactCount)
+    {
+        if (_namingMode != FindArtifactNamingMode.Exact)
+            return;
+
+        if (artifactCount != _identifiers.Length)
+            throw new InvalidOperationException($"FindArtifactsAs expected {_identifiers.Length} artifact names but finder produced {artifactCount} results.");
+    }
+
+    private ArtifactIdentifier GetIdentifier(int index)
+    {
+        return _namingMode switch
+        {
+            FindArtifactNamingMode.Single => _identifiers[0],
+            FindArtifactNamingMode.Exact => _identifiers[index],
+            FindArtifactNamingMode.Generated => _identifiers[0] + "_" + index,
+            _ => throw new InvalidOperationException($"Unknown naming mode {_namingMode}.")
+        };
     }
 }
