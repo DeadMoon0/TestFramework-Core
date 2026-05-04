@@ -1,5 +1,7 @@
 ![Icon](https://raw.githubusercontent.com/DeadMoon0/TestFramework-Common/96ef4240c1e55ba95a20b99285219a61407c6355/Assets/Icon.svg)
-[![NuGet Version](https://img.shields.io/nuget/v/TestFramework.Core)](https://www.nuget.org/packages/TestFramework.Core)
+[![NuGet Version](https://img.shields.io/nuget/v/TestFramework.Core?label=nuget%20TestFramework.Core)](https://www.nuget.org/packages/TestFramework.Core)
+[![NuGet Version](https://img.shields.io/nuget/v/TestFramework.Config?label=nuget%20TestFramework.Config)](https://www.nuget.org/packages/TestFramework.Config)
+[![NuGet Version](https://img.shields.io/nuget/v/TestFramework.Simple?label=nuget%20TestFramework.Simple)](https://www.nuget.org/packages/TestFramework.Simple)
 
 
 # TestFramework Core
