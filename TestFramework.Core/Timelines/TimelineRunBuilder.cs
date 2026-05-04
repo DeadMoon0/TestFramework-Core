@@ -53,6 +53,10 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
     public async Task<TimelineRun> RunAsync()
     {
+        IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
+            ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
+            : _serviceProvider;
+
         logger.LogInformation("─ Plan ──────────────────────────────────────");
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps);
         logger.LogInformation("─────────────────────────────────────────────");
@@ -105,7 +109,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
                 using var _ = logger.EnterIndentScope();
                 var stageStopwatch = Stopwatch.StartNew();
-                await coreRunner.RunStage(stage, _serviceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
+                await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
                 stageStopwatch.Stop();
                 logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
             }
