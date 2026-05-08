@@ -1,4 +1,5 @@
 ﻿using TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
+using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
@@ -10,4 +11,5 @@ public interface ITimelineBuilderModifier : ITimelineBuilder,
     ISetupRetryModAction,
     IExpectExceptionsModAction,
     INameModAction,
+    IStepIOModAction,
     IRunExclusivelyModAction;

@@ -1,4 +1,5 @@
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Events;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
@@ -7,6 +8,7 @@ using TestFramework.Core.Timelines;
 using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Variables;
 using Xunit.Abstractions;
+using System.Linq;
 
 namespace TestFramework.Core.Tests;
 
@@ -74,6 +76,72 @@ public class CoreTimelineCoverageTests
         run.EnsureRanToCompletion();
         Assert.Equal(3, probe.Attempts);
         Assert.Equal(3, run.Step("flaky").RetryResults.Count);
+    }
+
+    [Fact]
+    public async Task TimelineRun_CaptureResultAs_PersistsExplicitStepOutputVariable()
+    {
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ReturnConstantStep("logic-run"))
+            .Name("return-run")
+            .CaptureResultAs("logicRun")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun().RunAsync();
+
+        run.EnsureRanToCompletion();
+        run.Variable<string>("out").Should().NotExist();
+        run.Variable<string>("logicRun").Should().Exist().And().Be("logic-run");
+    }
+
+    [Fact]
+    public async Task TimelineRun_CaptureResultAsTyped_DeclaresTypedOutputVariable()
+    {
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ReturnConstantStep("logic-run"))
+            .Name("return-run")
+            .CaptureResultAs<string>("logicRun")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun().RunAsync();
+
+        run.EnsureRanToCompletion();
+        run.Variable<string>("out").Should().NotExist();
+        run.Variable<string>("logicRun").Should().Exist().And().Be("logic-run");
+        Assert.Single(run.Step("return-run").Step.IOContract.Outputs.Where(entry => entry.Key == "logicRun" && entry.Kind == StepIOKind.Variable && entry.DeclaredType == typeof(string)));
+    }
+
+    [Fact]
+    public async Task TimelineRun_WaitForSequentialReturningEvent_DoesNotCompleteBeforePayloadIsAvailable()
+    {
+        ReturningSequentialProbeEvent probeEvent = new();
+        Timeline timeline = Timeline.Create()
+            .WaitForEvent(probeEvent)
+            .Name("await-event")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun().RunAsync();
+
+        run.EnsureRanToCompletion();
+        Assert.Equal(2, probeEvent.Attempts);
+        Assert.Equal("done", run.Step("await-event").LastResult.Result);
+    }
+
+    [Fact]
+    public async Task Timeline_BuildOnce_CanCreateIndependentRuns_WithSetupRunAtMethodScope()
+    {
+        Timeline timeline = Timeline.Create()
+            .SetVariable("name", Var.Const("Ada"))
+            .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+            .Build();
+
+        TimelineRun firstRun = await timeline.SetupRun().RunAsync();
+        TimelineRun secondRun = await timeline.SetupRun().RunAsync();
+
+        firstRun.EnsureRanToCompletion();
+        secondRun.EnsureRanToCompletion();
+        firstRun.Variable<string>("greeting").Should().Exist().And().Be("Hello Ada");
+        secondRun.Variable<string>("greeting").Should().Exist().And().Be("Hello Ada");
     }
 
     [Fact]
@@ -281,6 +349,49 @@ public class CoreTimelineCoverageTests
         public override Step<object?> Clone() => new LoggingStep(message).WithClonedOptions(this);
 
         public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+    }
+
+    private sealed class ReturnConstantStep(string value) : Step<string>
+    {
+        public override string Name => "Return Constant";
+        public override string Description => "Returns a constant string.";
+        public override bool DoesReturn => true;
+
+        public override Task<string?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<string?>(value);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override Step<string> Clone() => new ReturnConstantStep(value).WithClonedOptions(this);
+
+        public override StepInstance<Step<string>, string> GetInstance() => new(this);
+    }
+
+    private sealed class ReturningSequentialProbeEvent : SequentialEvent<ReturningSequentialProbeEvent, string>
+    {
+        public int Attempts { get; private set; }
+
+        public override string Name => "ReturningSequentialProbeEvent";
+
+        public override string Description => "Returns an incomplete poll once before yielding a value.";
+
+        public override bool DoesReturn => true;
+
+        public override Step<string> Clone() => this;
+
+        public override Task<SequentialPollingResult<string>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        {
+            Attempts++;
+            return Task.FromResult(Attempts == 1
+                ? new SequentialPollingResult<string>(false, null, TimeSpan.Zero)
+                : new SequentialPollingResult<string>(true, "done", TimeSpan.Zero));
+        }
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
     }
 
     private sealed class RecordingOutputHelper : ITestOutputHelper

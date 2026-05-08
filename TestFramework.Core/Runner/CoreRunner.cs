@@ -8,6 +8,7 @@ using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Logging.BuildInEvents;
 
@@ -48,7 +49,8 @@ internal class CoreRunner
                     var r = await executionTask.WaitAsync(timeout);
                     stepResult.Result = r;
                     stepResult.State = StepState.Complete;
-                    if (step.Step.DoesReturn) variableStore.SetVariable("out", r);
+                    if (step.Step.DoesReturn)
+                        variableStore.SetVariable(step.Step.ResultOptions.ResultVariable, r);
                 }
                 catch (TimeoutException e)
                 {

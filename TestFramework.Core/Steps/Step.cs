@@ -17,6 +17,11 @@ public abstract class Step<TResult> : StepGeneric
 #pragma warning restore CA1716
 {
     /// <summary>
+    /// Gets the CLR type produced by this step.
+    /// </summary>
+    public override Type ResultType => typeof(TResult);
+
+    /// <summary>
     /// Executes the step.
     /// </summary>
     /// <param name="serviceProvider">The service provider available to the step.</param>
@@ -79,6 +84,7 @@ public abstract class StepGeneric : IFreezable
         ErrorHandlingOptions.Freeze();
         TimeOutOptions.Freeze();
         ExecutionOptions.Freeze();
+        ResultOptions.Freeze();
         IOContract.Freeze();
     }
 
@@ -118,6 +124,11 @@ public abstract class StepGeneric : IFreezable
     public ExecutionOptions ExecutionOptions { get; init; } = new ExecutionOptions();
 
     /// <summary>
+    /// Gets the result-target configuration for the step.
+    /// </summary>
+    public ResultOptions ResultOptions { get; init; } = new ResultOptions();
+
+    /// <summary>
     /// Gets the declared input and output contract for the step.
     /// </summary>
     public StepIOContract IOContract { get; init; } = new StepIOContract();
@@ -126,6 +137,11 @@ public abstract class StepGeneric : IFreezable
     /// Gets a value indicating whether the step returns a result value.
     /// </summary>
     public abstract bool DoesReturn { get; }
+
+    /// <summary>
+    /// Gets the CLR type produced by this step.
+    /// </summary>
+    public abstract Type ResultType { get; }
 
     /// <summary>
     /// Executes the step through the untyped base contract.
@@ -159,6 +175,7 @@ public abstract class StepGeneric : IFreezable
         from.TimeOutOptions.CloneTo(TimeOutOptions);
         from.LabelOptions.CloneTo(LabelOptions);
         from.ExecutionOptions.CloneTo(ExecutionOptions);
+        from.ResultOptions.CloneTo(ResultOptions);
         from.IOContract.CloneTo(IOContract);
         return this;
     }

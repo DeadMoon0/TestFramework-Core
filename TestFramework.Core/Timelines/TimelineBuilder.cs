@@ -186,11 +186,29 @@ internal class TimelineBuilder : ITimelineBuilderModifier
         return this;
     }
 
+    public ITimelineBuilderModifier CaptureResultAs(VariableIdentifier identifier) => CaptureResultAsInternal(identifier, declaredType: null);
+
+    public ITimelineBuilderModifier CaptureResultAs<T>(VariableIdentifier identifier) => CaptureResultAsInternal(identifier, typeof(T));
+
     public ITimelineBuilderModifier RunExclusively()
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             step.ExecutionOptions.RunExclusively = true;
+        });
+
+        return this;
+    }
+
+    private ITimelineBuilderModifier CaptureResultAsInternal(VariableIdentifier identifier, Type? declaredType)
+    {
+        _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
+        {
+            if (!step.DoesReturn)
+                throw new InvalidOperationException($"Step '{step.Name}' does not return a result and cannot be captured into variable '{identifier}'.");
+
+            step.ResultOptions.ResultVariable = identifier;
+            step.ResultOptions.DeclaredType = declaredType;
         });
 
         return this;

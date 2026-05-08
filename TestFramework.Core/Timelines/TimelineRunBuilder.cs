@@ -158,7 +158,13 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, logger))
                 {
                     step.Step.DeclareIO(step.Step.IOContract);
-                    if (step.Step.DoesReturn) step.Step.IOContract.Outputs.Add(new StepIOEntry("out", StepIOKind.Variable));
+                    if (step.Step.DoesReturn && !step.Step.IOContract.Outputs.Any(output => output.Key == step.Step.ResultOptions.ResultVariable.Identifier && output.Kind == StepIOKind.Variable))
+                    {
+                        Type? declaredType = step.Step.ResultOptions.ResultVariable.Identifier == "out"
+                            ? step.Step.ResultType
+                            : step.Step.ResultOptions.DeclaredType;
+                        step.Step.IOContract.Outputs.Add(new StepIOEntry(step.Step.ResultOptions.ResultVariable.Identifier, StepIOKind.Variable, false, declaredType));
+                    }
                     if (step.RedirectToCleanUp)
                         bufferedCleanupSteps.Add(step.Step);
                     else if (step.RunInPreSetupStage)
@@ -225,7 +231,6 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         return requirements;
     }
-
     public ITimelineRunBuilder AddArtifact<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference, ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference> data)
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>

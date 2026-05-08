@@ -64,6 +64,11 @@ For most users, the Core contract is intentionally small:
 4. Create a run with `SetupRun(...)`.
 5. Execute with `RunAsync()` and assert through `TimelineRun`.
 
+The scope split matters:
+
+- `Build()` usually belongs at class scope because it produces the reusable timeline definition.
+- `SetupRun(...)` usually belongs at method scope because each call creates a per-run builder with run-specific services, variables, artifacts, or output wiring.
+
 The package exposes additional public types for artifacts, environment integration, debugging, and the fluent builder composition model, but those are advanced surfaces. If you are writing tests rather than framework extensions, prefer the timeline builder, `Var`, `TimelineRun`, and the assertion handles as your main API.
 
 ## Extension-Facing Surface
@@ -79,8 +84,8 @@ Those advanced surfaces are supported by the architecture docs, but they are sec
 
 ## Typical Pattern
 
-1. Build timeline once (usually static in test classes).
-2. Create a run with `SetupRun(...)`.
+1. Build timeline once (usually static in test classes or other reusable class scope).
+2. Create a run with `SetupRun(...)` inside the test or method that is about to execute it.
 3. Add runtime variables/artifacts if needed.
 4. Run with `RunAsync()`.
 5. Assert with `EnsureRanToCompletion()` and variable/artifact checks.
