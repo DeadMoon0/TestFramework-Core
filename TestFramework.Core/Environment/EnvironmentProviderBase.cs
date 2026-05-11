@@ -15,6 +15,11 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
     private readonly Dictionary<string, HashSet<EnvComponentIdentifier>> _resourceKindMappings = [];
 
     /// <summary>
+    /// Gets a value indicating whether dependency-ready environment components may be created in parallel.
+    /// </summary>
+    public virtual bool SupportsParallelComponentCreation => false;
+
+    /// <summary>
     /// Registers an environment component.
     /// </summary>
     protected void AddComponent(EnvComponent component)

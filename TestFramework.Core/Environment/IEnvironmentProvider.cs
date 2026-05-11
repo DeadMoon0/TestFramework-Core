@@ -9,6 +9,11 @@ namespace TestFramework.Core.Environment;
 public interface IEnvironmentProvider
 {
     /// <summary>
+    /// Gets a value indicating whether dependency-ready environment components may be created in parallel.
+    /// </summary>
+    bool SupportsParallelComponentCreation => false;
+
+    /// <summary>
     /// Resolves the environment components needed for the provided artifacts and requirements.
     /// </summary>
     /// <param name="artifacts">Artifacts already available for the run.</param>

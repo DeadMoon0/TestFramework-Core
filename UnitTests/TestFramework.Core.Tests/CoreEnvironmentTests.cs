@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment;
 using TestFramework.Core.Exceptions;
@@ -112,6 +113,34 @@ public class CoreEnvironmentTests
     }
 
     [Fact]
+    public async Task SetEnv_WithParallelCreationEnabled_CreatesDependencyReadyComponentsConcurrently()
+    {
+        ParallelEnvironment environment = new();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new NoOpStep())
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun()
+            .AddArtifact("artifact", new TestArtifactReference(), new TestArtifactData())
+            .SetEnv(environment)
+            .RunAsync();
+
+        run.EnsureRanToCompletion();
+
+        Assert.True(environment.MaxConcurrentCreates >= 2, $"Expected at least two concurrent component creations, but observed {environment.MaxConcurrentCreates}.");
+
+        int alphaEnd = environment.Calls.IndexOf("end:alpha");
+        int betaEnd = environment.Calls.IndexOf("end:beta");
+        int gammaCreate = environment.Calls.IndexOf("create:gamma");
+
+        Assert.True(alphaEnd >= 0);
+        Assert.True(betaEnd >= 0);
+        Assert.True(gammaCreate > alphaEnd);
+        Assert.True(gammaCreate > betaEnd);
+    }
+
+    [Fact]
     public void SetEnv_WhenCalledTwice_Throws()
     {
         Timeline timeline = Timeline.Create()
@@ -173,6 +202,35 @@ public class CoreEnvironmentTests
         }
     }
 
+    private sealed class ParallelEnvironment : EnvironmentProviderBase
+    {
+        public List<string> Calls { get; } = [];
+        private int _activeCreates;
+
+        public override bool SupportsParallelComponentCreation => true;
+
+        public int MaxConcurrentCreates { get; private set; }
+
+        public ParallelEnvironment()
+        {
+            AddComponent(new DelayedLoggingEnvComponent("alpha", this, Calls));
+            AddComponent(new DelayedLoggingEnvComponent("beta", this, Calls));
+            AddComponent(new LoggingEnvComponent("gamma", Calls, ["alpha", "beta"]));
+            MapArtifact<TestArtifactDescriber>("gamma");
+        }
+
+        public void OnCreateStart()
+        {
+            int activeCreates = Interlocked.Increment(ref _activeCreates);
+            MaxConcurrentCreates = Math.Max(MaxConcurrentCreates, activeCreates);
+        }
+
+        public void OnCreateEnd()
+        {
+            Interlocked.Decrement(ref _activeCreates);
+        }
+    }
+
     private sealed class LoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
@@ -188,6 +246,38 @@ public class CoreEnvironmentTests
         }
 
         public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        {
+            calls.Add($"deconstruct:{Id}:{state}");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class DelayedLoggingEnvComponent(string identifier, ParallelEnvironment environment, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
+    {
+        private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
+
+        public override EnvComponentIdentifier Id => identifier;
+
+        public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
+
+        public override async Task<object?> CreateAsync(IEnvironmentProvider environmentProvider, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        {
+            calls.Add($"start:{Id}");
+            environment.OnCreateStart();
+            try
+            {
+                await Task.Delay(75, cancellationToken);
+                calls.Add($"end:{Id}");
+                calls.Add($"create:{Id}");
+                return $"state:{Id}";
+            }
+            finally
+            {
+                environment.OnCreateEnd();
+            }
+        }
+
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environmentProvider, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             calls.Add($"deconstruct:{Id}:{state}");
             return Task.CompletedTask;
