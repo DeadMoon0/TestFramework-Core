@@ -19,6 +19,11 @@ public abstract class EnvComponent
     public abstract EnvComponentIdentifier Id { get; }
 
     /// <summary>
+    /// Gets how the component participates in cross-run reuse.
+    /// </summary>
+    public virtual EnvComponentReuseMode ReuseMode => EnvComponentReuseMode.PerRun;
+
+    /// <summary>
     /// Gets the component identifiers that must exist before this component can be created.
     /// </summary>
     public virtual IReadOnlyList<EnvComponentIdentifier> Dependencies => [];

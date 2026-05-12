@@ -1,9 +1,9 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Environment.Internal;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -24,13 +24,19 @@ internal class DeconstructEnvComponentsStep(IEnvironmentProvider environment, En
 
     public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
-        foreach (EnvComponentIdentifier identifier in context.GetCreationOrder().Reverse())
-        {
-            EnvComponent component = environment.GetComponent(identifier);
-            context.TryGetState(identifier, out object? state);
-            logger.LogInformation("Deconstruct EnvComponent ({0})", component.Id);
-            await component.DeconstructAsync(state, environment, serviceProvider, variableStore, artifactStore, logger, cancellationToken);
-        }
+        await EnvComponentLifecycleRunner.DeconstructAsync(
+            environment,
+            context.GetCreationOrder(),
+            serviceProvider,
+            variableStore,
+            artifactStore,
+            logger,
+            cancellationToken,
+            identifier =>
+            {
+                context.TryGetState(identifier, out object? state);
+                return state;
+            });
 
         return null;
     }

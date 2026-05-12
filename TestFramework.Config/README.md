@@ -1,4 +1,4 @@
-# TestFramework Config
+# TestFramework.Config
 
 `TestFramework.Config` provides a simple, composable way to prepare
 `IServiceProvider` and `IConfiguration` for timeline runs.

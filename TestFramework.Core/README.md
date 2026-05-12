@@ -71,6 +71,20 @@ The scope split matters:
 
 The package exposes additional public types for artifacts, environment integration, debugging, and the fluent builder composition model, but those are advanced surfaces. If you are writing tests rather than framework extensions, prefer the timeline builder, `Var`, `TimelineRun`, and the assertion handles as your main API.
 
+## Fluent API Discovery
+
+The fluent API is one logical surface even though it is composed internally from several public interfaces.
+
+For normal usage, treat these as the only concepts that matter:
+
+- `Timeline.Create()` starts composition
+- fluent builder verbs add steps and modifiers
+- `Build()` freezes the reusable definition
+- `SetupRun(...)` creates a per-run builder
+- `RunAsync()` executes the run
+
+The lower-level action interfaces remain public for compatibility and extension reasons, but they are intentionally de-emphasized in IntelliSense. If you discover those types directly, prefer returning to `ITimelineBuilder`, `ITimelineBuilderModifier`, and the fluent usage examples rather than learning the API through the interface lattice.
+
 ## Extension-Facing Surface
 
 You only need the lower-level public abstractions when you are extending the framework itself, for example by adding:
@@ -82,6 +96,17 @@ You only need the lower-level public abstractions when you are extending the fra
 
 Those advanced surfaces are supported by the architecture docs, but they are secondary to the consumer workflow above.
 
+## Timeline Debugging
+
+The recommended debugging path depends on what you need to see:
+
+1. Name important steps so failures and assertions point to stable labels.
+2. Pass `ITestOutputHelper` into `SetupRun(...)` when you want the timeline log in the test output stream.
+3. Inspect the completed `TimelineRun` for stage state, step results, variables, and artifacts.
+
+For most users, that post-run inspection path is the supported debugging workflow.
+The lower-level debugger integration seam (`IRunDebugger` and related state types) remains available for custom tooling, but it is an advanced integration surface rather than the primary learning path.
+
 ## Typical Pattern
 
 1. Build timeline once (usually static in test classes or other reusable class scope).
@@ -89,6 +114,25 @@ Those advanced surfaces are supported by the architecture docs, but they are sec
 3. Add runtime variables/artifacts if needed.
 4. Run with `RunAsync()`.
 5. Assert with `EnsureRanToCompletion()` and variable/artifact checks.
+
+## Persistent Environments
+
+Most timelines should keep environment creation per run.
+When a suite repeatedly needs the same expensive environment slice, Core also exposes `PersistentEnvironmentContext<TSetup>` as the lower-level reuse primitive.
+
+Use it when all of the following are true:
+
+- the environment shape is stable across many runs
+- some components are expensive enough that recreating them dominates runtime
+- those components can safely opt into `EnvComponentReuseMode.PersistentContext`
+
+The model is:
+
+1. `TSetup.CreateEnvironment()` describes the full environment instance that future runs should receive.
+2. `TSetup.GetPersistentComponentIdentifiers()` selects the component roots that should be realized once and reused.
+3. `PersistentEnvironmentContext<TSetup>.CreateEnvironment()` produces fresh run environments with the persistent runtime state seeded back in.
+
+Higher-level packages may wrap this primitive with package-specific helpers. In the container stack, `DockerAzureHostedCollectionFixture<TState>` is the xUnit-facing example of that pattern.
 
 ## Target Framework
 

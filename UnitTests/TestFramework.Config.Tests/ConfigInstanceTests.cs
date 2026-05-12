@@ -2,6 +2,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using TestFramework.Config;
+using TestFramework.Core.Artifacts;
+using TestFramework.Core.Environment;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Timelines;
+using TestFramework.Core.Variables;
 
 namespace TestFramework.Config.Tests;
 
@@ -117,7 +124,80 @@ public class ConfigInstanceTests
         Assert.Equal("boom", exception.Message);
     }
 
+    [Fact]
+    public async Task ConfigPersistentEnvironmentContext_LayersRunConfig_AndSupportsTimelineSetupRunExtension()
+    {
+        await using ConfigPersistentEnvironmentContext<ConfigPersistentTestSetup> persistent = new();
+
+        ConfigInstance runConfig = persistent.CreateRunConfig(builder => builder.OverrideConfig("App:Mode", "run"));
+
+        IConfiguration configuration = runConfig.BuildServiceProvider().GetRequiredService<IConfiguration>();
+        Assert.Equal("run", configuration["App:Mode"]);
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ConfigNoOpStep())
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(runConfig)
+            .SetEnv(persistent.CreateEnvironment())
+            .RunAsync();
+
+        run.EnsureRanToCompletion();
+    }
+
     private sealed record BoundOptions(string Mode);
 
     private sealed record MarkerService(string Value);
+
+    private sealed class ConfigPersistentTestSetup : IConfigPersistentEnvironmentSetup
+    {
+        public IEnvironmentProvider CreateEnvironment() => new ConfigPersistentEnvironment();
+
+        public ConfigInstance CreatePersistentConfig() => ConfigInstance.Create()
+            .OverrideConfig("App:Mode", "persistent")
+            .Build();
+
+        public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["network"];
+    }
+
+    private sealed class ConfigPersistentEnvironment : EnvironmentProviderBase
+    {
+        public ConfigPersistentEnvironment()
+        {
+            AddComponent(new ConfigLoggingEnvComponent("network") { ReuseModeOverride = EnvComponentReuseMode.PersistentContext });
+        }
+    }
+
+    private sealed class ConfigLoggingEnvComponent(string identifier) : EnvComponent
+    {
+        public EnvComponentReuseMode ReuseModeOverride { get; init; } = EnvComponentReuseMode.PerRun;
+
+        public override EnvComponentIdentifier Id => identifier;
+
+        public override EnvComponentReuseMode ReuseMode => ReuseModeOverride;
+
+        public override Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult((object?)$"state:{Id}");
+
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+    }
+
+    private sealed class ConfigNoOpStep : Step<object?>
+    {
+        public override string Name => "ConfigNoOp";
+        public override string Description => "ConfigNoOp";
+        public override bool DoesReturn => false;
+
+        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult((object?)null);
+
+        public override Step<object?> Clone() => new ConfigNoOpStep().WithClonedOptions(this);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+    }
 }

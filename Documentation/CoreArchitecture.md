@@ -1,6 +1,6 @@
 # Core Architecture & Type-Safe API
 
-> **Scope**: This document covers `TestFrameworkCore` — the engine that provides the foundational scaffold.  
+> **Scope**: This document covers `TestFramework.Core` — the engine that provides the foundational scaffold.  
 > Domain-specific logic (Azure, LocalIO, etc.) lives in separate extension projects.  
 > For the high-level design rationale see [Documentation.md](Documentation.md).
 

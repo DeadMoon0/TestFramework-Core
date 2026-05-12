@@ -157,6 +157,54 @@ public class CoreEnvironmentTests
         Assert.Contains("Only one environment", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task PersistentEnvironmentContext_ReusesPersistentComponentsAcrossRuns_AndDisposesThemOnce()
+    {
+        PersistentEnvironmentContext<PersistentTestSetup> persistent = new();
+        try
+        {
+            Timeline timeline = Timeline.Create()
+                .Trigger(new NoOpStep())
+                .Build();
+
+            TimelineRun firstRun = await timeline.SetupRun()
+                .AddArtifact("artifact-1", new TestArtifactReference(), new TestArtifactData())
+                .SetEnv(persistent.CreateEnvironment())
+                .RunAsync();
+
+            TimelineRun secondRun = await timeline.SetupRun()
+                .AddArtifact("artifact-2", new TestArtifactReference(), new TestArtifactData())
+                .SetEnv(persistent.CreateEnvironment())
+                .RunAsync();
+
+            firstRun.EnsureRanToCompletion();
+            secondRun.EnsureRanToCompletion();
+        }
+        finally
+        {
+            await persistent.DisposeAsync();
+        }
+
+        Assert.Equal(
+            [
+                "create:network",
+                "create:container",
+                "deconstruct:container:state:container",
+                "create:container",
+                "deconstruct:container:state:container",
+                "deconstruct:network:state:network",
+            ],
+            PersistentEnvironment.Calls);
+    }
+
+    [Fact]
+    public void PersistentEnvironmentContext_WhenPersistentRootDependsOnPerRunComponent_Throws()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new PersistentEnvironmentContext<InvalidPersistentSetup>());
+
+        Assert.Contains("depends on per-run component", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class TestEnvironment : EnvironmentProviderBase
     {
         public List<string> Calls { get; } = [];
@@ -231,11 +279,57 @@ public class CoreEnvironmentTests
         }
     }
 
+    private sealed class PersistentEnvironment : EnvironmentProviderBase
+    {
+        public static List<string> Calls { get; } = [];
+
+        public PersistentEnvironment()
+        {
+            AddComponent(new LoggingEnvComponent("network", Calls) { ReuseModeOverride = EnvComponentReuseMode.PersistentContext });
+            AddComponent(new LoggingEnvComponent("container", Calls, ["network"]));
+            MapArtifact<TestArtifactDescriber>("container");
+        }
+
+        public static void Reset() => Calls.Clear();
+    }
+
+    private sealed class InvalidPersistentEnvironment : EnvironmentProviderBase
+    {
+        public InvalidPersistentEnvironment()
+        {
+            AddComponent(new LoggingEnvComponent("token-provider", []));
+            AddComponent(new LoggingEnvComponent("shared-host", [], ["token-provider"]) { ReuseModeOverride = EnvComponentReuseMode.PersistentContext });
+        }
+    }
+
+    private sealed class PersistentTestSetup : IPersistentEnvironmentSetup
+    {
+        public PersistentTestSetup()
+        {
+            PersistentEnvironment.Reset();
+        }
+
+        public IEnvironmentProvider CreateEnvironment() => new PersistentEnvironment();
+
+        public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["network"];
+    }
+
+    private sealed class InvalidPersistentSetup : IPersistentEnvironmentSetup
+    {
+        public IEnvironmentProvider CreateEnvironment() => new InvalidPersistentEnvironment();
+
+        public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["shared-host"];
+    }
+
     private sealed class LoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
 
         public override EnvComponentIdentifier Id => identifier;
+
+        public EnvComponentReuseMode ReuseModeOverride { get; init; } = EnvComponentReuseMode.PerRun;
+
+        public override EnvComponentReuseMode ReuseMode => ReuseModeOverride;
 
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
 
