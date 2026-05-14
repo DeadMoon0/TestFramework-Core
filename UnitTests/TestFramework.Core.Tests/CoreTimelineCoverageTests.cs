@@ -6,6 +6,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Timelines.Assertions;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 using Xunit.Abstractions;
 using System.Linq;
@@ -79,34 +80,32 @@ public class CoreTimelineCoverageTests
     }
 
     [Fact]
-    public async Task TimelineRun_CaptureResultAs_PersistsExplicitStepOutputVariable()
+    public async Task TimelineRun_GetValue_PersistsExplicitStepOutputVariable()
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new ReturnConstantStep("logic-run"))
             .Name("return-run")
-            .CaptureResultAs("logicRun")
+            .GetValue("logicRun")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
 
         run.EnsureRanToCompletion();
-        run.Variable<string>("out").Should().NotExist();
         run.Variable<string>("logicRun").Should().Exist().And().Be("logic-run");
     }
 
     [Fact]
-    public async Task TimelineRun_CaptureResultAsTyped_DeclaresTypedOutputVariable()
+    public async Task TimelineRun_GetValue_DeclaresTypedOutputVariable()
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new ReturnConstantStep("logic-run"))
             .Name("return-run")
-            .CaptureResultAs<string>("logicRun")
+            .GetValue("logicRun")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
 
         run.EnsureRanToCompletion();
-        run.Variable<string>("out").Should().NotExist();
         run.Variable<string>("logicRun").Should().Exist().And().Be("logic-run");
         Assert.Single(run.Step("return-run").Step.IOContract.Outputs.Where(entry => entry.Key == "logicRun" && entry.Kind == StepIOKind.Variable && entry.DeclaredType == typeof(string)));
     }
@@ -124,7 +123,7 @@ public class CoreTimelineCoverageTests
 
         run.EnsureRanToCompletion();
         Assert.Equal(2, probeEvent.Attempts);
-        Assert.Equal("done", run.Step("await-event").LastResult.Result);
+        Assert.Equal("done", Assert.IsType<TextResultContext>(run.Step("await-event").LastResult.Result).Value);
     }
 
     [Fact]
@@ -285,39 +284,39 @@ public class CoreTimelineCoverageTests
         public int Increment() => ++Attempts;
     }
 
-    private sealed class FlakyStep(RetryProbe probe, int failuresBeforeSuccess) : Step<string>
+    private sealed class FlakyStep(RetryProbe probe, int failuresBeforeSuccess) : Step<TextResultContext>
     {
         public override string Name => "Flaky Step";
         public override string Description => "Fails a fixed number of times before succeeding.";
         public override bool DoesReturn => true;
 
-        public override Task<string?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<TextResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             int attempt = probe.Increment();
             if (attempt <= failuresBeforeSuccess)
                 throw new InvalidOperationException($"failure {attempt}");
-            return Task.FromResult<string?>("ok");
+            return Task.FromResult<TextResultContext?>(new TextResultContext("ok"));
         }
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override Step<string> Clone() => new FlakyStep(probe, failuresBeforeSuccess).WithClonedOptions(this);
+        public override Step<TextResultContext> Clone() => new FlakyStep(probe, failuresBeforeSuccess).WithClonedOptions(this);
 
-        public override StepInstance<Step<string>, string> GetInstance() => new(this);
+        public override StepInstance<Step<TextResultContext>, TextResultContext> GetInstance() => new(this);
     }
 
-    private sealed class CaptureVariableStep(string variableName, List<string> seen) : Step<object?>
+    private sealed class CaptureVariableStep(string variableName, List<string> seen) : Step<EmptyStepResultContext>
     {
         public override string Name => "Capture Variable Step";
         public override string Description => "Captures the current loop variable value.";
         public override bool DoesReturn => false;
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             seen.Add(variableStore.GetVariable<string>(variableName)!);
-            return Task.FromResult((object?)null);
+            return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
         }
 
         public override void DeclareIO(StepIOContract contract)
@@ -325,51 +324,51 @@ public class CoreTimelineCoverageTests
             contract.Inputs.Add(new StepIOEntry(variableName, StepIOKind.Variable, true, typeof(string)));
         }
 
-        public override Step<object?> Clone() => new CaptureVariableStep(variableName, seen).WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new CaptureVariableStep(variableName, seen).WithClonedOptions(this);
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
-    private sealed class LoggingStep(string message) : Step<object?>
+    private sealed class LoggingStep(string message) : Step<EmptyStepResultContext>
     {
         public override string Name => "Logging Step";
         public override string Description => "Writes a log line through the scoped logger.";
         public override bool DoesReturn => false;
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             logger.LogInformation(message);
-            return Task.FromResult((object?)null);
+            return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
         }
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override Step<object?> Clone() => new LoggingStep(message).WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new LoggingStep(message).WithClonedOptions(this);
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
-    private sealed class ReturnConstantStep(string value) : Step<string>
+    private sealed class ReturnConstantStep(string value) : Step<TextResultContext>
     {
         public override string Name => "Return Constant";
         public override string Description => "Returns a constant string.";
         public override bool DoesReturn => true;
 
-        public override Task<string?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
-            => Task.FromResult<string?>(value);
+        public override Task<TextResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<TextResultContext?>(new TextResultContext(value));
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override Step<string> Clone() => new ReturnConstantStep(value).WithClonedOptions(this);
+        public override Step<TextResultContext> Clone() => new ReturnConstantStep(value).WithClonedOptions(this);
 
-        public override StepInstance<Step<string>, string> GetInstance() => new(this);
+        public override StepInstance<Step<TextResultContext>, TextResultContext> GetInstance() => new(this);
     }
 
-    private sealed class ReturningSequentialProbeEvent : SequentialEvent<ReturningSequentialProbeEvent, string>
+    private sealed class ReturningSequentialProbeEvent : SequentialEvent<ReturningSequentialProbeEvent, TextResultContext>
     {
         public int Attempts { get; private set; }
 
@@ -379,14 +378,14 @@ public class CoreTimelineCoverageTests
 
         public override bool DoesReturn => true;
 
-        public override Step<string> Clone() => this;
+        public override Step<TextResultContext> Clone() => this;
 
-        public override Task<SequentialPollingResult<string>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<SequentialPollingResult<TextResultContext>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             Attempts++;
             return Task.FromResult(Attempts == 1
-                ? new SequentialPollingResult<string>(false, null, TimeSpan.Zero)
-                : new SequentialPollingResult<string>(true, "done", TimeSpan.Zero));
+            ? new SequentialPollingResult<TextResultContext>(false, null, TimeSpan.Zero)
+            : new SequentialPollingResult<TextResultContext>(true, new TextResultContext("done"), TimeSpan.Zero));
         }
 
         public override void DeclareIO(StepIOContract contract)
@@ -408,4 +407,13 @@ public class CoreTimelineCoverageTests
             Lines.Add(string.Format(format, args));
         }
     }
+
+}
+
+internal sealed record TextResultContext(string Value) : StepResultContext;
+
+internal static class CoreTimelineCoverageTestExtensions
+{
+    public static ITimelineBuilderModifier<TextResultContext> GetValue(this ITimelineBuilderModifier<TextResultContext> builder, VariableIdentifier identifier)
+        => builder.BindResultProperty(x => x.Value, identifier);
 }

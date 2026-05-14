@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Events;
@@ -10,18 +11,20 @@ namespace TestFramework.Core.Events;
 /// <summary>
 /// Represents the outcome of a single polling iteration for a <see cref="SequentialEvent{TEvent, TResult}"/>.
 /// </summary>
-/// <typeparam name="TResult">The result type produced by the event.</typeparam>
+/// <typeparam name="TStepResultContext">The result context type produced by the event.</typeparam>
 /// <param name="IsDone">Indicates whether polling is complete.</param>
 /// <param name="Result">The result value when polling is complete.</param>
 /// <param name="NextDelay">The delay before the next polling iteration when polling is not complete.</param>
-public record SequentialPollingResult<TResult>(bool IsDone, TResult? Result, TimeSpan NextDelay);
+public record SequentialPollingResult<TStepResultContext>(bool IsDone, TStepResultContext? Result, TimeSpan NextDelay) where TStepResultContext : StepResultContext;
 
 /// <summary>
 /// Represents an event step that polls repeatedly until a terminating condition is reached.
 /// </summary>
 /// <typeparam name="TEvent">The concrete event type.</typeparam>
-/// <typeparam name="TResult">The result type produced by the event.</typeparam>
-public abstract class SequentialEvent<TEvent, TResult> : Event<TEvent, TResult> where TEvent : SequentialEvent<TEvent, TResult>
+/// <typeparam name="TStepResultContext">The result context type produced by the event.</typeparam>
+public abstract class SequentialEvent<TEvent, TStepResultContext> : Event<TEvent, TStepResultContext>
+    where TEvent : SequentialEvent<TEvent, TStepResultContext>
+    where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Performs a single polling iteration.
@@ -31,12 +34,12 @@ public abstract class SequentialEvent<TEvent, TResult> : Event<TEvent, TResult> 
     /// <param name="artifactStore">The current run artifact store.</param>
     /// <param name="logger">The scoped logger for the run.</param>
     /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<SequentialPollingResult<TResult>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<SequentialPollingResult<TStepResultContext>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
 
     /// <summary>
     /// Executes the polling loop until a completed result is returned.
     /// </summary>
-    public override async Task<TResult?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<TStepResultContext?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         return await Task.Run(async () =>
         {

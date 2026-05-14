@@ -1,4 +1,6 @@
 ﻿using TestFramework.Core.Artifacts;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
 
@@ -13,10 +15,10 @@ public interface IVersionArtifactAction
     /// <summary>
     /// Captures a new version for the specified artifact using an inferred version identifier.
     /// </summary>
-    public ITimelineBuilderModifier CaptureArtifactVersion(ArtifactIdentifier identifier);
+    public ITimelineBuilderModifier<EmptyStepResultContext> CaptureArtifactVersion(ArtifactIdentifier identifier);
 
     /// <summary>
     /// Captures a new version for the specified artifact using the provided version identifier.
     /// </summary>
-    public ITimelineBuilderModifier CaptureArtifactVersion(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier);
+    public ITimelineBuilderModifier<EmptyStepResultContext> CaptureArtifactVersion(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier);
 }

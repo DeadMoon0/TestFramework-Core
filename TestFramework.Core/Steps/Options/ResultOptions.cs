@@ -1,11 +1,11 @@
-using System;
 using TestFramework.Core;
+using System;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.Options;
 
 /// <summary>
-/// Configures which variable receives the returned step result and how that result is declared in the IO contract.
+/// Describes the projected outputs that should be extracted from a returned step result context.
 /// </summary>
 public class ResultOptions : IFreezable
 {
@@ -17,22 +17,21 @@ public class ResultOptions : IFreezable
     /// <summary>
     /// Freezes the options object.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
-
-    private VariableIdentifier _resultVariable = new VariableIdentifier("out");
-    private Type? _declaredType;
-
-    /// <summary>
-    /// Gets or sets the variable that receives the returned step result.
-    /// Defaults to the conventional "out" variable.
-    /// </summary>
-    public VariableIdentifier ResultVariable { get => _resultVariable; set { ((IFreezable)this).EnsureNotFrozen(); _resultVariable = value; } }
+    public void Freeze()
+    {
+        ResultBindings.Freeze();
+        IsFrozen = true;
+    }
 
     /// <summary>
-    /// Gets or sets the declared contract type for the result variable.
-    /// When null, the result output is tracked without an explicit declared type.
+    /// Gets the configured projected result bindings for the step.
     /// </summary>
-    public Type? DeclaredType { get => _declaredType; set { ((IFreezable)this).EnsureNotFrozen(); _declaredType = value; } }
+    public IFreezableCollection<ResultBinding> ResultBindings { get; } = new FreezableCollection<ResultBinding>();
+
+    /// <summary>
+    /// Gets a value indicating whether any result bindings are configured.
+    /// </summary>
+    public bool HasBindings => ResultBindings.Count > 0;
 
     /// <summary>
     /// Copies the current options to another instance.
@@ -40,7 +39,16 @@ public class ResultOptions : IFreezable
     /// <param name="target">The target options instance.</param>
     public void CloneTo(ResultOptions target)
     {
-        target.ResultVariable = ResultVariable;
-        target.DeclaredType = DeclaredType;
+        foreach (ResultBinding binding in ResultBindings)
+            target.ResultBindings.Add(binding);
     }
 }
+
+/// <summary>
+/// Describes how a property from a step result context should be projected into the variable store.
+/// </summary>
+/// <param name="Variable">The destination variable that receives the projected value.</param>
+/// <param name="MemberPath">The selected member-access path on the result context.</param>
+/// <param name="DeclaredType">The declared CLR type of the projected value.</param>
+/// <param name="Accessor">Accessor used to evaluate the projected value at runtime.</param>
+public sealed record ResultBinding(VariableIdentifier Variable, string MemberPath, Type DeclaredType, Func<object?, object?> Accessor);

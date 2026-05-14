@@ -14,7 +14,7 @@ namespace TestFramework.Simple;
 /// <summary>
 /// Executes an inline C# action within a timeline.
 /// </summary>
-public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> action, VariableReferenceGeneric[] variables, ArtifactIdentifier[] artifacts) : Step<object?>
+public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> action, VariableReferenceGeneric[] variables, ArtifactIdentifier[] artifacts) : Step<EmptyStepResultContext>
 {
     private readonly Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> _action = action ?? throw new ArgumentNullException(nameof(action));
     private readonly VariableReferenceGeneric[] _variables = variables ?? throw new ArgumentNullException(nameof(variables));
@@ -39,7 +39,7 @@ public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<Var
     /// Creates a copy of the trigger together with its configured step options.
     /// </summary>
     /// <returns>A cloned trigger with the same action, inputs, and step options.</returns>
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new ActionTrigger(_action, _variables, _artifacts).WithClonedOptions(this);
     }
@@ -53,7 +53,7 @@ public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<Var
     /// <param name="logger">The scoped logger for the current step execution.</param>
     /// <param name="cancellationToken">The cancellation token for the current execution.</param>
     /// <returns>A completed task because the trigger does not produce a value.</returns>
-    public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         _action
         (
@@ -62,14 +62,14 @@ public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<Var
             _variables.ToDictionary(x => x.Identifier ?? throw new ArgumentNullException("identifier", "A variable passed to Action requires a non-null identifier."), x => x.GetValueGeneric(variableStore)),
             _artifacts.ToDictionary(x => x, artifactStore.GetArtifact)
         );
-        return Task.FromResult((object?)null);
+        return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 
     /// <summary>
     /// Creates a runtime instance for this trigger.
     /// </summary>
     /// <returns>The runtime step instance used during timeline execution.</returns>
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     /// <summary>
     /// Declares the variable and artifact inputs consumed by this trigger.

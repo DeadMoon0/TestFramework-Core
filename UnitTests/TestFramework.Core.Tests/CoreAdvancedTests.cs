@@ -132,42 +132,42 @@ public class CoreAdvancedTests
         }
     }
 
-    private sealed class TestStep(string stepName) : Step<object?>
+    private sealed class TestStep(string stepName) : Step<EmptyStepResultContext>
     {
         public override string Name => stepName;
         public override string Description => stepName;
         public override bool DoesReturn => false;
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
-            => Task.FromResult((object?)null);
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
-        public override Step<object?> Clone() => new TestStep(stepName).WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new TestStep(stepName).WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => throw new NotSupportedException();
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => throw new NotSupportedException();
     }
 
-    private sealed class NonCooperativeStep : Step<object?>
+    private sealed class NonCooperativeStep : Step<EmptyStepResultContext>
     {
         public override string Name => "non-cooperative";
         public override string Description => "Never completes and ignores cancellation.";
         public override bool DoesReturn => false;
 
-        public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan);
-            return null;
+            return EmptyStepResultContext.Instance;
         }
 
-        public override Step<object?> Clone() => new NonCooperativeStep().WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new NonCooperativeStep().WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 }

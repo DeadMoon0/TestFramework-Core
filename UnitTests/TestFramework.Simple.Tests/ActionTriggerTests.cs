@@ -18,7 +18,7 @@ public class ActionTriggerTests
         runtime.VariableStore.SetVariable(identifier, "Ada");
 
         Dictionary<VariableIdentifier, object?>? captured = null;
-        ActionTrigger trigger = Simple.Trigger.Action(vars => captured = vars, Var.Ref<string>(identifier));
+        ActionTrigger trigger = SimpleExt.Trigger.Action(vars => captured = vars, Var.Ref<string>(identifier));
 
         await trigger.Execute(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, CancellationToken.None);
 
@@ -32,7 +32,7 @@ public class ActionTriggerTests
         RuntimeContext runtime = RuntimeContext.Create();
         int callCount = 0;
 
-        ActionTrigger trigger = Simple.Trigger.Action(() => callCount++);
+        ActionTrigger trigger = SimpleExt.Trigger.Action(() => callCount++);
 
         await trigger.Execute(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, CancellationToken.None);
 
@@ -45,7 +45,7 @@ public class ActionTriggerTests
         RuntimeContext runtime = RuntimeContext.Create();
         bool executed = false;
 
-        ActionTrigger trigger = Simple.Trigger.Action(
+        ActionTrigger trigger = SimpleExt.Trigger.Action(
             (vars, artifacts) =>
             {
                 executed = true;
@@ -66,7 +66,7 @@ public class ActionTriggerTests
         RuntimeContext runtime = RuntimeContext.Create();
         bool executed = false;
 
-        ActionTrigger trigger = Simple.Trigger.Action(
+        ActionTrigger trigger = SimpleExt.Trigger.Action(
             (serviceProvider, logger, vars, artifacts) =>
             {
                 executed = true;
@@ -86,13 +86,13 @@ public class ActionTriggerTests
     [Fact]
     public void ActionFactory_ThrowsImmediatelyForNullAction()
     {
-        Assert.Throws<ArgumentNullException>(() => Simple.Trigger.Action((Action)null!));
+        Assert.Throws<ArgumentNullException>(() => SimpleExt.Trigger.Action((Action)null!));
     }
 
     [Fact]
     public void DeclareIO_AddsVariableIdentifiers()
     {
-        ActionTrigger trigger = Simple.Trigger.Action(_ => { }, Var.Ref<string>("input"), Var.Ref<int>("count"));
+        ActionTrigger trigger = SimpleExt.Trigger.Action(_ => { }, Var.Ref<string>("input"), Var.Ref<int>("count"));
         StepIOContract contract = new();
 
         trigger.DeclareIO(contract);

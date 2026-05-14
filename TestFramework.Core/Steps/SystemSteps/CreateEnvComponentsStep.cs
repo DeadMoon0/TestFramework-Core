@@ -12,19 +12,19 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext context, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<object?>
+internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext context, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<EmptyStepResultContext>
 {
     public override bool DoesReturn => false;
 
     public override string Name => "Create Environment Components";
     public override string Description => "Creates all environment components required by the artifacts configured for this run.";
 
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new CreateEnvComponentsStep(environment, context, requirements).WithClonedOptions(this);
     }
 
-    public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         IReadOnlyCollection<EnvComponentIdentifier> resolvedComponents = environment.ResolveComponents(artifactStore.GetAll(), requirements);
         await EnvComponentLifecycleRunner.CreateAsync(
@@ -37,10 +37,10 @@ internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComp
             cancellationToken,
             context.SetState);
 
-        return null;
+        return EmptyStepResultContext.Instance;
     }
 
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     public override void DeclareIO(StepIOContract contract)
     {

@@ -1,4 +1,5 @@
 ﻿using TestFramework.Core.Timelines.Builder.TimelineBuilder;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
@@ -14,5 +15,5 @@ public interface ISetVariableAction
     /// <summary>
     /// Adds a step that assigns the provided variable reference to the identifier.
     /// </summary>
-    public ITimelineBuilderModifier SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable);
+    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable);
 }

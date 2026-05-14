@@ -158,12 +158,10 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, logger))
                 {
                     step.Step.DeclareIO(step.Step.IOContract);
-                    if (step.Step.DoesReturn && !step.Step.IOContract.Outputs.Any(output => output.Key == step.Step.ResultOptions.ResultVariable.Identifier && output.Kind == StepIOKind.Variable))
+                    foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
                     {
-                        Type? declaredType = step.Step.ResultOptions.ResultVariable.Identifier == "out"
-                            ? step.Step.ResultType
-                            : step.Step.ResultOptions.DeclaredType;
-                        step.Step.IOContract.Outputs.Add(new StepIOEntry(step.Step.ResultOptions.ResultVariable.Identifier, StepIOKind.Variable, false, declaredType));
+                        if (!step.Step.IOContract.Outputs.Any(output => output.Key == binding.Variable.Identifier && output.Kind == StepIOKind.Variable))
+                            step.Step.IOContract.Outputs.Add(new StepIOEntry(binding.Variable.Identifier, StepIOKind.Variable, false, binding.DeclaredType));
                     }
                     if (step.RedirectToCleanUp)
                         bufferedCleanupSteps.Add(step.Step);

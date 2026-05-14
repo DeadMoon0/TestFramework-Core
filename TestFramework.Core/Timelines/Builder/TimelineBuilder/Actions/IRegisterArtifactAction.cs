@@ -1,4 +1,6 @@
 ﻿using TestFramework.Core.Artifacts;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
 
@@ -13,7 +15,7 @@ public interface IRegisterArtifactAction
     /// <summary>
     /// Registers an artifact reference under the specified identifier.
     /// </summary>
-    public ITimelineBuilderModifier RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
+    public ITimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>;

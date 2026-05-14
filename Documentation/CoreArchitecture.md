@@ -362,7 +362,7 @@ public abstract class Step<TResult> : StepGeneric
 }
 ```
 
-- **`DoesReturn`**: If `true`, the runner stores the result in a special `"out"` variable after execution.
+- **`DoesReturn`**: If `true`, the runner records the typed result context on the step result and applies any configured result-property bindings.
 - **`Clone()`**: Steps are cloned before execution to preserve the original template.
 - **`Track()`**: Called during preprocessing to record variable/artifact dependencies.
 
@@ -453,7 +453,7 @@ For each StepInstance in stage:
   │   ├─ Execute step
   │   ├─ On success:
   │   │   ├─ State = Complete
-  │   │   └─ If DoesReturn: VariableStore["out"] = result
+    │   │   └─ If DoesReturn: persist the result context and project configured properties into named variables
   │   └─ On exception:
   │       ├─ If type in IgnoreExceptionTypes → State = Complete
   │       └─ Otherwise → State = Error
@@ -936,7 +936,7 @@ A complete example demonstrating the core concepts:
 
 ```csharp
 // ── 1. Define a custom step ──────────────────────────────────
-public class GreetStep : Step<string>
+public class GreetStep : Step<GreetStepResultContext>
 {
     private readonly VariableReference<string> _name;
 
@@ -946,35 +946,38 @@ public class GreetStep : Step<string>
     public override string Description => "Generates a greeting";
     public override bool DoesReturn => true;
 
-    public override Task<string?> Execute(
+    public override Task<GreetStepResultContext?> Execute(
         IServiceProvider sp, VariableStore vars, ArtifactStore artifacts,
         ScopedLogger logger, CancellationToken ct)
     {
         var name = _name.GetValue(vars);
         var greeting = $"Hello, {name}!";
         logger.LogInformation(greeting);
-        return Task.FromResult<string?>(greeting);
+        return Task.FromResult<GreetStepResultContext?>(new(greeting));
     }
 
     public override void Track(VariableTracker vt, ArtifactTracker at)
         => vt.GetReference(_name);
 
-    public override StepInstance<Step<string>, string> GetInstance()
+    public override StepInstance<Step<GreetStepResultContext>, GreetStepResultContext> GetInstance()
         => new(this);
 
-    public override Step<string> Clone()
+    public override Step<GreetStepResultContext> Clone()
         => new GreetStep(_name).WithClonedOptions(this);
 }
+
+public sealed record GreetStepResultContext(string Greeting) : StepResultContext;
 
 // ── 2. Build a Timeline ──────────────────────────────────────
 Timeline timeline = Timeline.Create()
 
-    // Trigger the custom step — result stored in "out"
+    // Trigger the custom step and bind the greeting into a named variable.
     .Trigger(new GreetStep(Var.Ref<string>("userName")))
         .WithTimeOut(TimeSpan.FromSeconds(30))
+        .BindResultProperty(x => x.Greeting, "greeting")
 
-    // Transform the "out" variable
-    .Transform<string, string>("shout", Var.Ref<string>("out"),
+    // Transform the projected variable
+    .Transform<string, string>("shout", Var.Ref<string>("greeting"),
         greeting => greeting.ToUpperInvariant())
 
     // Assert the result

@@ -1,4 +1,6 @@
 ﻿using TestFramework.Core.Artifacts;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
 
@@ -13,5 +15,5 @@ public interface IRemoveArtifactAction
     /// <summary>
     /// Adds a step that removes the artifact associated with the identifier.
     /// </summary>
-    public ITimelineBuilderModifier RemoveArtifact(ArtifactIdentifier identifier);
+    public ITimelineBuilderModifier<EmptyStepResultContext> RemoveArtifact(ArtifactIdentifier identifier);
 }

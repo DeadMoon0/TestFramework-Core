@@ -135,13 +135,13 @@ Load Config when the task involves:
 - layered configuration, inherited config variants, or service registration
 
 Load Simple when the task involves:
-- Simple.Trigger.Action(...)
+- SimpleExt.Trigger.Action(...)
 - inline delegates
 - choosing between small overloads and richer context overloads
 - MessageBoxTrigger or lightweight local orchestration
 
 Load Azure when the task involves:
-- AzureTF
+- AzureExt
 - Function Apps, Service Bus, Storage, Cosmos, SQL
 - identifier-driven Azure config
 - IConfigProvider adaptation for project-specific config layouts
@@ -153,7 +153,7 @@ Load Container when the task involves:
 - topology config, config-store rewriting, or Docker-backed smoke tests
 
 Load LocalIO when the task involves:
-- LocalIO.Trigger.Cmd(...)
+- LocalIOExt.Trigger.Cmd(...)
 - FileExists(...)
 - file artifacts, folder discovery, local command execution, local file polling
 
@@ -168,7 +168,7 @@ Load Showroom when the task involves:
 Package-specific judgment you should preserve:
 - Config is a delta-layered setup system; prefer one shared base ConfigInstance plus SetupSubInstance() variants over repeated JSON reloads.
 - Simple should stay small; prefer the smallest overload that expresses the scenario clearly and move growing logic out of inline delegates.
-- Azure should be taught through AzureTF, identifiers, and visible distributed flow rather than deeper proxy layering.
+- Azure should be taught through AzureExt, identifiers, and visible distributed flow rather than deeper proxy layering.
 - Container is the one switch for emulator-backed Azure execution; do not mix manual emulator bootstrapping with DockerAzureEnvironment.
 - LocalIO is Windows-first today; do not pretend it already offers rich cross-platform process observability.
 - Showroom is the consumer-facing proof surface; use it for teachable examples, not as the main source of extension-author architecture.
@@ -238,8 +238,8 @@ Use this as the default example shape when the user asks for a good TestFramewor
 private const string InputValue = "  hello world  ";
 
 private static readonly Timeline _timeline = Timeline.Create()
-	.Trigger(Simple.Trigger.Action(() => Console.WriteLine("prepare")).Name("prepare"))
-	.Trigger(Simple.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Name("normalize"))
+	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine("prepare")).Name("prepare"))
+	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Name("normalize"))
 	.Build();
 
 [Fact]
@@ -380,11 +380,11 @@ Failure handling:
 
 		- Name: TestFramework.Simple
 			RelativePath: TestFramework-Core/AI/TestFramework.Simple.SKILL.md
-			Description: Lightweight helper triggers and inline action shapes (e.g., `Simple.Trigger.Action(...)`) for small local behaviors.
+			Description: Lightweight helper triggers and inline action shapes (e.g., `SimpleExt.Trigger.Action(...)`) for small local behaviors.
 
 		- Name: TestFramework.Azure
 			RelativePath: TestFramework-Azure/AI/TestFramework.Azure.SKILL.md
-			Description: Azure integrations — Function Apps, Service Bus, Blob/Cosmos/SQL artifacts, identifier-driven config, and AzureTF facade patterns.
+			Description: Azure integrations — Function Apps, Service Bus, Blob/Cosmos/SQL artifacts, identifier-driven config, and AzureExt facade patterns.
 
 		- Name: TestFramework.Container
 			RelativePath: TestFramework-Container/AI/TestFramework.Container.SKILL.md

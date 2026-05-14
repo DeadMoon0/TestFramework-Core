@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -6,10 +7,10 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifier for assigning a label to the current step.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface INameModAction
+public interface INameModAction<TStepResultContext> where TStepResultContext : StepResultContext
 {
     /// <summary>
-    /// Assigns a consumer-visible label to the current step.
+    /// Assigns a consumer-visible label to the current typed step.
     /// </summary>
-    public ITimelineBuilderModifier Name(string label);
+    ITimelineBuilderModifier<TStepResultContext> Name(string label);
 }

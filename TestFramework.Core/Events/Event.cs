@@ -13,8 +13,8 @@ namespace TestFramework.Core.Events;
 /// Represents a step that waits for an external event and yields a result once the event condition is met.
 /// </summary>
 /// <typeparam name="TEvent">The concrete event type.</typeparam>
-/// <typeparam name="TResult">The result type produced by the event.</typeparam>
-public abstract class Event<TEvent, TResult> : Step<TResult> where TEvent : Event<TEvent, TResult>
+/// <typeparam name="TStepResultContext">The result context type produced by the event.</typeparam>
+public abstract class Event<TEvent, TStepResultContext> : Step<TStepResultContext> where TEvent : Event<TEvent, TStepResultContext> where TStepResultContext : StepResultContext
 #pragma warning restore CA1716
 {
     /// <summary>
@@ -25,15 +25,15 @@ public abstract class Event<TEvent, TResult> : Step<TResult> where TEvent : Even
     /// <param name="artifactStore">The current run artifact store.</param>
     /// <param name="logger">The scoped logger for the run.</param>
     /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<TResult?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<TStepResultContext?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
 
     /// <summary>
     /// Executes the event by delegating to <see cref="DoEventPolling(IServiceProvider, VariableStore, ArtifactStore, ScopedLogger, CancellationToken)"/>.
     /// </summary>
-    public override Task<TResult?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken) => DoEventPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
+    public override Task<TStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken) => DoEventPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
 
     /// <summary>
     /// Creates a runtime instance for the event step.
     /// </summary>
-    public override StepInstance<Step<TResult>, TResult> GetInstance() => new StepInstance<Step<TResult>, TResult>(this);
+    public override StepInstance<Step<TStepResultContext>, TStepResultContext> GetInstance() => new StepInstance<Step<TStepResultContext>, TStepResultContext>(this);
 }

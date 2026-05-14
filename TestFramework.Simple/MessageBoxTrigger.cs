@@ -15,7 +15,7 @@ namespace TestFramework.Simple;
 /// Displays a Windows message box during timeline execution.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<string> caption) : Step<object?>
+public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<string> caption) : Step<EmptyStepResultContext>
 {
     /// <summary>
     /// Defines the Win32 icon flags that can be passed to the native message box call.
@@ -88,7 +88,7 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// Creates a copy of the trigger together with its configured step options.
     /// </summary>
     /// <returns>A cloned trigger with the same message, caption, and step options.</returns>
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new MessageBoxTrigger(msg, caption).WithClonedOptions(this);
     }
@@ -103,17 +103,17 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <param name="cancellationToken">The cancellation token for the current execution.</param>
     /// <returns>A completed task because the trigger does not produce a value.</returns>
     /// <remarks>This trigger requires Windows because it calls <c>user32.dll</c>.</remarks>
-    public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         MessageBoxInvoker(msg.GetRequiredValue(variableStore), caption.GetRequiredValue(variableStore));
-        return Task.FromResult((object?)null);
+        return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 
     /// <summary>
     /// Creates a runtime instance for this trigger.
     /// </summary>
     /// <returns>The runtime step instance used during timeline execution.</returns>
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     /// <summary>
     /// Declares the variable inputs consumed by the message box.

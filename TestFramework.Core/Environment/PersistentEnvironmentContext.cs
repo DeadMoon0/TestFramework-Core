@@ -24,6 +24,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private readonly Dictionary<EnvComponentIdentifier, object?> _persistentStates = [];
     private readonly List<EnvComponentIdentifier> _persistentCreationOrder = [];
     private readonly HashSet<EnvComponentIdentifier> _persistentComponents;
+    private readonly TimeSpan _persistentSetupTimeout;
     private bool _disposed;
 
     /// <summary>
@@ -44,6 +45,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _setup = setup;
         _persistentServiceProvider = persistentServiceProvider ?? new EmptyServiceProvider();
         _disposePersistentServiceProvider = disposePersistentServiceProvider;
+        _persistentSetupTimeout = ValidatePersistentSetupTimeout(_setup.GetPersistentSetupTimeout());
         _bootstrapEnvironment = _setup.CreateEnvironment();
 
         IReadOnlyCollection<EnvComponentIdentifier> persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
@@ -116,6 +118,17 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         return persistentRoots;
     }
 
+    private static TimeSpan ValidatePersistentSetupTimeout(TimeSpan timeout)
+    {
+        if (timeout == Timeout.InfiniteTimeSpan)
+            return timeout;
+
+        if (timeout <= TimeSpan.Zero)
+            throw new InvalidOperationException("Persistent environment setup timeout must be greater than zero or Timeout.InfiniteTimeSpan.");
+
+        return timeout;
+    }
+
     private static void ValidatePersistentClosure(IEnvironmentProvider environment, IEnumerable<EnvComponentIdentifier> persistentRoots)
     {
         foreach (EnvComponentIdentifier root in persistentRoots)
@@ -142,22 +155,33 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 
-        EnvComponentLifecycleRunner.CreateAsync(
-                _bootstrapEnvironment,
-                persistentRoots,
-                _persistentServiceProvider,
-                variableStore,
-                artifactStore,
-                logger,
-                CancellationToken.None,
-                (identifier, state) =>
-                {
-                    _persistentStates[identifier] = state;
-                    if (!_persistentCreationOrder.Contains(identifier))
-                        _persistentCreationOrder.Add(identifier);
-                })
-            .GetAwaiter()
-            .GetResult();
+        using CancellationTokenSource cancellationTokenSource = _persistentSetupTimeout == Timeout.InfiniteTimeSpan
+            ? new CancellationTokenSource()
+            : new CancellationTokenSource(_persistentSetupTimeout);
+
+        try
+        {
+            EnvComponentLifecycleRunner.CreateAsync(
+                    _bootstrapEnvironment,
+                    persistentRoots,
+                    _persistentServiceProvider,
+                    variableStore,
+                    artifactStore,
+                    logger,
+                    cancellationTokenSource.Token,
+                    (identifier, state) =>
+                    {
+                        _persistentStates[identifier] = state;
+                        if (!_persistentCreationOrder.Contains(identifier))
+                            _persistentCreationOrder.Add(identifier);
+                    })
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Persistent environment setup exceeded the configured timeout of {_persistentSetupTimeout} while bootstrapping roots: {string.Join(", ", persistentRoots)}.", exception);
+        }
     }
 
     private async Task DisposePersistentComponentsAsync()

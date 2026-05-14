@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace TestFramework.Core.Environment;
@@ -16,4 +17,9 @@ public interface IPersistentEnvironmentSetup
     /// Gets the component identifiers that should be created and owned by the persistent context.
     /// </summary>
     IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers();
+
+    /// <summary>
+    /// Gets the maximum time allowed to bootstrap the persistent component slice.
+    /// </summary>
+    TimeSpan GetPersistentSetupTimeout() => TimeSpan.FromMinutes(2);
 }

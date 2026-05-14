@@ -9,28 +9,28 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier) : Step<object?>
+internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier) : Step<EmptyStepResultContext>
 {
     public override bool DoesReturn => false;
 
     public override string Name => "Version Artifact";
     public override string Description => "Get a new Version of an external Artifact";
 
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new CaptureArtifactVersionStep(identifier, versionIdentifier).WithClonedOptions(this);
     }
 
-    public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
         ArtifactResolveResultGeneric artifactDataResult = await artifactInstance.Reference.ResolveToDataGenericAsync(serviceProvider, versionIdentifier, variableStore, logger);
         if (artifactDataResult.Found && artifactDataResult.Data is null) throw new InvalidOperationException($"Artifact '{identifier}' version resolved with Found=true but Data was null.");
         artifactInstance.AddVersionGeneric(artifactDataResult.Data!);
-        return null;
+        return EmptyStepResultContext.Instance;
     }
 
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     public override void DeclareIO(StepIOContract contract)
     {

@@ -205,6 +205,17 @@ public class CoreEnvironmentTests
         Assert.Contains("depends on per-run component", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void PersistentEnvironmentContext_WhenBootstrapExceedsConfiguredTimeout_Throws()
+    {
+        TimeoutPersistentEnvironment.Reset();
+
+        TimeoutException exception = Assert.Throws<TimeoutException>(() => new PersistentEnvironmentContext<TimeoutPersistentSetup>());
+
+        Assert.Contains("configured timeout", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("delayed-network", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class TestEnvironment : EnvironmentProviderBase
     {
         public List<string> Calls { get; } = [];
@@ -321,6 +332,27 @@ public class CoreEnvironmentTests
         public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["shared-host"];
     }
 
+    private sealed class TimeoutPersistentEnvironment : EnvironmentProviderBase
+    {
+        public static List<string> Calls { get; } = [];
+
+        public TimeoutPersistentEnvironment()
+        {
+            AddComponent(new TimeoutLoggingEnvComponent("delayed-network", Calls) { ReuseModeOverride = EnvComponentReuseMode.PersistentContext });
+        }
+
+        public static void Reset() => Calls.Clear();
+    }
+
+    private sealed class TimeoutPersistentSetup : IPersistentEnvironmentSetup
+    {
+        public IEnvironmentProvider CreateEnvironment() => new TimeoutPersistentEnvironment();
+
+        public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["delayed-network"];
+
+        public TimeSpan GetPersistentSetupTimeout() => TimeSpan.FromMilliseconds(50);
+    }
+
     private sealed class LoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
@@ -344,6 +376,30 @@ public class CoreEnvironmentTests
             calls.Add($"deconstruct:{Id}:{state}");
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class TimeoutLoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
+    {
+        private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
+
+        public override EnvComponentIdentifier Id => identifier;
+
+        public EnvComponentReuseMode ReuseModeOverride { get; init; } = EnvComponentReuseMode.PerRun;
+
+        public override EnvComponentReuseMode ReuseMode => ReuseModeOverride;
+
+        public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
+
+        public override async Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        {
+            calls.Add($"create:{Id}:start");
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            calls.Add($"create:{Id}:end");
+            return $"state:{Id}";
+        }
+
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 
     private sealed class DelayedLoggingEnvComponent(string identifier, ParallelEnvironment environment, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
@@ -378,25 +434,25 @@ public class CoreEnvironmentTests
         }
     }
 
-    private sealed class NoOpStep : Step<object?>
+    private sealed class NoOpStep : Step<EmptyStepResultContext>
     {
         public override string Name => "NoOp";
         public override string Description => "NoOp";
         public override bool DoesReturn => false;
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
-            => Task.FromResult((object?)null);
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
-        public override Step<object?> Clone() => new NoOpStep().WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new NoOpStep().WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
-    private sealed class RequirementStep : Step<object?>, IHasEnvironmentRequirements
+    private sealed class RequirementStep : Step<EmptyStepResultContext>, IHasEnvironmentRequirements
     {
         public override string Name => "Requirement";
         public override string Description => "Requirement";
@@ -405,16 +461,16 @@ public class CoreEnvironmentTests
         public IReadOnlyCollection<EnvironmentRequirement> GetEnvironmentRequirements(VariableStore variableStore)
             => [new EnvironmentRequirement("test.servicebus", "bus")];
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
-            => Task.FromResult((object?)null);
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
-        public override Step<object?> Clone() => new RequirementStep().WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new RequirementStep().WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
     private sealed class TestArtifactDescriber : ArtifactDescriber<TestArtifactDescriber, TestArtifactData, TestArtifactReference>

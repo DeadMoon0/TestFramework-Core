@@ -1,4 +1,5 @@
 ﻿using System;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 
@@ -15,5 +16,5 @@ public interface IAssertVariableAction
     /// <summary>
     /// Adds a step that asserts a variable against the provided predicate.
     /// </summary>
-    public ITimelineBuilderModifier AssertVariable<T>(VariableReference<T> identifier, Func<T?, bool> predicate);
+    public ITimelineBuilderModifier<EmptyStepResultContext> AssertVariable<T>(VariableReference<T> identifier, Func<T?, bool> predicate);
 }

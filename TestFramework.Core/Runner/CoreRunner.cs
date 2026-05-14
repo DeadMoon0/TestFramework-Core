@@ -50,7 +50,10 @@ internal class CoreRunner
                     stepResult.Result = r;
                     stepResult.State = StepState.Complete;
                     if (step.Step.DoesReturn)
-                        variableStore.SetVariable(step.Step.ResultOptions.ResultVariable, r);
+                    {
+                        foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
+                            variableStore.SetVariable(binding.Variable, binding.Accessor(r));
+                    }
                 }
                 catch (TimeoutException e)
                 {

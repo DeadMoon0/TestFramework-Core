@@ -6,24 +6,24 @@ namespace TestFramework.Core.Steps;
 /// Represents a typed runtime instance of a step and its retry results.
 /// </summary>
 /// <typeparam name="TStep">The concrete step type.</typeparam>
-/// <typeparam name="TResult">The step result value type.</typeparam>
-public class StepInstance<TStep, TResult> : StepInstanceGeneric where TStep : Step<TResult>
+/// <typeparam name="TStepResultContext">The step result context type.</typeparam>
+public class StepInstance<TStep, TStepResultContext> : StepInstanceGeneric where TStep : Step<TStepResultContext> where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Gets the typed retry results recorded for the step instance.
     /// </summary>
-    public new IFreezableCollection<StepResult<TResult>> RetryResults { get => base.RetryResults.Cast<StepResult<TResult>>(); }
+    public new IFreezableCollection<StepResult<TStepResultContext>> RetryResults { get => base.RetryResults.Cast<StepResult<TStepResultContext>>(); }
 
     /// <summary>
     /// Gets the last typed retry result recorded for the step instance.
     /// </summary>
-    public new StepResult<TResult> LastResult { get => (StepResult<TResult>)base.RetryResults.Last(); }
+    public new StepResult<TStepResultContext> LastResult { get => (StepResult<TStepResultContext>)base.RetryResults.Last(); }
 
     /// <summary>
     /// Initializes a new typed step instance for the provided step definition.
     /// </summary>
     /// <param name="step">The step definition represented by this runtime instance.</param>
-    public StepInstance(Step<TResult> step) : base(step) { }
+    public StepInstance(Step<TStepResultContext> step) : base(step) { }
 }
 
 /// <summary>

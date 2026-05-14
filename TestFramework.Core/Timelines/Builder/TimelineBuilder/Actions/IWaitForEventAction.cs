@@ -1,4 +1,5 @@
 ﻿using TestFramework.Core.Events;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
@@ -14,5 +15,7 @@ public interface IWaitForEventAction
     /// <summary>
     /// Adds an event step that waits until the event yields a result.
     /// </summary>
-    public ITimelineBuilderModifier WaitForEvent<TEvent, TResult>(Event<TEvent, TResult> sourceEvent) where TEvent : Event<TEvent, TResult>;
+    public ITimelineBuilderModifier<TStepResultContext> WaitForEvent<TEvent, TStepResultContext>(Event<TEvent, TStepResultContext> sourceEvent)
+        where TEvent : Event<TEvent, TStepResultContext>
+        where TStepResultContext : StepResultContext;
 }

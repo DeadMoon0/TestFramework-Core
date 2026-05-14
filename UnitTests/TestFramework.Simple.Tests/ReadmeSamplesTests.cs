@@ -2,6 +2,7 @@ using TestFramework.Core;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
 using TestFramework.Simple;
@@ -19,7 +20,7 @@ public class ReadmeSamplesTests
         const string expectedMessage = "Action executed";
 
         Timeline timeline = Timeline.Create()
-            .Trigger(Simple.Trigger.Action(() => message = expectedMessage))
+            .Trigger(SimpleExt.Trigger.Action(() => message = expectedMessage))
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
@@ -35,7 +36,7 @@ public class ReadmeSamplesTests
 
         Timeline timeline = Timeline.Create()
             .SetVariable("name", Var.Const("Alex"))
-            .Trigger(Simple.Trigger.Action(vars =>
+            .Trigger(SimpleExt.Trigger.Action(vars =>
             {
                 greeting = $"Hello {vars[new VariableIdentifier("name")]}";
             }, Var.Ref<string>("name")))
@@ -55,7 +56,7 @@ public class ReadmeSamplesTests
 
         Timeline timeline = Timeline.Create()
             .SetVariable("name", Var.Const("Alex"))
-            .Trigger(Simple.Trigger.Action((vars, artifacts) =>
+            .Trigger(SimpleExt.Trigger.Action((vars, artifacts) =>
             {
                 string? name = (string?)vars[new VariableIdentifier("name")];
                 ArtifactInstanceGeneric payload = artifacts[payloadArtifact];
@@ -78,7 +79,7 @@ public class ReadmeSamplesTests
 
         Timeline timeline = Timeline.Create()
             .SetVariable("name", Var.Const("Alex"))
-            .Trigger(Simple.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
+            .Trigger(SimpleExt.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
             {
                 captured = $"{serviceProvider is not null}:{logger is not null}:{vars.Count}:{artifacts.Count}";
             }, [Var.Ref<string>("name")]))

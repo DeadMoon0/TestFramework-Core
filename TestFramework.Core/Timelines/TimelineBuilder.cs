@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Linq;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -8,13 +9,14 @@ using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Steps.Preprocessor;
 using TestFramework.Core.Steps.SystemSteps;
 
 namespace TestFramework.Core.Timelines;
 
-internal class TimelineBuilder : ITimelineBuilderModifier
+internal class TimelineBuilder : ITimelineBuilder
 {
     internal readonly PreProcessableStage _mainStageEmitters = new PreProcessableStage() { Name = "Main Stage", Description = "The Stage where all Main Steps are Executed." };
 
@@ -30,68 +32,70 @@ internal class TimelineBuilder : ITimelineBuilderModifier
         return timeline;
     }
 
-    public ITimelineBuilderModifier RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
+    public ITimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, (TArtifactReference)reference)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier CaptureArtifactVersion(ArtifactIdentifier identifier)
+    public ITimelineBuilderModifier<EmptyStepResultContext> CaptureArtifactVersion(ArtifactIdentifier identifier)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new CaptureArtifactVersionStep(identifier, ArtifactVersionIdentifier.Default)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier CaptureArtifactVersion(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier)
+    public ITimelineBuilderModifier<EmptyStepResultContext> CaptureArtifactVersion(ArtifactIdentifier identifier, ArtifactVersionIdentifier versionIdentifier)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new CaptureArtifactVersionStep(identifier, versionIdentifier)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier RemoveArtifact(ArtifactIdentifier identifier)
+    public ITimelineBuilderModifier<EmptyStepResultContext> RemoveArtifact(ArtifactIdentifier identifier)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new DeconstructArtifactStep(identifier)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier SetupArtifact(ArtifactIdentifier identifier)
+    public ITimelineBuilderModifier<EmptyStepResultContext> SetupArtifact(ArtifactIdentifier identifier)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new SetupArtifactStep(identifier)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable)
+    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new SetVariableStep(identifier, variable)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier Trigger<TResult>(Step<TResult> triggerStep)
+    public ITimelineBuilderModifier<TStepResultContext> Trigger<TStepResultContext>(Step<TStepResultContext> triggerStep) where TStepResultContext : StepResultContext
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(triggerStep));
-        return this;
+        return AsTypedModifier<TStepResultContext>();
     }
 
-    public ITimelineBuilderModifier WaitForEvent<TEvent, TResult>(Event<TEvent, TResult> sourceEvent) where TEvent : Event<TEvent, TResult>
+    public ITimelineBuilderModifier<TStepResultContext> WaitForEvent<TEvent, TStepResultContext>(Event<TEvent, TStepResultContext> sourceEvent)
+        where TEvent : Event<TEvent, TStepResultContext>
+        where TStepResultContext : StepResultContext
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(sourceEvent));
-        return this;
+        return AsTypedModifier<TStepResultContext>();
     }
 
-    public ITimelineBuilderModifier Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer) => Transform(toVariable, fromVariable, (x) => Task.FromResult(transformer(x)));
-    public ITimelineBuilderModifier Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer)
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer) => Transform(toVariable, fromVariable, (x) => Task.FromResult(transformer(x)));
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new TransformStep<TFrom, TTo>(toVariable, fromVariable, transformer)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilderModifier AssertVariable<T>(VariableReference<T> identifier, Func<T?, bool> predicate)
+    public ITimelineBuilderModifier<EmptyStepResultContext> AssertVariable<T>(VariableReference<T> identifier, Func<T?, bool> predicate)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new AssertVariableStep<T>(identifier, predicate)));
-        return this;
+        return AsTypedModifier<EmptyStepResultContext>();
     }
 
     public ITimelineBuilder Conditional(bool shouldRun, Action<ITimelineBuilder> steps) => Conditional((ImmutableVariable<ConstVariable<bool>, bool>)Var.Const(shouldRun), steps);
@@ -138,18 +142,17 @@ internal class TimelineBuilder : ITimelineBuilderModifier
         return this;
     }
 
-    public ITimelineBuilderModifier WithTimeOut(VariableReference<TimeSpan> timeout)
+    internal void WithTimeOut(VariableReference<TimeSpan> timeout)
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             variableTracker.GetReference(timeout);
             step.TimeOutOptions.TimeOut = timeout;
         });
-        return this;
     }
 
-    public ITimelineBuilderModifier WithRetry(VariableReference<int> maxRetryCount, CalcDelay calcDelay) => WithRetry(maxRetryCount, (VariableReference<CalcDelay>)calcDelay);
-    public ITimelineBuilderModifier WithRetry(VariableReference<int> maxRetryCount, VariableReference<CalcDelay> calcDelay)
+    internal void WithRetry(VariableReference<int> maxRetryCount, CalcDelay calcDelay) => WithRetry(maxRetryCount, (VariableReference<CalcDelay>)calcDelay);
+    internal void WithRetry(VariableReference<int> maxRetryCount, VariableReference<CalcDelay> calcDelay)
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
@@ -158,11 +161,9 @@ internal class TimelineBuilder : ITimelineBuilderModifier
             step.RetryOptions.MaxRetryCount = maxRetryCount;
             step.RetryOptions.CalcDelay = calcDelay;
         });
-
-        return this;
     }
 
-    public ITimelineBuilderModifier ExpectExceptions(params Type[] exceptionTypes)
+    internal void ExpectExceptions(params Type[] exceptionTypes)
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
@@ -172,46 +173,74 @@ internal class TimelineBuilder : ITimelineBuilderModifier
                 step.ErrorHandlingOptions.IgnoreExceptionTypes.Add(type);
             }
         });
-
-        return this;
     }
 
-    public ITimelineBuilderModifier Name(string label)
+    internal void Name(string label)
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             step.LabelOptions.Label = label;
         });
-
-        return this;
     }
 
-    public ITimelineBuilderModifier CaptureResultAs(VariableIdentifier identifier) => CaptureResultAsInternal(identifier, declaredType: null);
-
-    public ITimelineBuilderModifier CaptureResultAs<T>(VariableIdentifier identifier) => CaptureResultAsInternal(identifier, typeof(T));
-
-    public ITimelineBuilderModifier RunExclusively()
+    internal void RunExclusively()
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             step.ExecutionOptions.RunExclusively = true;
         });
-
-        return this;
     }
 
-    private ITimelineBuilderModifier CaptureResultAsInternal(VariableIdentifier identifier, Type? declaredType)
+    internal void BindResultProperty<TStepResultContext, TValue>(Expression<Func<TStepResultContext, TValue>> selector, VariableIdentifier identifier)
+        where TStepResultContext : StepResultContext
     {
+        if (selector is null) throw new ArgumentNullException(nameof(selector));
+
+        string memberPath = GetMemberPath(selector.Body);
+        Func<TStepResultContext, TValue> compiledSelector = selector.Compile();
+
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             if (!step.DoesReturn)
-                throw new InvalidOperationException($"Step '{step.Name}' does not return a result and cannot be captured into variable '{identifier}'.");
+                throw new InvalidOperationException($"Step '{step.Name}' does not return a result context and cannot bind '{memberPath}' into variable '{identifier}'.");
 
-            step.ResultOptions.ResultVariable = identifier;
-            step.ResultOptions.DeclaredType = declaredType;
+            if (!typeof(TStepResultContext).IsAssignableFrom(step.ResultType))
+                throw new InvalidOperationException($"Step '{step.Name}' returns '{step.ResultType.Name}' and cannot bind result context '{typeof(TStepResultContext).Name}'.");
+
+            if (step.ResultOptions.ResultBindings.Any(existing => existing.Variable == identifier))
+                throw new InvalidOperationException($"Step '{step.Name}' already binds a result value into variable '{identifier}'.");
+
+            step.ResultOptions.ResultBindings.Add(new ResultBinding(
+                identifier,
+                memberPath,
+                typeof(TValue),
+                context =>
+                {
+                    if (context is null) return null;
+                    return compiledSelector((TStepResultContext)context);
+                }));
         });
+    }
 
-        return this;
+    private ITimelineBuilderModifier<TStepResultContext> AsTypedModifier<TStepResultContext>() where TStepResultContext : StepResultContext => new TypedTimelineBuilderModifier<TStepResultContext>(this);
+
+    private static string GetMemberPath(Expression expression)
+    {
+        Expression current = expression;
+        while (current is UnaryExpression unary && (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+            current = unary.Operand;
+
+        Stack<string> segments = [];
+        while (current is MemberExpression memberExpression)
+        {
+            segments.Push(memberExpression.Member.Name);
+            current = memberExpression.Expression ?? throw new InvalidOperationException("Result binding expressions must resolve from the context parameter.");
+        }
+
+        if (current is not ParameterExpression)
+            throw new InvalidOperationException("Only simple member-access expressions are supported for result bindings.");
+
+        return string.Join(".", segments);
     }
 
 }

@@ -26,7 +26,7 @@ public class SimpleSample
         const string expectedMessage = "Action executed";
 
         Timeline timeline = Timeline.Create()
-            .Trigger(Simple.Trigger.Action(() => message = expectedMessage))
+            .Trigger(SimpleExt.Trigger.Action(() => message = expectedMessage))
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
@@ -45,7 +45,7 @@ using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
     .SetVariable("name", Var.Const("Alex"))
-    .Trigger(Simple.Trigger.Action(vars => Console.WriteLine($"Hello {vars[new VariableIdentifier("name")]}"), Var.Ref<string>("name")))
+    .Trigger(SimpleExt.Trigger.Action(vars => Console.WriteLine($"Hello {vars[new VariableIdentifier("name")]}"), Var.Ref<string>("name")))
     .Build();
 ```
 
@@ -70,7 +70,7 @@ using TestFramework.Simple;
 ArtifactIdentifier payloadArtifact = new("payload");
 
 Timeline timeline = Timeline.Create()
-    .Trigger(Simple.Trigger.Action((vars, artifacts) =>
+    .Trigger(SimpleExt.Trigger.Action((vars, artifacts) =>
     {
         string? name = (string?)vars[new VariableIdentifier("name")];
         ArtifactInstanceGeneric payload = artifacts[payloadArtifact];
@@ -87,7 +87,7 @@ using TestFramework.Core.Variables;
 using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
-    .Trigger(Simple.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
+    .Trigger(SimpleExt.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
     {
         logger.LogInformation("Executing inline action with {VariableCount} variables and {ArtifactCount} artifacts.", vars.Count, artifacts.Count);
     }, [Var.Ref<string>("name")]))
@@ -96,7 +96,7 @@ Timeline timeline = Timeline.Create()
 
 ## Windows MessageBox Behavior
 
-`Simple.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`.
+`SimpleExt.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`.
 
 - Use it only on Windows test machines.
 - Do not rely on it for unattended CI runs.
@@ -110,8 +110,8 @@ Timeline timeline = Timeline.Create()
 
 ## Includes
 
-- `Simple.Trigger.Action(...)` for inline custom actions
-- `Simple.Trigger.MessageBox(...)` for simple Windows message box flows
+- `SimpleExt.Trigger.Action(...)` for inline custom actions
+- `SimpleExt.Trigger.MessageBox(...)` for simple Windows message box flows
 
 ## Target Framework
 

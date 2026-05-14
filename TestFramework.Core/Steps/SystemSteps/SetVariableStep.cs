@@ -8,25 +8,25 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class SetVariableStep(VariableIdentifier identifier, VariableReferenceGeneric reference) : Step<object?>
+internal class SetVariableStep(VariableIdentifier identifier, VariableReferenceGeneric reference) : Step<EmptyStepResultContext>
 {
     public override bool DoesReturn => false;
 
     public override string Name => "Set Variable";
     public override string Description => "Sets a Variable to a Value";
 
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new SetVariableStep(identifier, reference).WithClonedOptions(this);
     }
 
-    public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         variableStore.SetVariable(identifier, reference.GetValueGeneric(variableStore));
-        return null;
+        return EmptyStepResultContext.Instance;
     }
 
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     public override void DeclareIO(StepIOContract contract)
     {

@@ -12,7 +12,7 @@
 </package_scope>
 
 <key_concepts>
-    Use Simple.Trigger.Action(...) for inline actions.
+    Use SimpleExt.Trigger.Action(...) for inline actions.
     Use variable-aware action overloads when timeline values need to flow into the delegate.
     Keep Simple-based tests small and obvious.
     Simple is a convenience layer, not a substitute for good reusable abstractions when behavior grows.
@@ -25,7 +25,7 @@
     Keep assertions outside the trigger body where possible.
     Prefer Simple for test-local side effects, tiny inline logging, or very small orchestration glue.
     Prefer the smallest overload that expresses the scenario clearly.
-    Prefer compact `Trigger(Simple.Trigger.Action(...))` shapes over needlessly expanded formatting.
+    Prefer compact `Trigger(SimpleExt.Trigger.Action(...))` shapes over needlessly expanded formatting.
 </best_practices>
 
 <overload_guidance>
@@ -40,8 +40,8 @@
 
 <api_hints>
     Important APIs:
-    - Simple.Trigger.Action(...)
-    - Simple.Trigger.MessageBox(...)
+    - SimpleExt.Trigger.Action(...)
+    - SimpleExt.Trigger.MessageBox(...)
 
     Source-level behavior:
     ActionTrigger executes a delegate with IServiceProvider, ScopedLogger, resolved variables, and resolved artifacts.
@@ -105,9 +105,9 @@
 
 <important_type_map>
     Common type map for discovery and error interpretation:
-    - Simple: package facade exposing Trigger helpers
-    - ActionTrigger: inline action step implementation behind Simple.Trigger.Action(...)
-    - MessageBoxTrigger: interactive debug/demo trigger behind Simple.Trigger.MessageBox(...)
+    - SimpleExt: package facade exposing Trigger helpers
+    - ActionTrigger: inline action step implementation behind SimpleExt.Trigger.Action(...)
+    - MessageBoxTrigger: interactive debug/demo trigger behind SimpleExt.Trigger.MessageBox(...)
     - ScopedLogger: logger commonly passed into inline action delegates
 
     Discovery heuristics for the agent:
@@ -124,7 +124,7 @@
 
 <grounding_files>
     Most important files for expert grounding:
-    - TestFramework-Core/TestFramework.Simple/Simple.cs
+    - TestFramework-Core/TestFramework.Simple/SimpleExt.cs
     - TestFramework-Core/TestFramework.Simple/ActionTrigger.cs
     - TestFramework-Core/TestFramework.Simple/MessageBoxTrigger.cs
     - TestFramework-Core/UnitTests/TestFramework.Simple.Tests/ActionTriggerTests.cs

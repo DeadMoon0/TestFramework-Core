@@ -12,14 +12,14 @@ namespace TestFramework.Core.Steps;
 /// <summary>
 /// Represents a typed executable step in a timeline.
 /// </summary>
-/// <typeparam name="TResult">The result type produced by the step.</typeparam>
-public abstract class Step<TResult> : StepGeneric
+/// <typeparam name="TStepResultContext">The result context type produced by the step.</typeparam>
+public abstract class Step<TStepResultContext> : StepGeneric where TStepResultContext : StepResultContext
 #pragma warning restore CA1716
 {
     /// <summary>
     /// Gets the CLR type produced by this step.
     /// </summary>
-    public override Type ResultType => typeof(TResult);
+    public override Type ResultType => typeof(TStepResultContext);
 
     /// <summary>
     /// Executes the step.
@@ -29,24 +29,24 @@ public abstract class Step<TResult> : StepGeneric
     /// <param name="artifactStore">The current run artifact store.</param>
     /// <param name="logger">The scoped logger for the run.</param>
     /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<TResult?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<TStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
 
     /// <summary>
     /// Creates a runtime instance for this step.
     /// </summary>
-    public abstract StepInstance<Step<TResult>, TResult> GetInstance();
+    public abstract StepInstance<Step<TStepResultContext>, TStepResultContext> GetInstance();
 
     /// <summary>
     /// Creates a clone of this step definition.
     /// </summary>
-    public abstract Step<TResult> Clone();
+    public abstract Step<TStepResultContext> Clone();
 
     /// <summary>
     /// Copies the option state from another step clone into this instance.
     /// </summary>
     /// <typeparam name="TStep">The concrete step type.</typeparam>
     /// <param name="from">The step whose options should be copied.</param>
-    public TStep WithClonedOptions<TStep>(TStep from) where TStep : Step<TResult> => (TStep)base.WithClonedOptions(from);
+    public TStep WithClonedOptions<TStep>(TStep from) where TStep : Step<TStepResultContext> => (TStep)base.WithClonedOptions(from);
 
     /// <summary>
     /// Executes the step through the untyped base contract.

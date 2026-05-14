@@ -18,7 +18,7 @@ internal enum FindArtifactNamingMode
 }
 
 //TODO: Find a way to not have loos identifiers when no Artifact is found
-internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<object?>
+internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<EmptyStepResultContext>
     where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
@@ -57,12 +57,12 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
     public override string Name => "Find Artifact";
     public override string Description => "Searches and Finds external Artifacts";
 
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(_identifiers, _finder, _namingMode).WithClonedOptions(this);
     }
 
-    public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         List<TArtifactReference> artifacts = [];
         if (_namingMode == FindArtifactNamingMode.Single)
@@ -71,7 +71,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
             if (result is null)
             {
                 logger.LogWarning("No Artifact Found.");
-                return null;
+                return EmptyStepResultContext.Instance;
             }
             artifacts.Add((TArtifactReference)result.Reference);
         }
@@ -91,10 +91,10 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
                 State = ArtifactState.Setup
             });
         }
-        return null;
+        return EmptyStepResultContext.Instance;
     }
 
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     public override void DeclareIO(StepIOContract contract)
     {

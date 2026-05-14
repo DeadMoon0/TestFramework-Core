@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
@@ -15,10 +17,10 @@ public interface ITransformAction
     /// <summary>
     /// Adds a synchronous variable transformation.
     /// </summary>
-    public ITimelineBuilderModifier Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer);
 
     /// <summary>
     /// Adds an asynchronous variable transformation.
     /// </summary>
-    public ITimelineBuilderModifier Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer);
 }

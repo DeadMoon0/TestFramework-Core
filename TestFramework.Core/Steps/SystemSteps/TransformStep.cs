@@ -9,7 +9,7 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer) : Step<object?>
+internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer) : Step<EmptyStepResultContext>
 {
     public override string Name => "Transform";
 
@@ -17,18 +17,18 @@ internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, Variable
 
     public override bool DoesReturn => false;
 
-    public override Step<object?> Clone()
+    public override Step<EmptyStepResultContext> Clone()
     {
         return new TransformStep<TFrom, TTo>(toVariable, fromVariable, transformer).WithClonedOptions(this);
     }
 
-    public override async Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         variableStore.SetVariable(toVariable, await transformer(fromVariable.GetValue(variableStore)));
-        return null;
+        return EmptyStepResultContext.Instance;
     }
 
-    public override StepInstance<Step<object?>, object?> GetInstance() => new StepInstance<Step<object?>, object?>(this);
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
     public override void DeclareIO(StepIOContract contract)
     {
