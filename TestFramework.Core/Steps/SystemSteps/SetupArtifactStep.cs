@@ -10,6 +10,8 @@ namespace TestFramework.Core.Steps.SystemSteps;
 
 internal class SetupArtifactStep(ArtifactIdentifier identifier) : Step<EmptyStepResultContext>
 {
+    internal ArtifactIdentifier Identifier => identifier;
+
     public override bool DoesReturn => false;
 
     public override string Name => "Setup Artifact";

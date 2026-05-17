@@ -12,6 +12,6 @@ public interface ITimelineBuilderModifier<TStepResultContext> : ITimelineBuilder
     ISetupRetryModAction<TStepResultContext>,
     IExpectExceptionsModAction<TStepResultContext>,
     INameModAction<TStepResultContext>,
-    IRunExclusivelyModAction<TStepResultContext>,
+    IDoNotParallelizeModAction<TStepResultContext>,
     IStepIOModAction<TStepResultContext>
     where TStepResultContext : StepResultContext;

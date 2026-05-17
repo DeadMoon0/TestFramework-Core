@@ -1,18 +1,16 @@
 ﻿using System.Threading.Tasks;
-using TestFramework.Core.Steps;
-
 namespace TestFramework.Core.Debugger;
 
 internal class EmptyRunDebugger : IRunDebugger
 {
-    public static IRunDebugger CreateNew() => new EmptyRunDebugger();
+    public static EmptyRunDebugger CreateNew() => new();
 
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
     {
         return Task.CompletedTask;
     }
 
-    public Task SignalArtifactUpdateAsync(string sessionId, string name, ArtifactState artifact)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
     {
         return Task.CompletedTask;
     }
@@ -22,17 +20,17 @@ internal class EmptyRunDebugger : IRunDebugger
         return Task.CompletedTask;
     }
 
-    public Task SignalStageBeginAsync(string sessionId, string name)
+    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
     {
         return Task.CompletedTask;
     }
 
-    public Task SignalStepBeginAsync(string sessionId, int stepId)
+    public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
     {
         return Task.CompletedTask;
     }
 
-    public Task SignalStepResultChangeAsync(string sessionId, StepResultGeneric result)
+    public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
     {
         return Task.CompletedTask;
     }
@@ -42,8 +40,4 @@ internal class EmptyRunDebugger : IRunDebugger
         return Task.CompletedTask;
     }
 
-    public Task SignalVariableUpdateAsync(string sessionId, string name, VariableState variable)
-    {
-        return Task.CompletedTask;
-    }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -9,6 +10,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Steps.SystemSteps;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Logging.BuildInEvents;
 
@@ -18,74 +20,135 @@ internal class CoreRunner
 {
     internal async Task RunStage(StageInstance instance, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
     {
-        int i = 0;
-        foreach (StepInstanceGeneric step in instance.Steps)
+        StageExecutionPlanner executionPlanner = new StageExecutionPlanner(instance, artifactStore);
+
+        foreach (var layer in executionPlanner.BuildLayers())
         {
-            logger.LogInformation("");
-            logger.Log(new EnterStepLogEvent(step));
-            using var _ = logger.EnterIndentScope();
+            await ExecuteLayerAsync(instance.Stage.Name, layer, serviceProvider, logger, variableStore, artifactStore, debuggingSession);
 
-            await debuggingSession.EnterStepAsync(i);
-            await debuggingSession.WaitWhenBreakpointHit(instance.Stage.Name, i);
-
-            int iteration = 0;
-            do
-            {
-                iteration++;
-
-                if (iteration > 1)
-                {
-                    logger.Log(new EnterStepIterationLogEvent(iteration));
-                    await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
-                }
-
-                var stopwatch = Stopwatch.StartNew();
-                StepResultGeneric stepResult = new StepResultGeneric();
-                TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
-                using CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(timeout);
-                try
-                {
-                    Task<object?> executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
-                    var r = await executionTask.WaitAsync(timeout);
-                    stepResult.Result = r;
-                    stepResult.State = StepState.Complete;
-                    if (step.Step.DoesReturn)
-                    {
-                        foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
-                            variableStore.SetVariable(binding.Variable, binding.Accessor(r));
-                    }
-                }
-                catch (TimeoutException e)
-                {
-                    stepResult.Exception = e;
-                    stepResult.State = StepState.Timeout;
-                }
-                catch (OperationCanceledException e) when (cancellationTokenSource.IsCancellationRequested)
-                {
-                    stepResult.Exception = new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", e);
-                    stepResult.State = StepState.Timeout;
-                }
-                catch (Exception e)
-                {
-                    stepResult.Exception = e;
-                    if (step.Step.ErrorHandlingOptions.IgnoreExceptionTypes.Any(x => x.IsAssignableFrom(e.GetType()))) stepResult.State = StepState.Complete;
-                    else stepResult.State = StepState.Error;
-                }
-                stopwatch.Stop();
-                stepResult.Freeze();
-                step.RetryResults.Add(stepResult);
-                logger.Log(new StepResultLogEvent(step.Step.Name, step.Step.LabelOptions.Label, stepResult, stopwatch.Elapsed));
-                await debuggingSession.SetStepResultAsync(stepResult);
-            } while (step.Step.RetryOptions.MaxRetryCount.GetValue(variableStore) >= iteration && step.RetryResults.Last().State != StepState.Complete);
-            step.Freeze();
-
-            if (step.State != StepState.Complete)
+            if (LayerFailed(layer))
             {
                 instance.Result.State = StageState.Error;
                 return;
             }
-            i++;
         }
+
         instance.Result.State = StageState.Complete;
+    }
+
+    private static Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
+    {
+        return Task.WhenAll(layer.Select(x => ExecuteStepAsync(stageName, x.Index, x.Step, serviceProvider, logger, variableStore, artifactStore, debuggingSession)));
+    }
+
+    private static bool LayerFailed(IEnumerable<StageExecutionPlanner.ScheduledStep> layer)
+    {
+        return layer.Any(x => x.Step.State != StepState.Complete);
+    }
+
+    private static async Task ExecuteStepAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
+    {
+        using var _ = debuggingSession.BeginStepExecutionContext(stageName, stepIndex);
+        await debuggingSession.WaitWhenBreakpointHit(stageName, stepIndex);
+
+        int iteration = 0;
+        bool willRetry;
+        do
+        {
+            iteration++;
+
+            await debuggingSession.TransitionStepAsync(stageName, stepIndex, DebugLifecycleState.Running, iteration == 1 ? DebugLifecycleState.Initialized : DebugLifecycleState.WaitingForRetry);
+
+            using var iterationScope = debuggingSession.BeginStepIterationContext(iteration);
+
+            if (iteration > 1)
+                await DelayForRetryAsync(step, iteration, variableStore);
+
+            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore);
+            step.RetryResults.Add(stepResult);
+
+            willRetry = ShouldRetry(step, variableStore, iteration, stepResult);
+            DebugLifecycleState outcomeState = MapLifecycleState(stepResult.State);
+            await debuggingSession.TransitionStepAsync(
+                stageName,
+                stepIndex,
+                willRetry ? DebugLifecycleState.WaitingForRetry : outcomeState,
+                DebugLifecycleState.Running,
+                outcomeState);
+        }
+        while (willRetry);
+
+        step.Freeze();
+    }
+
+    private static async Task DelayForRetryAsync(StepInstanceGeneric step, int iteration, VariableStore variableStore)
+    {
+        await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
+    }
+
+    private static async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        StepResultGeneric stepResult = new StepResultGeneric();
+        TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+        using CancellationTokenSource cancellationTokenSource = new(timeout);
+
+        try
+        {
+            Task<object?> executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
+            object? result = await executionTask.WaitAsync(timeout);
+            stepResult.Result = result;
+            stepResult.State = StepState.Complete;
+
+            ApplyResultBindings(step, result, variableStore);
+        }
+        catch (TimeoutException exception)
+        {
+            stepResult.Exception = exception;
+            stepResult.State = StepState.Timeout;
+        }
+        catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
+        {
+            stepResult.Exception = new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", exception);
+            stepResult.State = StepState.Timeout;
+        }
+        catch (Exception exception)
+        {
+            stepResult.Exception = exception;
+            stepResult.State = step.Step.ErrorHandlingOptions.IgnoreExceptionTypes.Any(x => x.IsAssignableFrom(exception.GetType()))
+                ? StepState.Complete
+                : StepState.Error;
+        }
+
+        stopwatch.Stop();
+        stepResult.Freeze();
+        return stepResult;
+    }
+
+    private static void ApplyResultBindings(StepInstanceGeneric step, object? result, VariableStore variableStore)
+    {
+        if (!step.Step.DoesReturn)
+            return;
+
+        foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
+            variableStore.SetVariable(binding.Variable, binding.Accessor(result));
+    }
+
+    private static bool ShouldRetry(StepInstanceGeneric step, VariableStore variableStore, int iteration, StepResultGeneric stepResult)
+    {
+        return step.Step.RetryOptions.MaxRetryCount.GetValue(variableStore) >= iteration && stepResult.State != StepState.Complete;
+    }
+
+    private static DebugLifecycleState MapLifecycleState(StepState state)
+    {
+        return state switch
+        {
+            StepState.NotRun => DebugLifecycleState.Initialized,
+            StepState.Complete => DebugLifecycleState.Complete,
+            StepState.Timeout => DebugLifecycleState.Timeout,
+            StepState.Error => DebugLifecycleState.Error,
+            StepState.Skipped => DebugLifecycleState.Skipped,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
+        };
     }
 }

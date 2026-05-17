@@ -117,7 +117,7 @@ public class ActionTriggerTests
     {
         public IServiceProvider ServiceProvider { get; } = new EmptyServiceProvider();
         public ScopedLogger Logger { get; } = new(null);
-        public DebuggingRunSession DebuggingSession { get; } = new(EmptyRunDebugger.CreateNew());
+        public DebuggingRunSession DebuggingSession { get; } = new(new EmptyRunDebugger());
         public VariableStore VariableStore { get; }
         public ArtifactStore ArtifactStore { get; }
 

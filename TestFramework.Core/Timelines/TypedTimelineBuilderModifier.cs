@@ -105,9 +105,9 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
         return this;
     }
 
-    public ITimelineBuilderModifier<TStepResultContext> RunExclusively()
+    public ITimelineBuilderModifier<TStepResultContext> DoNotParallelize()
     {
-        builder.RunExclusively();
+        builder.DoNotParallelize();
         return this;
     }
 

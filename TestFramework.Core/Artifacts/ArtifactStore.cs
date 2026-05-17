@@ -1,5 +1,7 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
@@ -11,6 +13,8 @@ namespace TestFramework.Core.Artifacts;
 /// </summary>
 public class ArtifactStore : IFreezable
 {
+    private readonly object syncRoot = new();
+
     /// <summary>
     /// Gets a value indicating whether the artifact store has been frozen against further mutation.
     /// </summary>
@@ -19,7 +23,7 @@ public class ArtifactStore : IFreezable
     /// <summary>
     /// Freezes the artifact store.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    public void Freeze() { lock (syncRoot) { IsFrozen = true; } }
 
     private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts = [];
     private readonly ScopedLogger logger;
@@ -36,27 +40,48 @@ public class ArtifactStore : IFreezable
     /// </summary>
     public void AddArtifact(ArtifactInstanceGeneric instance)
     {
-        bool replaced = _artifacts.TryGetValue(instance.Identifier, out var previous);
-        if (replaced)
+        ArtifactInstanceGeneric? previous;
+        bool replaced;
+
+        lock (syncRoot)
         {
-            logger.LogInformation(
-                "Set Artifact ({0}) {1} -> {2}",
-                instance.Identifier,
-                DescribeArtifact(previous!),
-                DescribeArtifact(instance));
-        }
-        else
-        {
-            logger.LogInformation("Set Artifact ({0}) = {1}", instance.Identifier, DescribeArtifact(instance));
+            replaced = _artifacts.TryGetValue(instance.Identifier, out previous);
+            _artifacts[instance.Identifier] = instance;
         }
 
-        _artifacts[instance.Identifier] = instance;
         debuggingSession.UpdateArtifactAsync(instance.Identifier, GetDebuggingStateFromInstance(instance));
     }
 
     internal static Debugger.ArtifactState GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)
     {
-        return new Debugger.ArtifactState { Key = instance.Identifier, KindName = instance.Artifact.ToString(), Data = JsonConvert.SerializeObject(instance.VersionCount != 0 ? instance[instance.VersionCount - 1] : null), Reference = JsonConvert.SerializeObject(instance.Reference) };
+        ArtifactDataGeneric? currentData = instance.VersionCount != 0 ? instance[instance.VersionCount - 1] : null;
+        return new Debugger.ArtifactState
+        {
+            Key = instance.Identifier,
+            Envelope = new DebugValueEnvelope
+            {
+                Kind = DebugValueKind.Artifact,
+                TypeName = instance.Artifact.GetType().FullName ?? instance.Artifact.ToString(),
+                DisplayText = DescribeArtifact(instance),
+                SchemaKey = instance.Artifact.DebugValueSchemaKey,
+                Version = currentData?.Identifier.ToString(),
+                Core = new JObject
+                {
+                    ["key"] = instance.Identifier.Identifier,
+                    ["artifactType"] = instance.Artifact.ToString(),
+                    ["state"] = instance.State.ToString(),
+                    ["versionCount"] = instance.VersionCount,
+                    ["reference"] = ToToken(instance.Reference),
+                    ["data"] = ToToken(currentData)
+                },
+                Custom = instance.Artifact.CreateDebugValueCustomPayload(instance)
+            }
+        };
+    }
+
+    private static JToken ToToken(object? value)
+    {
+        return value is null ? JValue.CreateNull() : JToken.FromObject(value, JsonSerializer.CreateDefault());
     }
 
     /// <summary>
@@ -64,7 +89,10 @@ public class ArtifactStore : IFreezable
     /// </summary>
     public ArtifactInstanceGeneric GetArtifact(ArtifactIdentifier identifier)
     {
-        return _artifacts[identifier];
+        lock (syncRoot)
+        {
+            return _artifacts[identifier];
+        }
     }
 
     /// <summary>
@@ -75,7 +103,10 @@ public class ArtifactStore : IFreezable
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
-        return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
+        lock (syncRoot)
+        {
+            return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
+        }
     }
 
     /// <summary>
@@ -86,7 +117,10 @@ public class ArtifactStore : IFreezable
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
-        return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
+        lock (syncRoot)
+        {
+            return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
+        }
     }
 
     /// <summary>
@@ -94,7 +128,10 @@ public class ArtifactStore : IFreezable
     /// </summary>
     public IEnumerable<ArtifactInstanceGeneric> GetAll()
     {
-        return _artifacts.Values;
+        lock (syncRoot)
+        {
+            return _artifacts.Values.ToArray();
+        }
     }
 
     private static string DescribeArtifact(ArtifactInstanceGeneric instance)

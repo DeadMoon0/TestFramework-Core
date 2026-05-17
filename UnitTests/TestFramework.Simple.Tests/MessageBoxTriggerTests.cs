@@ -24,7 +24,7 @@ public class MessageBoxTriggerTests
                 return 0;
             };
 
-            await trigger.Execute(new EmptyServiceProvider(), new VariableStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(TestFramework.Core.Debugger.EmptyRunDebugger.CreateNew())), new TestFramework.Core.Artifacts.ArtifactStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(TestFramework.Core.Debugger.EmptyRunDebugger.CreateNew())), new TestFramework.Core.Logging.ScopedLogger(null), CancellationToken.None);
+            await trigger.Execute(new EmptyServiceProvider(), new VariableStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(new TestFramework.Core.Debugger.EmptyRunDebugger())), new TestFramework.Core.Artifacts.ArtifactStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(new TestFramework.Core.Debugger.EmptyRunDebugger())), new TestFramework.Core.Logging.ScopedLogger(null), CancellationToken.None);
         }
         finally
         {
@@ -77,12 +77,12 @@ public class MessageBoxTriggerTests
     {
         MessageBoxTrigger original = new(Var.Ref<string>("msg"), Var.Ref<string>("caption"));
         original.LabelOptions.Label = "show-message";
-        original.ExecutionOptions.RunExclusively = true;
+        original.ExecutionOptions.ParallelizationMode = StepParallelizationMode.DoNotParallelize;
 
         MessageBoxTrigger clone = (MessageBoxTrigger)original.Clone();
 
         Assert.NotSame(original, clone);
         Assert.Equal("show-message", clone.LabelOptions.Label);
-        Assert.True(clone.ExecutionOptions.RunExclusively);
+        Assert.Equal(StepParallelizationMode.DoNotParallelize, clone.ExecutionOptions.ParallelizationMode);
     }
 }

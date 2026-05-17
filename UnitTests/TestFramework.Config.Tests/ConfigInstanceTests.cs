@@ -183,21 +183,21 @@ public class ConfigInstanceTests
             => Task.CompletedTask;
     }
 
-    private sealed class ConfigNoOpStep : Step<object?>
+    private sealed class ConfigNoOpStep : Step<EmptyStepResultContext>
     {
         public override string Name => "ConfigNoOp";
         public override string Description => "ConfigNoOp";
         public override bool DoesReturn => false;
 
-        public override Task<object?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
-            => Task.FromResult((object?)null);
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+            => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
-        public override Step<object?> Clone() => new ConfigNoOpStep().WithClonedOptions(this);
+        public override Step<EmptyStepResultContext> Clone() => new ConfigNoOpStep().WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
         }
 
-        public override StepInstance<Step<object?>, object?> GetInstance() => new(this);
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 }

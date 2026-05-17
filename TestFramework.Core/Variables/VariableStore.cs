@@ -1,5 +1,7 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
@@ -11,6 +13,8 @@ namespace TestFramework.Core.Variables;
 /// </summary>
 public class VariableStore : IFreezable
 {
+    private readonly object syncRoot = new();
+
     /// <summary>
     /// Gets a value indicating whether the variable store has been frozen against further mutation.
     /// </summary>
@@ -19,7 +23,7 @@ public class VariableStore : IFreezable
     /// <summary>
     /// Freezes the variable store against further mutation.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    public void Freeze() { lock (syncRoot) { IsFrozen = true; } }
 
     private readonly FreezableDictionary<VariableIdentifier, object?> _variables = [];
     private readonly ScopedLogger logger;
@@ -39,35 +43,51 @@ public class VariableStore : IFreezable
     /// <param name="value">The value to store.</param>
     public void SetVariable<T>(VariableIdentifier identifier, T value)
     {
-        var newValue = Logging.VariableFormatter.Format(value);
-        if (_variables.TryGetValue(identifier, out var previousValue))
-        {
-            var oldValue = Logging.VariableFormatter.Format(previousValue);
-            if (oldValue == newValue)
-            {
-                logger.LogInformation("Set Variable ({0}) = {1} (unchanged)", identifier, newValue);
-                _variables[identifier] = value;
-                return;
-            }
+        string newValue = Logging.VariableFormatter.Format(value);
+        string? oldValue = null;
+        bool existed;
+        bool unchanged;
 
-            logger.LogInformation(
-                "Set Variable ({0}) {1} -> {2}",
-                identifier,
-                oldValue,
-                newValue);
-        }
-        else
+        lock (syncRoot)
         {
-            logger.LogInformation("Set Variable ({0}) = {1}", identifier, newValue);
+            existed = _variables.TryGetValue(identifier, out var previousValue);
+            oldValue = existed ? Logging.VariableFormatter.Format(previousValue) : null;
+            unchanged = existed && oldValue == newValue;
+            _variables[identifier] = value;
         }
 
-        _variables[identifier] = value;
+        if (unchanged)
+        {
+            return;
+        }
+
         debuggingSession.UpdateVariableAsync(identifier, GetDebuggingStateFromValue(value, identifier));
     }
 
     internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier)
     {
-        return new VariableState { Key = identifier, TypeName = value?.GetType().FullName ?? "", Value = JsonConvert.SerializeObject(value) };
+        string typeName = value?.GetType().FullName ?? "null";
+        return new VariableState
+        {
+            Key = identifier,
+            Envelope = new DebugValueEnvelope
+            {
+                Kind = DebugValueKind.Variable,
+                TypeName = typeName,
+                DisplayText = Logging.VariableFormatter.Format(value),
+                SchemaKey = $"tf.variable:{typeName}",
+                Core = new JObject
+                {
+                    ["key"] = identifier.Identifier,
+                    ["value"] = ToToken(value)
+                }
+            }
+        };
+    }
+
+    private static JToken ToToken(object? value)
+    {
+        return value is null ? JValue.CreateNull() : JToken.FromObject(value, JsonSerializer.CreateDefault());
     }
 
     /// <summary>
@@ -76,7 +96,10 @@ public class VariableStore : IFreezable
     /// <param name="identifier">The variable identifier to resolve.</param>
     public object? GetVariable(VariableIdentifier identifier)
     {
-        return _variables[identifier];
+        lock (syncRoot)
+        {
+            return _variables[identifier];
+        }
     }
 
     /// <summary>
@@ -86,7 +109,10 @@ public class VariableStore : IFreezable
     /// <param name="identifier">The variable identifier to resolve.</param>
     public T? GetVariable<T>(VariableIdentifier identifier)
     {
-        return (T?)_variables[identifier];
+        lock (syncRoot)
+        {
+            return (T?)_variables[identifier];
+        }
     }
 
     /// <summary>
@@ -98,11 +124,15 @@ public class VariableStore : IFreezable
     /// <returns><see langword="true"/> when the variable exists; otherwise <see langword="false"/>.</returns>
     public bool TryGetVariable<T>(VariableIdentifier identifier, out T? value)
     {
-        if (_variables.TryGetValue(identifier, out object? raw))
+        lock (syncRoot)
         {
-            value = (T?)raw;
-            return true;
+            if (_variables.TryGetValue(identifier, out object? raw))
+            {
+                value = (T?)raw;
+                return true;
+            }
         }
+
         value = default;
         return false;
     }
@@ -112,6 +142,9 @@ public class VariableStore : IFreezable
     /// </summary>
     public IEnumerable<KeyValuePair<VariableIdentifier, object?>> GetAll()
     {
-        return _variables;
+        lock (syncRoot)
+        {
+            return _variables.ToArray();
+        }
     }
 }

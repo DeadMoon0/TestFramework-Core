@@ -1,4 +1,5 @@
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Exceptions;
 
@@ -22,15 +23,13 @@ public class ArtifactAsserter
 
     private ArtifactAsserter Pass(string assertion)
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [PASS]");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Artifact, _display, assertion, assertion, true, assertion == nameof(NotExist) ? "0 versions" : ">= 1 version", _instance.VersionCount.ToString());
         return this;
     }
 
     private ArtifactAsserter Fail(string assertion, string reason)
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [FAIL]  {reason}");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Artifact, _display, assertion, assertion, false, assertion == nameof(NotExist) ? "0 versions" : ">= 1 version", _instance.VersionCount.ToString(), reason);
         var message = $"Artifact {_display}: {assertion} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {

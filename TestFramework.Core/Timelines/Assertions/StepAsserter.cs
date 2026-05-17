@@ -1,4 +1,5 @@
 using System;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Exceptions;
@@ -23,17 +24,13 @@ public class StepAsserter
 
     private StepAsserter Pass(string assertion)
     {
-        // Print a single header once per run, then the assertion line
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [PASS]");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, assertion, true, ExpectedFor(assertion), ActualFor(assertion));
         return this;
     }
 
     private StepAsserter Fail(string assertion, string reason)
     {
-        // Print a single header once per run, then the assertion line
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [FAIL]  {reason}");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, assertion, false, ExpectedFor(assertion), ActualFor(assertion), reason);
         var message = $"Step {_display}: {assertion} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {
@@ -99,4 +96,23 @@ public class StepAsserter
     /// Continues the fluent assertion chain.
     /// </summary>
     public StepAsserter And() => this;
+
+    private string ExpectedFor(string assertion)
+    {
+        return assertion switch
+        {
+            nameof(HaveCompleted) => StepState.Complete.ToString(),
+            nameof(HaveBeenSkipped) => StepState.Skipped.ToString(),
+            nameof(HaveTimedOut) => StepState.Timeout.ToString(),
+            nameof(HaveErrored) => StepState.Error.ToString(),
+            _ => typeof(Exception).Name
+        };
+    }
+
+    private string ActualFor(string assertion)
+    {
+        return assertion == nameof(HaveThrown)
+            ? _step.LastResult.Exception?.GetType().Name ?? "nothing"
+            : _step.State.ToString();
+    }
 }

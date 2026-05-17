@@ -38,13 +38,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
     internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage)
     {
-        logger = new ScopedLogger(outputHelper);
-        logger.StartBuffering();
         _timeline = timeline;
         _mainStage = mainStage;
         _serviceProvider = serviceProvider;
 
-        _debuggingSession = new DebuggingRunSession(((IRunDebugger?)_serviceProvider.GetService(typeof(IRunDebugger))) ?? CommonDebugger.GetCommon());
+        _debuggingSession = new DebuggingRunSession(CommonDebugger.GetCommon(_serviceProvider, outputHelper));
+        logger = ScopedLogger.CreateWithDebuggerSession(_debuggingSession);
 
         _newArtifactStore = new ArtifactStore(logger, _debuggingSession);
         _newVariableStore = new VariableStore(logger, _debuggingSession);
@@ -57,9 +56,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
             : _serviceProvider;
 
-        logger.LogInformation("─ Plan ──────────────────────────────────────");
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps);
-        logger.LogInformation("─────────────────────────────────────────────");
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts);
         TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, logger);
 
@@ -85,41 +82,35 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 })]
             })]
         });
-
-        logger.StopBuffering();
-        logger.Log(new TimelineRunHeaderLogEvent(
-            DateTime.Now,
-            _externalVariables.Select(id => (id, _newVariableStore.GetVariable(id))).ToList(),
-            _externalArtifacts.Select(id => (id, _newArtifactStore.GetArtifact(id))).ToList(),
-            stages,
-            mainStageSteps
-        ));
-        logger.FlushBuffer();
+        await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
 
         var coreRunner = new CoreRunner();
         var totalStopwatch = Stopwatch.StartNew();
+        bool runTransitionCompleted = false;
         try
         {
+            await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Running, DebugLifecycleState.Initialized);
             foreach (var stage in newRun.Stages)
             {
-                logger.LogInformation("");
-                logger.Log(new EnterStageLogEvent(stage));
-
-                await _debuggingSession.EnterStageAsync(stage.Stage.Name);
+                await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Running, DebugLifecycleState.Initialized);
 
                 using var _ = logger.EnterIndentScope();
                 var stageStopwatch = Stopwatch.StartNew();
                 await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
                 stageStopwatch.Stop();
-                logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
+                await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
             }
+            DebugLifecycleState finalRunState = newRun.Stages.Any(stage => stage.Result.State == StageState.Error)
+                ? DebugLifecycleState.Error
+                : DebugLifecycleState.Complete;
+            await _debuggingSession.TransitionRunAsync(finalRunState, DebugLifecycleState.Running);
+            runTransitionCompleted = true;
         }
         finally
         {
             totalStopwatch.Stop();
-            logger.LogInformation("");
-            logger.Log(new FailedStepsRecapLogEvent(newRun.Stages));
-            logger.Log(new TimelineRunSummaryLogEvent(newRun.Stages, totalStopwatch.Elapsed));
+            if (!runTransitionCompleted)
+                await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Error, DebugLifecycleState.Running);
             await _debuggingSession.FinishSessionAsync();
         }
         newRun.Freeze();
@@ -155,7 +146,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         {
             foreach (var stepEmitter in _mainStage.Steps)
             {
-                foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, logger))
+                foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, null))
                 {
                     step.Step.DeclareIO(step.Step.IOContract);
                     foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
@@ -198,9 +189,6 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             deconstructEnvStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
             cleanUpStage.Steps.Add(deconstructEnvStep);
         }
-
-        logger.LogInformation("Stage '{0}': {1} step(s)  pre-setup: {2}  cleanup: {3}",
-            _mainStage.Name, mainStage.Steps.Count, preSetupStage.Steps.Count, cleanUpStage.Steps.Count);
 
         mainStageSteps = mainStage.Steps.ToList();
 

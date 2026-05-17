@@ -150,8 +150,8 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
     private void BootstrapPersistentComponents(IReadOnlyCollection<EnvComponentIdentifier> persistentRoots)
     {
-        ScopedLogger logger = new(outputHelper: null);
-        DebuggingRunSession debuggingSession = new(((IRunDebugger?)_persistentServiceProvider.GetService(typeof(IRunDebugger))) ?? CommonDebugger.GetCommon());
+        DebuggingRunSession debuggingSession = new(CommonDebugger.GetCommon(_persistentServiceProvider, null));
+        ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(debuggingSession);
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 
@@ -189,8 +189,8 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         if (_persistentCreationOrder.Count == 0)
             return;
 
-        ScopedLogger logger = new(outputHelper: null);
-        DebuggingRunSession debuggingSession = new(((IRunDebugger?)_persistentServiceProvider.GetService(typeof(IRunDebugger))) ?? CommonDebugger.GetCommon());
+        DebuggingRunSession debuggingSession = new(CommonDebugger.GetCommon(_persistentServiceProvider, null));
+        ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(debuggingSession);
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 

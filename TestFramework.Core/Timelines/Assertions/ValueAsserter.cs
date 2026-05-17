@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Linq;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Exceptions;
 
@@ -27,18 +28,18 @@ public class ValueAsserter<T>
     // VariableFormatter instead of plain ToString().
     private static FormattableValue<T> V(T v) => new(v);
 
-    private ValueAsserter<T> Pass(string assertion)
+    private static string Render(object? value) => value?.ToString() ?? "null";
+
+    private ValueAsserter<T> Pass(string assertionName, string assertionDisplay, string expected = "", string actual = "")
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_expression}  {assertion}  [PASS]");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, assertionDisplay, true, expected, actual);
         return this;
     }
 
-    private ValueAsserter<T> Fail(string assertion, string reason)
+    private ValueAsserter<T> Fail(string assertionName, string assertionDisplay, string reason, string expected = "", string actual = "")
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_expression}  {assertion}  [FAIL]  {reason}");
-        var message = $"{_expression}: {assertion} failed \u2014 {reason}";
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, assertionDisplay, false, expected, actual, reason);
+        var message = $"{_expression}: {assertionDisplay} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {
             scope.RecordFailure(message);
@@ -55,8 +56,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeNull()
     {
         if (_value is not null)
-            return Fail(nameof(BeNull), $"was {V(_value)}");
-        return Pass(nameof(BeNull));
+            return Fail(nameof(BeNull), nameof(BeNull), $"was {V(_value)}", "null", Render(_value));
+        return Pass(nameof(BeNull), nameof(BeNull), "null", Render(_value));
     }
 
     /// <summary>
@@ -65,8 +66,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> NotBeNull()
     {
         if (_value is null)
-            return Fail(nameof(NotBeNull), "was null");
-        return Pass(nameof(NotBeNull));
+            return Fail(nameof(NotBeNull), nameof(NotBeNull), "was null", "not null", Render(_value));
+        return Pass(nameof(NotBeNull), nameof(NotBeNull), "not null", Render(_value));
     }
 
     // ── Equality ────────────────────────────────────────────────────────────
@@ -78,8 +79,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> Be(T expected)
     {
         if (!Equals(_value, expected))
-            return Fail(nameof(Be), $"expected {V(expected)}, was {V(_value)}");
-        return Pass($"{nameof(Be)}({V(expected)})");
+            return Fail(nameof(Be), $"{nameof(Be)}({V(expected)})", $"expected {V(expected)}, was {V(_value)}", Render(expected), Render(_value));
+        return Pass(nameof(Be), $"{nameof(Be)}({V(expected)})", Render(expected), Render(_value));
     }
 
     /// <summary>
@@ -89,8 +90,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> NotBe(T expected)
     {
         if (Equals(_value, expected))
-            return Fail(nameof(NotBe), $"expected not {V(expected)}");
-        return Pass($"{nameof(NotBe)}({V(expected)})");
+            return Fail(nameof(NotBe), $"{nameof(NotBe)}({V(expected)})", $"expected not {V(expected)}", $"not {Render(expected)}", Render(_value));
+        return Pass(nameof(NotBe), $"{nameof(NotBe)}({V(expected)})", $"not {Render(expected)}", Render(_value));
     }
 
     // ── Predicate ───────────────────────────────────────────────────────────
@@ -103,8 +104,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> Match(Func<T, bool> predicate, string description = "custom predicate")
     {
         if (!predicate(_value))
-            return Fail(nameof(Match), $"value {V(_value)} did not satisfy: {description}");
-        return Pass($"{nameof(Match)}({description})");
+            return Fail(nameof(Match), $"{nameof(Match)}({description})", $"value {V(_value)} did not satisfy: {description}", description, Render(_value));
+        return Pass(nameof(Match), $"{nameof(Match)}({description})", description, Render(_value));
     }
 
     /// <summary>
@@ -115,8 +116,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> NotMatch(Func<T, bool> predicate, string description = "custom predicate")
     {
         if (predicate(_value))
-            return Fail(nameof(NotMatch), $"value {V(_value)} unexpectedly satisfied: {description}");
-        return Pass($"{nameof(NotMatch)}({description})");
+            return Fail(nameof(NotMatch), $"{nameof(NotMatch)}({description})", $"value {V(_value)} unexpectedly satisfied: {description}", $"not {description}", Render(_value));
+        return Pass(nameof(NotMatch), $"{nameof(NotMatch)}({description})", $"not {description}", Render(_value));
     }
 
     // ── String ──────────────────────────────────────────────────────────────
@@ -129,8 +130,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (!s.Contains(substring))
-            return Fail(nameof(Contain), $"{V(_value)} does not contain \"{substring}\"");
-        return Pass($"{nameof(Contain)}(\"{substring}\")");
+            return Fail(nameof(Contain), $"{nameof(Contain)}(\"{substring}\")", $"{V(_value)} does not contain \"{substring}\"", substring, s);
+        return Pass(nameof(Contain), $"{nameof(Contain)}(\"{substring}\")", substring, s);
     }
 
     /// <summary>
@@ -141,8 +142,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (s.Contains(substring))
-            return Fail(nameof(NotContain), $"{V(_value)} contains \"{substring}\"");
-        return Pass($"{nameof(NotContain)}(\"{substring}\")");
+            return Fail(nameof(NotContain), $"{nameof(NotContain)}(\"{substring}\")", $"{V(_value)} contains \"{substring}\"", $"not contain {substring}", s);
+        return Pass(nameof(NotContain), $"{nameof(NotContain)}(\"{substring}\")", $"not contain {substring}", s);
     }
 
     /// <summary>
@@ -153,8 +154,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (!s.StartsWith(prefix, StringComparison.Ordinal))
-            return Fail(nameof(StartWith), $"{V(_value)} does not start with \"{prefix}\"");
-        return Pass($"{nameof(StartWith)}(\"{prefix}\")");
+            return Fail(nameof(StartWith), $"{nameof(StartWith)}(\"{prefix}\")", $"{V(_value)} does not start with \"{prefix}\"", prefix, s);
+        return Pass(nameof(StartWith), $"{nameof(StartWith)}(\"{prefix}\")", prefix, s);
     }
 
     /// <summary>
@@ -165,8 +166,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (!s.EndsWith(suffix, StringComparison.Ordinal))
-            return Fail(nameof(EndWith), $"{V(_value)} does not end with \"{suffix}\"");
-        return Pass($"{nameof(EndWith)}(\"{suffix}\")");
+            return Fail(nameof(EndWith), $"{nameof(EndWith)}(\"{suffix}\")", $"{V(_value)} does not end with \"{suffix}\"", suffix, s);
+        return Pass(nameof(EndWith), $"{nameof(EndWith)}(\"{suffix}\")", suffix, s);
     }
 
     /// <summary>
@@ -176,8 +177,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (s.Length != 0)
-            return Fail(nameof(BeEmpty), $"was {V(_value)}");
-        return Pass(nameof(BeEmpty));
+            return Fail(nameof(BeEmpty), nameof(BeEmpty), $"was {V(_value)}", "empty", s);
+        return Pass(nameof(BeEmpty), nameof(BeEmpty), "empty", s);
     }
 
     /// <summary>
@@ -187,8 +188,8 @@ public class ValueAsserter<T>
     {
         var s = _value?.ToString() ?? "";
         if (s.Length == 0)
-            return Fail(nameof(NotBeEmpty), "was empty");
-        return Pass(nameof(NotBeEmpty));
+            return Fail(nameof(NotBeEmpty), nameof(NotBeEmpty), "was empty", "not empty", s);
+        return Pass(nameof(NotBeEmpty), nameof(NotBeEmpty), "not empty", s);
     }
 
     // ── Numeric / Comparable ────────────────────────────────────────────────
@@ -200,8 +201,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeGreaterThan(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) <= 0)
-            return Fail(nameof(BeGreaterThan), $"expected > {V(threshold)}, was {V(_value)}");
-        return Pass($"{nameof(BeGreaterThan)}({V(threshold)})");
+            return Fail(nameof(BeGreaterThan), $"{nameof(BeGreaterThan)}({V(threshold)})", $"expected > {V(threshold)}, was {V(_value)}", $"> {Render(threshold)}", Render(_value));
+        return Pass(nameof(BeGreaterThan), $"{nameof(BeGreaterThan)}({V(threshold)})", $"> {Render(threshold)}", Render(_value));
     }
 
     /// <summary>
@@ -211,8 +212,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeGreaterThanOrEqualTo(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) < 0)
-            return Fail(nameof(BeGreaterThanOrEqualTo), $"expected >= {V(threshold)}, was {V(_value)}");
-        return Pass($"{nameof(BeGreaterThanOrEqualTo)}({V(threshold)})");
+            return Fail(nameof(BeGreaterThanOrEqualTo), $"{nameof(BeGreaterThanOrEqualTo)}({V(threshold)})", $"expected >= {V(threshold)}, was {V(_value)}", $">= {Render(threshold)}", Render(_value));
+        return Pass(nameof(BeGreaterThanOrEqualTo), $"{nameof(BeGreaterThanOrEqualTo)}({V(threshold)})", $">= {Render(threshold)}", Render(_value));
     }
 
     /// <summary>
@@ -222,8 +223,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeLessThan(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) >= 0)
-            return Fail(nameof(BeLessThan), $"expected < {V(threshold)}, was {V(_value)}");
-        return Pass($"{nameof(BeLessThan)}({V(threshold)})");
+            return Fail(nameof(BeLessThan), $"{nameof(BeLessThan)}({V(threshold)})", $"expected < {V(threshold)}, was {V(_value)}", $"< {Render(threshold)}", Render(_value));
+        return Pass(nameof(BeLessThan), $"{nameof(BeLessThan)}({V(threshold)})", $"< {Render(threshold)}", Render(_value));
     }
 
     /// <summary>
@@ -233,8 +234,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeLessThanOrEqualTo(T threshold)
     {
         if (_value is not IComparable<T> c || c.CompareTo(threshold) > 0)
-            return Fail(nameof(BeLessThanOrEqualTo), $"expected <= {V(threshold)}, was {V(_value)}");
-        return Pass($"{nameof(BeLessThanOrEqualTo)}({V(threshold)})");
+            return Fail(nameof(BeLessThanOrEqualTo), $"{nameof(BeLessThanOrEqualTo)}({V(threshold)})", $"expected <= {V(threshold)}, was {V(_value)}", $"<= {Render(threshold)}", Render(_value));
+        return Pass(nameof(BeLessThanOrEqualTo), $"{nameof(BeLessThanOrEqualTo)}({V(threshold)})", $"<= {Render(threshold)}", Render(_value));
     }
 
     /// <summary>
@@ -245,8 +246,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> BeInRange(T min, T max)
     {
         if (_value is not IComparable<T> c || c.CompareTo(min) < 0 || c.CompareTo(max) > 0)
-            return Fail(nameof(BeInRange), $"expected in [{V(min)}, {V(max)}], was {V(_value)}");
-        return Pass($"{nameof(BeInRange)}([{V(min)}, {V(max)}])");
+            return Fail(nameof(BeInRange), $"{nameof(BeInRange)}([{V(min)}, {V(max)}])", $"expected in [{V(min)}, {V(max)}], was {V(_value)}", $"[{Render(min)}, {Render(max)}]", Render(_value));
+        return Pass(nameof(BeInRange), $"{nameof(BeInRange)}([{V(min)}, {V(max)}])", $"[{Render(min)}, {Render(max)}]", Render(_value));
     }
 
     /// <summary>
@@ -257,8 +258,8 @@ public class ValueAsserter<T>
     public ValueAsserter<T> NotBeInRange(T min, T max)
     {
         if (_value is IComparable<T> c && c.CompareTo(min) >= 0 && c.CompareTo(max) <= 0)
-            return Fail(nameof(NotBeInRange), $"expected outside [{V(min)}, {V(max)}], was {V(_value)}");
-        return Pass($"{nameof(NotBeInRange)}([{V(min)}, {V(max)}])");
+            return Fail(nameof(NotBeInRange), $"{nameof(NotBeInRange)}([{V(min)}, {V(max)}])", $"expected outside [{V(min)}, {V(max)}], was {V(_value)}", $"outside [{Render(min)}, {Render(max)}]", Render(_value));
+        return Pass(nameof(NotBeInRange), $"{nameof(NotBeInRange)}([{V(min)}, {V(max)}])", $"outside [{Render(min)}, {Render(max)}]", Render(_value));
     }
 
     // ── Collection ──────────────────────────────────────────────────────────
@@ -274,8 +275,8 @@ public class ValueAsserter<T>
     {
         int count = CountItems(_value);
         if (count != expected)
-            return Fail(nameof(HaveCount), $"expected {expected} element(s), was {count}");
-        return Pass($"{nameof(HaveCount)}({expected})");
+            return Fail(nameof(HaveCount), $"{nameof(HaveCount)}({expected})", $"expected {expected} element(s), was {count}", expected.ToString(), count.ToString());
+        return Pass(nameof(HaveCount), $"{nameof(HaveCount)}({expected})", expected.ToString(), count.ToString());
     }
 
     /// <summary>
@@ -285,8 +286,8 @@ public class ValueAsserter<T>
     {
         int count = CountItems(_value);
         if (count != 0)
-            return Fail(nameof(HaveNoItems), $"expected empty, had {count} element(s)");
-        return Pass(nameof(HaveNoItems));
+            return Fail(nameof(HaveNoItems), nameof(HaveNoItems), $"expected empty, had {count} element(s)", "0 items", count.ToString());
+        return Pass(nameof(HaveNoItems), nameof(HaveNoItems), "0 items", count.ToString());
     }
 
     /// <summary>
@@ -296,8 +297,8 @@ public class ValueAsserter<T>
     {
         int count = CountItems(_value);
         if (count == 0)
-            return Fail(nameof(HaveItems), "was empty");
-        return Pass(nameof(HaveItems));
+            return Fail(nameof(HaveItems), nameof(HaveItems), "was empty", "at least 1 item", count.ToString());
+        return Pass(nameof(HaveItems), nameof(HaveItems), "at least 1 item", count.ToString());
     }
 
     // ── Chaining ────────────────────────────────────────────────────────────

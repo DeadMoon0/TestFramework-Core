@@ -17,12 +17,12 @@ public class ExecutionOptions : IFreezable
     /// </summary>
     public void Freeze() { IsFrozen = true; }
 
-    private bool _runExclusively = false;
+    private StepParallelizationMode _parallelizationMode = StepParallelizationMode.Parallelizable;
 
     /// <summary>
-    /// When true, this step must not run concurrently with any other step.
+    /// Controls whether the step may run in parallel with other steps.
     /// </summary>
-    public bool RunExclusively { get => _runExclusively; set { ((IFreezable)this).EnsureNotFrozen(); _runExclusively = value; } }
+    public StepParallelizationMode ParallelizationMode { get => _parallelizationMode; set { ((IFreezable)this).EnsureNotFrozen(); _parallelizationMode = value; } }
 
     /// <summary>
     /// Copies the current options to another instance.
@@ -30,6 +30,6 @@ public class ExecutionOptions : IFreezable
     /// <param name="target">The target options instance.</param>
     public void CloneTo(ExecutionOptions target)
     {
-        target.RunExclusively = RunExclusively;
+        target.ParallelizationMode = ParallelizationMode;
     }
 }

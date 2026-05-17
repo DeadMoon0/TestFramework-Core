@@ -121,7 +121,7 @@ public class CoreAdvancedTests
     private sealed class RuntimeContext
     {
         public ScopedLogger Logger { get; } = new(null);
-        public DebuggingRunSession DebuggingSession { get; } = new(EmptyRunDebugger.CreateNew());
+        public DebuggingRunSession DebuggingSession { get; } = new(new EmptyRunDebugger());
         public VariableStore VariableStore { get; }
         public ArtifactStore ArtifactStore { get; }
 

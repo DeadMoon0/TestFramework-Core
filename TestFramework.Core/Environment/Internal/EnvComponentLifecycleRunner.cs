@@ -26,7 +26,6 @@ internal static class EnvComponentLifecycleRunner
             IReadOnlyList<EnvComponent> orderedComponents = EnvComponentGraph.Order(environment, rootComponents);
             foreach (EnvComponent component in orderedComponents)
             {
-                logger.LogInformation("Create EnvComponent ({0})", component.Id);
                 object? state = await component.CreateAsync(environment, serviceProvider, variableStore, artifactStore, logger, cancellationToken);
                 setState(component.Id, state);
             }
@@ -37,9 +36,6 @@ internal static class EnvComponentLifecycleRunner
         IReadOnlyList<IReadOnlyList<EnvComponent>> componentLayers = EnvComponentGraph.Layers(environment, rootComponents);
         foreach (IReadOnlyList<EnvComponent> componentLayer in componentLayers)
         {
-            foreach (EnvComponent component in componentLayer)
-                logger.LogInformation("Create EnvComponent ({0})", component.Id);
-
             (EnvComponentIdentifier Id, object? State)[] creationResults = await Task.WhenAll(componentLayer
                 .Select(async component => (component.Id, State: await component.CreateAsync(environment, serviceProvider, variableStore, artifactStore, logger, cancellationToken))));
 
@@ -63,7 +59,6 @@ internal static class EnvComponentLifecycleRunner
             EnvComponentIdentifier identifier = creationOrder[i];
             EnvComponent component = environment.GetComponent(identifier);
             object? state = getState(identifier);
-            logger.LogInformation("Deconstruct EnvComponent ({0})", component.Id);
             await component.DeconstructAsync(state, environment, serviceProvider, variableStore, artifactStore, logger, cancellationToken);
         }
     }

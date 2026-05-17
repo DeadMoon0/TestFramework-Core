@@ -183,11 +183,11 @@ internal class TimelineBuilder : ITimelineBuilder
         });
     }
 
-    internal void RunExclusively()
+    internal void DoNotParallelize()
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
-            step.ExecutionOptions.RunExclusively = true;
+            step.ExecutionOptions.ParallelizationMode = StepParallelizationMode.DoNotParallelize;
         });
     }
 

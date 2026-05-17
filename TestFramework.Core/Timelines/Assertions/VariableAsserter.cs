@@ -1,5 +1,6 @@
 using TestFramework.Core.Logging;
 using TestFramework.Core.Exceptions;
+using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Timelines.Assertions;
 
@@ -24,15 +25,13 @@ public class VariableAsserter<T>
 
     private VariableAsserter<T> Pass(string assertion)
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [PASS]");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, assertion, true, assertion == nameof(NotExist) ? "variable not set" : "variable set", _exists ? _value?.ToString() ?? "null" : "unset");
         return this;
     }
 
     private VariableAsserter<T> Fail(string assertion, string reason)
     {
-        _logger?.EnsureAssertionHeaderPrinted();
-        _logger?.LogInformation($"[ASSERT]  {_display}  {assertion}  [FAIL]  {reason}");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, assertion, false, assertion == nameof(NotExist) ? "variable not set" : "variable set", _exists ? _value?.ToString() ?? "null" : "unset", reason);
         var message = $"Variable {_display}: {assertion} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {

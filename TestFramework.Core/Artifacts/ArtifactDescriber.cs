@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
@@ -49,6 +50,21 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     /// Freezes the describer.
     /// </summary>
     public void Freeze() { IsFrozen = true; }
+
+    /// <summary>
+    /// Gets how setup for this artifact kind may be parallelized.
+    /// </summary>
+    public virtual ArtifactSetupParallelizationMode SetupParallelization => ArtifactSetupParallelizationMode.AllowParallel;
+
+    /// <summary>
+    /// Gets the schema key used by debugger value envelopes for this artifact kind.
+    /// </summary>
+    public virtual string DebugValueSchemaKey => GetType().FullName ?? ToString();
+
+    /// <summary>
+    /// Creates an optional artifact-specific JSON payload for debugger value envelopes.
+    /// </summary>
+    public virtual JToken? CreateDebugValueCustomPayload(ArtifactInstanceGeneric instance) => null;
 
     /// <summary>
     /// Sets up the artifact through the non-generic contract.

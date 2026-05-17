@@ -43,7 +43,7 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-	  <PackageReference Include="TestFramework.Core" Version="0.1.6" />
+	  <ProjectReference Include="..\TestFramework.Core\TestFramework.Core.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

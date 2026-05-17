@@ -1,4 +1,8 @@
-﻿using TestFramework.Core.Timelines.Assertions;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using TestFramework.Core.Debugger;
+using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Logging.BuildInEvents;
 using Xunit.Abstractions;
 
@@ -9,18 +13,26 @@ namespace TestFramework.Core.Logging;
 /// </summary>
 public class ScopedLogger
 {
-    int indentLevel = 0;
-    LogLineWriter writer;
-    bool _assertHeaderPrinted = false;
-    AssertionScope? _assertionScope = null;
+    private readonly AsyncLocal<int> indentLevel = new();
+    private readonly AsyncLocal<AssertionScope?> assertionScope = new();
+    private readonly DebuggingRunSession? debuggingSession;
 
-    internal void SetAssertionScope(AssertionScope scope) => _assertionScope = scope;
-    internal void ClearAssertionScope() => _assertionScope = null;
-    internal AssertionScope? CurrentScope => _assertionScope;
+    internal static ScopedLogger CreateWithDebuggerSession(DebuggingRunSession debuggingSession) => new(debuggingSession, true);
+
+    internal void SetAssertionScope(AssertionScope scope) => assertionScope.Value = scope;
+    internal void ClearAssertionScope() => assertionScope.Value = null;
+    internal AssertionScope? CurrentScope => assertionScope.Value;
 
     internal ScopedLogger(ITestOutputHelper? outputHelper)
     {
-        writer = new LogLineWriter(outputHelper, "\t");
+        debuggingSession = outputHelper is null
+            ? null
+            : new DebuggingRunSession(new OutputRunDebugger(outputHelper));
+    }
+
+    private ScopedLogger(DebuggingRunSession debuggingSession, bool _)
+    {
+        this.debuggingSession = debuggingSession;
     }
 
     /// <summary>
@@ -28,7 +40,7 @@ public class ScopedLogger
     /// </summary>
     public LogScopeDisposable EnterIndentScope()
     {
-        this.indentLevel++;
+        indentLevel.Value = indentLevel.Value + 1;
         return new LogScopeDisposable(this);
     }
 
@@ -37,12 +49,8 @@ public class ScopedLogger
     /// </summary>
     public void ExitIndentScope()
     {
-        this.indentLevel--;
+        indentLevel.Value = Math.Max(0, indentLevel.Value - 1);
     }
-
-    internal void StartBuffering() => writer.StartBuffering();
-    internal void StopBuffering() => writer.StopBuffering();
-    internal void FlushBuffer() => writer.FlushBuffer();
 
     /// <summary>
     /// Logs a preformatted log event.
@@ -50,8 +58,7 @@ public class ScopedLogger
     /// <param name="logEvent">The event to format and write.</param>
     public void Log(LogEvent logEvent)
     {
-        logEvent.CurrentIndentLevel = indentLevel;
-        logEvent.FormatLogEvent(writer);
+        SendEntry(CreateEntry(logEvent, InferLevel(logEvent)));
     }
 
     /// <summary>
@@ -60,7 +67,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogInformation(string log)
     {
-        new InformationLogEvent(log, []) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new InformationLogEvent(log, []), DebugLogLevel.Information));
     }
 
     /// <summary>
@@ -70,7 +77,7 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogInformation(string format, params object[] args)
     {
-        new InformationLogEvent(format, args) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new InformationLogEvent(format, args), DebugLogLevel.Information));
     }
 
     /// <summary>
@@ -79,7 +86,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogWarning(string log)
     {
-        new WarningLogEvent(log, []) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new WarningLogEvent(log, []), DebugLogLevel.Warning));
     }
 
     /// <summary>
@@ -89,7 +96,7 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogWarning(string format, params object[] args)
     {
-        new WarningLogEvent(format, args) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new WarningLogEvent(format, args), DebugLogLevel.Warning));
     }
 
     /// <summary>
@@ -98,7 +105,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogError(string log)
     {
-        new ErrorLogEvent(log, []) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new ErrorLogEvent(log, []), DebugLogLevel.Error));
     }
 
     /// <summary>
@@ -108,14 +115,72 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogError(string format, params object[] args)
     {
-        new ErrorLogEvent(format, args) { CurrentIndentLevel = indentLevel }.FormatLogEvent(writer);
+        SendEntry(CreateEntry(new ErrorLogEvent(format, args), DebugLogLevel.Error));
     }
 
-    internal void EnsureAssertionHeaderPrinted()
+    internal void SignalAssertion(DebugAssertionTargetKind targetKind, string target, string assertionName, string assertionDisplay, bool succeeded, string expected = "", string actual = "", string failureReason = "")
     {
-        if (_assertHeaderPrinted) return;
-        _assertHeaderPrinted = true;
-        LogInformation("");
-        LogInformation("─────────────────────────────────────────────");
+        debuggingSession?.SignalAssertionAsync(new DebugAssertionEntry
+        {
+            OccurredAtUtc = DateTimeOffset.UtcNow,
+            TargetKind = targetKind,
+            Target = target,
+            AssertionName = assertionName,
+            AssertionDisplay = assertionDisplay,
+            Succeeded = succeeded,
+            Expected = expected,
+            Actual = actual,
+            FailureReason = failureReason,
+            AssertionScope = CurrentScope?.GetType().Name ?? ""
+        }).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    private void SendEntry(DebugLogEntry entry)
+    {
+        debuggingSession?.LogAsync(entry).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    private DebugLogEntry CreateEntry(LogEvent logEvent, DebugLogLevel level)
+    {
+        CollectingOutputHelper collector = new();
+        LogLineWriter writer = new(collector, "\t");
+        logEvent.CurrentIndentLevel = indentLevel.Value;
+        logEvent.FormatLogEvent(writer);
+
+        return new DebugLogEntry
+        {
+            OccurredAtUtc = DateTimeOffset.UtcNow,
+            Level = level,
+            EventName = logEvent.GetType().Name,
+            Message = string.Join(System.Environment.NewLine, collector.Lines),
+            Lines = [.. collector.Lines],
+            IndentLevel = indentLevel.Value,
+            AssertionScope = CurrentScope?.GetType().Name
+        };
+    }
+
+    private static DebugLogLevel InferLevel(LogEvent logEvent)
+    {
+        return logEvent switch
+        {
+            WarningLogEvent => DebugLogLevel.Warning,
+            ErrorLogEvent => DebugLogLevel.Error,
+            _ => DebugLogLevel.Information
+        };
+    }
+
+    private sealed class CollectingOutputHelper : ITestOutputHelper
+    {
+        internal List<string> Lines { get; } = [];
+
+        public void WriteLine(string message)
+        {
+            Lines.Add(message);
+        }
+
+        public void WriteLine(string format, params object[] args)
+        {
+            Lines.Add(string.Format(format, args));
+        }
     }
 }

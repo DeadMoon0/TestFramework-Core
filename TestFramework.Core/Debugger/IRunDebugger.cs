@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using System.Threading.Tasks;
-using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Debugger;
 
@@ -11,34 +10,25 @@ namespace TestFramework.Core.Debugger;
 public interface IRunDebugger
 {
     /// <summary>
-    /// Creates a new debugger instance.
-    /// </summary>
-    public static abstract IRunDebugger CreateNew();
-
-    /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
     public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure);
     /// <summary>
-    /// Signals that a stage has begun.
+    /// Signals that a runtime entity has transitioned to a new lifecycle state.
     /// </summary>
-    public Task SignalStageBeginAsync(string sessionId, string name);
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null);
     /// <summary>
-    /// Signals that a step has begun.
+    /// Signals that a debugger-visible value has changed.
     /// </summary>
-    public Task SignalStepBeginAsync(string sessionId, int stepId);
+    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value);
     /// <summary>
-    /// Signals that a step result has changed.
+    /// Signals that a structured log entry has been emitted for the active run.
     /// </summary>
-    public Task SignalStepResultChangeAsync(string sessionId, StepResultGeneric result);
+    public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry);
     /// <summary>
-    /// Signals that a variable state has changed.
+    /// Signals a structured assertion result.
     /// </summary>
-    public Task SignalVariableUpdateAsync(string sessionId, string name, VariableState variable);
-    /// <summary>
-    /// Signals that an artifact state has changed.
-    /// </summary>
-    public Task SignalArtifactUpdateAsync(string sessionId, string name, ArtifactState artifact);
+    public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry);
     /// <summary>
     /// Signals that the timeline run has finished.
     /// </summary>

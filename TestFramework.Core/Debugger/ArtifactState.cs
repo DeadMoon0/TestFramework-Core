@@ -12,16 +12,9 @@ public record ArtifactState
     /// Gets the artifact key.
     /// </summary>
     public required string Key { get; init; }
+
     /// <summary>
-    /// Gets the artifact kind name.
+    /// Gets the common JSON-first value envelope.
     /// </summary>
-    public required string KindName { get; init; }
-    /// <summary>
-    /// Gets the serialized artifact reference.
-    /// </summary>
-    public required string Reference { get; init; }
-    /// <summary>
-    /// Gets the serialized artifact data.
-    /// </summary>
-    public required string Data { get; init; }
+    public required DebugValueEnvelope Envelope { get; init; }
 }
