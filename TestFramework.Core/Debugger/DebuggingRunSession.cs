@@ -50,8 +50,6 @@ internal class DebuggingRunSession(IRunDebugger debugger)
     {
         ExecutionContextInfo? context = currentExecutionContext.Value;
         IterationContextInfo? iteration = currentIterationContext.Value;
-        if (context is null || iteration is null)
-            throw new InvalidOperationException("Structured log entries may only be emitted while a step iteration context is active.");
 
         DebugLogEntry entryWithContext = new()
         {
@@ -63,7 +61,7 @@ internal class DebuggingRunSession(IRunDebugger debugger)
             IndentLevel = entry.IndentLevel,
             Stage = entry.Stage ?? context?.Stage,
             StepId = entry.StepId ?? context?.StepId,
-            Iteration = entry.Iteration ?? iteration.Iteration,
+            Iteration = entry.Iteration ?? iteration?.Iteration,
             AssertionScope = entry.AssertionScope
         };
 

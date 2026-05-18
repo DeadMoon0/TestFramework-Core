@@ -177,7 +177,16 @@ This keeps the debugger contract singular from Core's point of view while allowi
 
 ## Parallel execution semantics
 
-Parallelism is stage-local. `CoreRunner` builds dependency layers from step IO and executes each layer with `Task.WhenAll(...)`.
+Parallelism is stage-local. `CoreRunner` first respects authored phase boundaries, then applies IO and explicit barrier rules inside those boundaries, and finally executes each resulting layer with `Task.WhenAll(...)`.
+
+The current built-in phases are:
+
+- `Prepare`: mergeable by default when there is no IO conflict
+- `Act`: ordered by default, because side-effecting trigger steps should not silently coalesce
+- `Observe`: ordered by default, so polling and wait steps keep their authored sequence
+- `Materialize`: mergeable by default when there is no IO conflict
+
+`ExecutionOptions.ParallelizationMode = DoNotParallelize` still exists as an explicit override, but it is no longer the default mechanism that explains why trigger/event/materialization flows serialize.
 
 That means the debugger protocol must not rely on a single global "current step". Instead:
 

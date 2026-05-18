@@ -10,6 +10,8 @@ namespace TestFramework.Core.Steps.SystemSteps;
 
 internal class SetVariableStep(VariableIdentifier identifier, VariableReferenceGeneric reference) : Step<EmptyStepResultContext>
 {
+    public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
+
     public override bool DoesReturn => false;
 
     public override string Name => "Set Variable";

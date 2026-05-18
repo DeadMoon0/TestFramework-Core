@@ -57,6 +57,19 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     public virtual ArtifactSetupParallelizationMode SetupParallelization => ArtifactSetupParallelizationMode.AllowParallel;
 
     /// <summary>
+    /// Gets the resource key used to serialize setup work for this artifact instance.
+    /// </summary>
+    public virtual string? GetSetupParallelizationResourceKey(ArtifactInstanceGeneric artifactInstance)
+    {
+        return SetupParallelization switch
+        {
+            ArtifactSetupParallelizationMode.AllowParallel => null,
+            ArtifactSetupParallelizationMode.SerializeByArtifactType => GetType().FullName,
+            _ => null
+        };
+    }
+
+    /// <summary>
     /// Gets the schema key used by debugger value envelopes for this artifact kind.
     /// </summary>
     public virtual string DebugValueSchemaKey => GetType().FullName ?? ToString();

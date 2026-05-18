@@ -11,6 +11,8 @@ namespace TestFramework.Core.Steps.SystemSteps;
 
 internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer) : Step<EmptyStepResultContext>
 {
+    public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
+
     public override string Name => "Transform";
 
     public override string Description => "Transforms a Variable into another State";

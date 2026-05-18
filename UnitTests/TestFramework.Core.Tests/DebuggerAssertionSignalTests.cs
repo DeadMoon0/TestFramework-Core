@@ -26,22 +26,33 @@ public class DebuggerAssertionSignalTests
     }
 
     [Fact]
-    public void LogEntry_WithoutStepIterationContext_Throws()
+    public void LogEntry_WithoutStepIterationContext_EmitsUnscopedLogEntry()
     {
         RecordingRunDebugger debugger = new();
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(new DebuggingRunSession(debugger));
 
-        Assert.Throws<InvalidOperationException>(() => logger.LogInformation("outside iteration"));
+        logger.LogInformation("outside iteration");
+
+        DebugLogEntry entry = Assert.Single(debugger.LogEntries);
+        Assert.Equal("outside iteration", entry.Message);
+        Assert.Null(entry.Stage);
+        Assert.Null(entry.StepId);
+        Assert.Null(entry.Iteration);
     }
 
     private sealed class RecordingRunDebugger : IRunDebugger
     {
         internal List<DebugAssertionEntry> Assertions { get; } = [];
+        internal List<DebugLogEntry> LogEntries { get; } = [];
 
         public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure) => Task.CompletedTask;
         public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null) => Task.CompletedTask;
         public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value) => Task.CompletedTask;
-        public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Task.CompletedTask;
+        public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
+        {
+            LogEntries.Add(entry);
+            return Task.CompletedTask;
+        }
         public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
         {
             Assertions.Add(entry);

@@ -12,6 +12,8 @@ internal class SetupArtifactStep(ArtifactIdentifier identifier) : Step<EmptyStep
 {
     internal ArtifactIdentifier Identifier => identifier;
 
+    public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
+
     public override bool DoesReturn => false;
 
     public override string Name => "Setup Artifact";
@@ -36,5 +38,6 @@ internal class SetupArtifactStep(ArtifactIdentifier identifier) : Step<EmptyStep
     public override void DeclareIO(StepIOContract contract)
     {
         contract.Inputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
+        contract.Outputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
     }
 }

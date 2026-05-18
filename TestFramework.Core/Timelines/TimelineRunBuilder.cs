@@ -76,6 +76,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                     ErrorHandlingOptions = x.ErrorHandlingOptions,
                     ExecutionOptions = x.ExecutionOptions,
                     IOContract = x.IOContract,
+                    Phase = x.Phase,
                     LabelOptions = x.LabelOptions,
                     RetryOptions = x.RetryOptions,
                     TimeOutOptions = x.TimeOutOptions,

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using Xunit.Abstractions;
 
@@ -80,7 +81,9 @@ internal sealed class OutputRunDebugger : IRunDebugger
             stageState.FlowEvents.Add(new FlowEventRenderState(
                 iteration == 1 ? "RUN " : "RETRY",
                 stepRun.Marker,
-                iteration == 1 ? $"-> {stepDisplayName}" : $"-> {stepDisplayName} (retry {iteration})"));
+                iteration == 1 ? $"-> {stepDisplayName}" : $"-> {stepDisplayName} (retry {iteration})",
+                stepId.Value,
+                true));
             return Task.CompletedTask;
         }
 
@@ -96,7 +99,9 @@ internal sealed class OutputRunDebugger : IRunDebugger
                 stepRun.Marker,
                 effectiveState == DebugLifecycleState.WaitingForRetry
                     ? $"<- {stepDisplayName} waiting for retry"
-                    : $"<- {stepDisplayName}"));
+                    : $"<- {stepDisplayName}",
+                stepId.Value,
+                false));
         }
 
         return Task.CompletedTask;
@@ -104,6 +109,16 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
     {
+        switch (valueKind)
+        {
+            case DebugValueKind.Variable:
+                variablesByKey[name] = new VariableState { Key = name, Envelope = value };
+                break;
+            case DebugValueKind.Artifact:
+                artifactsByKey[name] = new ArtifactState { Key = name, Envelope = value };
+                break;
+        }
+
         if (stage is null || stepId is null)
             return Task.CompletedTask;
 
@@ -158,7 +173,6 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
     {
-        writer.WriteLine($"BREAKPOINT HIT  {GetStepMarker(stepId, GetActiveIteration(stage, stepId))}  {GetStepDisplayName(FindStepDefinition(stage, stepId))}");
         return Task.CompletedTask;
     }
 
@@ -198,11 +212,12 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     private void RenderStage(StageRenderState stage, BoxPrefix stagePrefix)
     {
-        int parallelizableCount = stage.StageDefinition?.Steps.Count(candidate => candidate.ExecutionOptions.ParallelizationMode == StepParallelizationMode.Parallelizable) ?? 0;
+        int layerCount = stage.LayerPlans.Count;
+        int peakParallel = stage.LayerPlans.Count == 0 ? 0 : stage.LayerPlans.Max(candidate => candidate.StepIds.Length);
         WriteTopBorder('=', stagePrefix);
         WriteKeyValueContent(
             $"STAGE  {stage.Name}",
-            $"steps: {stage.StepCount} | parallel-capable: {parallelizableCount}",
+            $"steps: {stage.StepCount} | layers: {layerCount} | peak parallel: {peakParallel}",
             stagePrefix,
             true);
         if (!string.IsNullOrWhiteSpace(stage.Description))
@@ -213,12 +228,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
         int childCount = 1 + stage.OrderedSteps.Count;
         BoxPrefix flowTracePrefix = CreateBoxPrefix(childAncestorPrefix, childCount > 1);
         WriteGapLine(flowTracePrefix.Gap);
-        RenderSection(
-            "Flow Trace",
-            stage.FlowEvents.Count == 0
-                ? ["(no events captured)"]
-                : [.. stage.FlowEvents.Select((entry, index) => $"{index + 1,2}. [{entry.Badge}] {entry.Marker,-8} {entry.Message}")],
-            flowTracePrefix);
+        RenderFlowTrace(stage, flowTracePrefix);
 
         for (int stepIndex = 0; stepIndex < stage.OrderedSteps.Count; stepIndex++)
         {
@@ -231,14 +241,11 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     private void RenderStep(StepRenderState stepRun, BoxPrefix stepPrefix)
     {
-        string modeLabel = stepRun.Definition?.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize
-            ? "exclusive"
-            : "parallel";
         string[] inputLines = RenderInputLines(stepRun);
         string[] outputLines = RenderOutputLines(stepRun);
         string title = $"Step {stepRun.Marker}  {stepRun.DisplayName}";
         WriteTitledBorder(title, '-', stepPrefix);
-        WriteKeyValueContent($"State: {MapStateLabel(stepRun.State)}", $"Mode: {modeLabel}", stepPrefix, true);
+        WriteKeyValueContent($"State: {MapStateLabel(stepRun.State)}", GetStepMetadata(stepRun), stepPrefix, true);
         if (!string.IsNullOrWhiteSpace(stepRun.Definition?.Description))
             WriteWrappedContent($"Summary: {stepRun.Definition.Description}", stepPrefix, false);
 
@@ -268,6 +275,53 @@ internal sealed class OutputRunDebugger : IRunDebugger
         WriteBottomBorder('-', prefix);
     }
 
+    private void RenderFlowTrace(StageRenderState stage, BoxPrefix prefix)
+    {
+        WriteSectionHeader("Flow Trace", prefix);
+
+        if (stage.FlowEvents.Count == 0)
+        {
+            WriteWrappedContent("(no events captured)", prefix, true);
+            WriteBottomBorder('-', prefix);
+            return;
+        }
+
+        bool connectToBox = true;
+        HashSet<int> emittedLayers = [];
+
+        for (int index = 0; index < stage.FlowEvents.Count; index++)
+        {
+            FlowEventRenderState entry = stage.FlowEvents[index];
+
+            if (entry.StartsExecution
+                && entry.StepId is int stepId
+                && stage.TryGetLayerIndex(stepId, out int layerIndex)
+                && emittedLayers.Add(layerIndex)
+                && stage.TryCreateLayerBanner(layerIndex, out string? banner))
+            {
+                WriteWrappedContent(banner!, prefix, connectToBox);
+                connectToBox = false;
+            }
+
+            WriteWrappedContent($"{index + 1,2}. [{entry.Badge}] {entry.Marker,-8} {entry.Message}", prefix, connectToBox);
+            connectToBox = false;
+        }
+
+        WriteBottomBorder('-', prefix);
+    }
+
+    private static string GetStepMetadata(StepRenderState stepRun)
+    {
+        if (stepRun.Definition is null)
+            return "Phase: Unknown";
+
+        string phaseText = $"Phase: {stepRun.Definition.Phase}";
+        if (stepRun.LayerDisplay is null)
+            return phaseText;
+
+        return $"{phaseText} | Layer: {stepRun.LayerDisplay}";
+    }
+
     private void RenderBoxSection(string title, IReadOnlyCollection<string> lines, BoxPrefix prefix)
     {
         WriteSeparator(prefix);
@@ -294,6 +348,9 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     private string[] RenderInputLines(StepRenderState stepRun)
     {
+        if (stepRun.InputSnapshots.Count > 0)
+            return [.. stepRun.InputSnapshots.Select(RenderInputSnapshotLine)];
+
         StepIOEntry[] inputs = stepRun.Definition?.IOContract.Inputs.ToArray() ?? [];
         if (inputs.Length == 0)
             return ["(none declared)"];
@@ -312,6 +369,16 @@ internal sealed class OutputRunDebugger : IRunDebugger
         return value is null
             ? $"{kindLabel} {entry.Key}  [{requirement}]  <not available>"
             : $"{kindLabel} {entry.Key}  [{requirement}]  = {value}";
+    }
+
+    private static string RenderInputSnapshotLine(InputSnapshotRenderState entry)
+    {
+        string requirement = entry.Required ? "required" : "optional";
+        string kindLabel = entry.Kind == StepIOKind.Variable ? "Variable" : "Artifact";
+
+        return entry.DisplayText is null
+            ? $"{kindLabel} {entry.Key}  [{requirement}]  <not available>"
+            : $"{kindLabel} {entry.Key}  [{requirement}]  = {entry.DisplayText}";
     }
 
     private string[] RenderOutputLines(StepRenderState stepRun)
@@ -345,7 +412,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
             return existing;
 
         DebugStageState? definition = runStructure?.Stages.FirstOrDefault(candidate => candidate.Name == stage);
-        StageRenderState created = new(stage, definition);
+        StageRenderState created = new(stage, definition, variablesByKey, artifactsByKey);
         stagesByName.Add(stage, created);
         orderedStages.Add(created);
         return created;
@@ -425,18 +492,126 @@ internal sealed class OutputRunDebugger : IRunDebugger
     private static string GetValueKindLabel(DebugValueKind kind)
         => kind == DebugValueKind.Variable ? "Variable" : "Artifact";
 
+    private static IReadOnlyList<ExecutionLayerPlan> BuildExecutionLayers(DebugStepState[] steps)
+    {
+        Dictionary<int, List<int>> dependents = Enumerable.Range(0, steps.Length).ToDictionary(index => index, _ => new List<int>());
+        Dictionary<int, int> indegree = Enumerable.Range(0, steps.Length).ToDictionary(index => index, _ => 0);
+
+        for (int leftIndex = 0; leftIndex < steps.Length; leftIndex++)
+        {
+            for (int rightIndex = leftIndex + 1; rightIndex < steps.Length; rightIndex++)
+            {
+                if (!RequiresSequentialOrdering(steps[leftIndex], steps[rightIndex]))
+                    continue;
+
+                dependents[leftIndex].Add(rightIndex);
+                indegree[rightIndex]++;
+            }
+        }
+
+        List<ExecutionLayerPlan> layers = [];
+        HashSet<int> scheduled = [];
+
+        while (scheduled.Count < steps.Length)
+        {
+            int[] readyStepIds = indegree
+                .Where(entry => !scheduled.Contains(entry.Key) && entry.Value == 0)
+                .Select(entry => entry.Key)
+                .OrderBy(index => index)
+                .ToArray();
+
+            if (readyStepIds.Length == 0)
+                throw new InvalidOperationException("Unable to derive debugger-visible execution layers for the stage.");
+
+            int layerIndex = layers.Count;
+            layers.Add(new ExecutionLayerPlan(layerIndex, readyStepIds, steps[readyStepIds[0]].Phase));
+
+            foreach (int readyStepId in readyStepIds)
+            {
+                scheduled.Add(readyStepId);
+                foreach (int dependent in dependents[readyStepId])
+                    indegree[dependent]--;
+            }
+        }
+
+        return layers;
+    }
+
+    private static bool RequiresSequentialOrdering(DebugStepState left, DebugStepState right)
+    {
+        if (RequiresPhaseOrdering(left, right))
+            return true;
+
+        if (left.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize || right.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize)
+            return true;
+
+        return HasAccessConflict(left.IOContract, right.IOContract);
+    }
+
+    private static bool RequiresPhaseOrdering(DebugStepState left, DebugStepState right)
+    {
+        if (left.Phase != right.Phase)
+            return true;
+
+        return !IsMergeablePhase(left.Phase);
+    }
+
+    private static bool IsMergeablePhase(StepExecutionPhase phase)
+    {
+        return phase is StepExecutionPhase.Prepare or StepExecutionPhase.Materialize;
+    }
+
+    private static bool HasAccessConflict(StepIOContract left, StepIOContract right)
+    {
+        foreach (StepIOEntry leftOutput in left.Outputs)
+        {
+            if (ContainsEntry(right.Inputs, leftOutput) || ContainsEntry(right.Outputs, leftOutput))
+                return true;
+        }
+
+        foreach (StepIOEntry leftInput in left.Inputs)
+        {
+            if (ContainsEntry(right.Outputs, leftInput))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsEntry(IEnumerable<StepIOEntry> entries, StepIOEntry candidate)
+    {
+        return entries.Any(entry => entry.Kind == candidate.Kind && StringComparer.Ordinal.Equals(entry.Key, candidate.Key));
+    }
+
     private sealed class StageRenderState
     {
         private readonly Dictionary<string, StepRenderState> stepsByKey = new(System.StringComparer.Ordinal);
+        private readonly Dictionary<int, int> layerIndexByStepId = new();
+        private readonly Dictionary<int, PhaseRunInfo> phaseRunByLayerIndex = new();
 
-        public StageRenderState(string name, DebugStageState? stageDefinition)
+        private readonly IReadOnlyDictionary<string, VariableState> variablesByKey;
+        private readonly IReadOnlyDictionary<string, ArtifactState> artifactsByKey;
+
+        public StageRenderState(string name, DebugStageState? stageDefinition, IReadOnlyDictionary<string, VariableState> variablesByKey, IReadOnlyDictionary<string, ArtifactState> artifactsByKey)
         {
             Name = name;
             StageDefinition = stageDefinition;
+            this.variablesByKey = variablesByKey;
+            this.artifactsByKey = artifactsByKey;
+            LayerPlans = stageDefinition is null ? [] : BuildExecutionLayers(stageDefinition.Steps);
+
+            for (int index = 0; index < LayerPlans.Count; index++)
+            {
+                foreach (int stepId in LayerPlans[index].StepIds)
+                    layerIndexByStepId[stepId] = index;
+            }
+
+            SeedPhaseRuns();
         }
 
         public string Name { get; }
         public DebugStageState? StageDefinition { get; }
+        public IReadOnlyList<ExecutionLayerPlan> LayerPlans { get; }
         public string Description => StageDefinition?.Description ?? string.Empty;
         public int StepCount => StageDefinition?.Steps.Length ?? 0;
         public List<FlowEventRenderState> FlowEvents { get; } = [];
@@ -444,7 +619,8 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
         public StepRenderState StartStep(int stepId, int iteration, DebugStepState? definition, string displayName)
         {
-            StepRenderState step = new(stepId, iteration, definition, displayName);
+            StepRenderState step = new(stepId, iteration, definition, displayName, TryGetLayerIndex(stepId, out int layerIndex) ? $"L{layerIndex}" : null);
+            step.CaptureInputs(variablesByKey, artifactsByKey);
             stepsByKey[step.Key] = step;
             OrderedSteps.Add(step);
             return step;
@@ -460,6 +636,51 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
         public StepRenderState? TryGetStep(int stepId, int iteration)
             => stepsByKey.GetValueOrDefault(StepRenderState.GetKey(stepId, iteration));
+
+        public bool TryGetLayerIndex(int stepId, out int layerIndex)
+            => layerIndexByStepId.TryGetValue(stepId, out layerIndex);
+
+        public bool TryCreateLayerBanner(int layerIndex, out string? banner)
+        {
+            banner = null;
+            if (layerIndex < 0 || layerIndex >= LayerPlans.Count)
+                return false;
+
+            ExecutionLayerPlan layer = LayerPlans[layerIndex];
+            PhaseRunInfo phaseRun = phaseRunByLayerIndex[layerIndex];
+
+            if (layer.StepIds.Length > 1)
+            {
+                banner = $"> L{layer.LayerIndex}  {layer.Phase}  x{layer.StepIds.Length}";
+                return true;
+            }
+
+            if (!phaseRun.IsFirstLayer || phaseRun.TotalSteps <= 1)
+                return false;
+
+            banner = $"> {layer.Phase} phase  x{phaseRun.TotalSteps}";
+            return true;
+        }
+
+        private void SeedPhaseRuns()
+        {
+            int layerIndex = 0;
+            while (layerIndex < LayerPlans.Count)
+            {
+                StepExecutionPhase phase = LayerPlans[layerIndex].Phase;
+                int runStart = layerIndex;
+                int totalSteps = 0;
+
+                while (layerIndex < LayerPlans.Count && LayerPlans[layerIndex].Phase == phase)
+                {
+                    totalSteps += LayerPlans[layerIndex].StepIds.Length;
+                    layerIndex++;
+                }
+
+                for (int index = runStart; index < layerIndex; index++)
+                    phaseRunByLayerIndex[index] = new PhaseRunInfo(index == runStart, totalSteps);
+            }
+        }
     }
 
     private void WriteSectionHeader(string title, BoxPrefix prefix)
@@ -652,12 +873,13 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     private sealed class StepRenderState
     {
-        public StepRenderState(int stepId, int iteration, DebugStepState? definition, string displayName)
+        public StepRenderState(int stepId, int iteration, DebugStepState? definition, string displayName, string? layerDisplay)
         {
             StepId = stepId;
             Iteration = iteration;
             Definition = definition;
             DisplayName = displayName;
+            LayerDisplay = layerDisplay;
         }
 
         public static string GetKey(int stepId, int iteration) => $"{stepId}:{iteration}";
@@ -668,12 +890,37 @@ internal sealed class OutputRunDebugger : IRunDebugger
         public string Marker => GetStepMarker(StepId, Iteration);
         public DebugStepState? Definition { get; }
         public string DisplayName { get; }
+        public string? LayerDisplay { get; }
         public DebugLifecycleState State { get; set; } = DebugLifecycleState.Running;
         public bool Completed { get; set; }
+        public List<InputSnapshotRenderState> InputSnapshots { get; } = [];
         public List<string> LogLines { get; } = [];
         public List<ValueUpdateRenderState> ValueUpdates { get; } = [];
+
+        public void CaptureInputs(IReadOnlyDictionary<string, VariableState> variablesByKey, IReadOnlyDictionary<string, ArtifactState> artifactsByKey)
+        {
+            InputSnapshots.Clear();
+
+            if (Definition is null)
+                return;
+
+            foreach (StepIOEntry input in Definition.IOContract.Inputs)
+            {
+                string? displayText = input.Kind switch
+                {
+                    StepIOKind.Variable => variablesByKey.GetValueOrDefault(input.Key)?.Envelope.DisplayText,
+                    StepIOKind.Artifact => artifactsByKey.GetValueOrDefault(input.Key)?.Envelope.DisplayText,
+                    _ => null
+                };
+
+                InputSnapshots.Add(new InputSnapshotRenderState(input.Kind, input.Key, input.Required, displayText));
+            }
+        }
     }
 
-    private sealed record FlowEventRenderState(string Badge, string Marker, string Message);
+    private sealed record FlowEventRenderState(string Badge, string Marker, string Message, int? StepId, bool StartsExecution);
+    private sealed record InputSnapshotRenderState(StepIOKind Kind, string Key, bool Required, string? DisplayText);
     private sealed record ValueUpdateRenderState(string Name, DebugValueKind ValueKind, string DisplayText);
+    private sealed record ExecutionLayerPlan(int LayerIndex, int[] StepIds, StepExecutionPhase Phase);
+    private sealed record PhaseRunInfo(bool IsFirstLayer, int TotalSteps);
 }

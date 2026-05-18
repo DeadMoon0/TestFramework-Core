@@ -14,6 +14,8 @@ namespace TestFramework.Core.Steps.SystemSteps;
 
 internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext context, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<EmptyStepResultContext>
 {
+    public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
+
     public override bool DoesReturn => false;
 
     public override string Name => "Create Environment Components";

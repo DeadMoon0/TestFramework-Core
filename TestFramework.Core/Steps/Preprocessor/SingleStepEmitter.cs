@@ -28,11 +28,15 @@ public class SingleStepEmitter(StepGeneric step) : StepEmitter
         // If the step needs a pre-step (e.g. create temp subscription), emit it into
         // the Pre-Setup Stage so it runs before any Main Stage step.
         if (modifiedStep is IHasPreStep preProvider && preProvider.CreatePreStep(variableStore) is { } preStep)
+        {
             yield return new StepEmitterStepResult(preStep, RunInPreSetupStage: true);
+        }
 
         // If the step needs a cleanup step, redirect it to the Cleanup Stage.
         if (modifiedStep is IHasCleanupStep cleanupProvider && cleanupProvider.CreateCleanupStep(variableStore) is { } cleanupStep)
+        {
             yield return new StepEmitterStepResult(cleanupStep, RedirectToCleanUp: true);
+        }
 
         yield return new StepEmitterStepResult(modifiedStep);
     }

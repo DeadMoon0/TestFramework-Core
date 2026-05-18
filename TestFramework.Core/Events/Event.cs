@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Events;
@@ -17,6 +18,10 @@ namespace TestFramework.Core.Events;
 public abstract class Event<TEvent, TStepResultContext> : Step<TStepResultContext> where TEvent : Event<TEvent, TStepResultContext> where TStepResultContext : StepResultContext
 #pragma warning restore CA1716
 {
+    /// <inheritdoc />
+    /// <inheritdoc />
+    public override StepExecutionPhase Phase => StepExecutionPhase.Observe;
+
     /// <summary>
     /// Performs the event polling logic until a result is available.
     /// </summary>

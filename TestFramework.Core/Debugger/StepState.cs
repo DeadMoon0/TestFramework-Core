@@ -44,6 +44,11 @@ public record DebugStepState
     public required StepIOContract IOContract { get; init; }
 
     /// <summary>
+    /// Gets the workflow phase used by the planner for this step.
+    /// </summary>
+    public required StepExecutionPhase Phase { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the step returns a result.
     /// </summary>
     public required bool DoesReturn { get; init; }

@@ -129,6 +129,11 @@ public abstract class StepGeneric : IFreezable
     public ResultOptions ResultOptions { get; init; } = new ResultOptions();
 
     /// <summary>
+    /// Gets the workflow phase used by the stage planner when deciding which authored steps may share a layer.
+    /// </summary>
+    public virtual StepExecutionPhase Phase => StepExecutionPhase.Act;
+
+    /// <summary>
     /// Gets the declared input and output contract for the step.
     /// </summary>
     public StepIOContract IOContract { get; init; } = new StepIOContract();
@@ -179,4 +184,5 @@ public abstract class StepGeneric : IFreezable
         from.IOContract.CloneTo(IOContract);
         return this;
     }
+
 }

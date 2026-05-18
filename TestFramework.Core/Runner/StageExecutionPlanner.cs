@@ -66,10 +66,26 @@ internal sealed class StageExecutionPlanner
 
     private bool RequiresSequentialOrdering(StepGeneric left, StepGeneric right)
     {
+        if (RequiresPhaseOrdering(left, right))
+            return true;
+
         if (left.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize || right.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize)
             return true;
 
         return HasAccessConflict(left.IOContract, right.IOContract) || SharesSerializedArtifactSetupResource(left, right);
+    }
+
+    private static bool RequiresPhaseOrdering(StepGeneric left, StepGeneric right)
+    {
+        if (left.Phase != right.Phase)
+            return true;
+
+        return !IsMergeablePhase(left.Phase);
+    }
+
+    private static bool IsMergeablePhase(StepExecutionPhase phase)
+    {
+        return phase is StepExecutionPhase.Prepare or StepExecutionPhase.Materialize;
     }
 
     private bool SharesSerializedArtifactSetupResource(StepGeneric left, StepGeneric right)
@@ -88,10 +104,8 @@ internal sealed class StageExecutionPlanner
             return null;
 
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(setupArtifactStep.Identifier);
-        if (artifactInstance.Artifact.SetupParallelization != ArtifactSetupParallelizationMode.SerializeByArtifactType)
-            return null;
-
-        return $"artifact-setup:{artifactInstance.Artifact.GetType().FullName}";
+        string? resourceKey = artifactInstance.Artifact.GetSetupParallelizationResourceKey(artifactInstance);
+        return resourceKey is null ? null : $"artifact-setup:{resourceKey}";
     }
 
     private static bool HasAccessConflict(StepIOContract left, StepIOContract right)

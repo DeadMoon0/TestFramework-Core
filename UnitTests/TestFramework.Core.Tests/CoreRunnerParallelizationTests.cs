@@ -17,15 +17,15 @@ namespace TestFramework.Core.Tests;
 public class CoreRunnerParallelizationTests
 {
     [Fact]
-    public async Task RunStage_RunsIndependentStepsInParallel()
+    public async Task RunStage_RunsIndependentPrepareStepsInParallel()
     {
         TaskCompletionSource firstStepStarted = CreateSignal();
         TaskCompletionSource secondStepStarted = CreateSignal();
         TaskCompletionSource releaseSteps = CreateSignal();
 
         StageInstance stage = CreateStageInstance(
-            new BlockingStep("first", firstStepStarted, releaseSteps),
-            new BlockingStep("second", secondStepStarted, releaseSteps));
+            new PrepareBlockingStep("first", firstStepStarted, releaseSteps),
+            new PrepareBlockingStep("second", secondStepStarted, releaseSteps));
 
         RuntimeContext runtime = RuntimeContext.Create();
         CoreRunner runner = new();
@@ -40,6 +40,66 @@ public class CoreRunnerParallelizationTests
 
         Assert.Equal(StageState.Complete, stage.Result.State);
         Assert.All(stage.Steps, step => Assert.Equal(StepState.Complete, step.State));
+    }
+
+    [Fact]
+    public async Task RunStage_DoesNotMergeIndependentActStepsByDefault()
+    {
+        TaskCompletionSource firstStepStarted = CreateSignal();
+        TaskCompletionSource firstStepRelease = CreateSignal();
+        TaskCompletionSource secondStepStarted = CreateSignal();
+
+        StageInstance stage = CreateStageInstance(
+            new BlockingStep("first", firstStepStarted, firstStepRelease),
+            new BlockingStep("second", secondStepStarted, CreateSignal(completed: true)));
+
+        RuntimeContext runtime = RuntimeContext.Create();
+        CoreRunner runner = new();
+
+        Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
+
+        await firstStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertDoesNotCompleteAsync(secondStepStarted.Task, TimeSpan.FromMilliseconds(200));
+
+        firstStepRelease.TrySetResult();
+        await secondStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(StageState.Complete, stage.Result.State);
+    }
+
+    [Fact]
+    public async Task RunStage_PreservesInterleavedPhaseBoundaries()
+    {
+        TaskCompletionSource firstPrepareStarted = CreateSignal();
+        TaskCompletionSource firstPrepareRelease = CreateSignal();
+        TaskCompletionSource actStarted = CreateSignal();
+        TaskCompletionSource actRelease = CreateSignal();
+        TaskCompletionSource secondPrepareStarted = CreateSignal();
+
+        StageInstance stage = CreateStageInstance(
+            new PrepareBlockingStep("prepare-1", firstPrepareStarted, firstPrepareRelease),
+            new BlockingStep("act", actStarted, actRelease),
+            new PrepareBlockingStep("prepare-2", secondPrepareStarted, CreateSignal(completed: true)));
+
+        RuntimeContext runtime = RuntimeContext.Create();
+        CoreRunner runner = new();
+
+        Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
+
+        await firstPrepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertDoesNotCompleteAsync(actStarted.Task, TimeSpan.FromMilliseconds(200));
+        await AssertDoesNotCompleteAsync(secondPrepareStarted.Task, TimeSpan.FromMilliseconds(200));
+
+        firstPrepareRelease.TrySetResult();
+        await actStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertDoesNotCompleteAsync(secondPrepareStarted.Task, TimeSpan.FromMilliseconds(200));
+
+        actRelease.TrySetResult();
+        await secondPrepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(StageState.Complete, stage.Result.State);
     }
 
     [Fact]
@@ -135,6 +195,78 @@ public class CoreRunnerParallelizationTests
         Assert.All(runtime.ArtifactStore.GetAll(), artifact => Assert.Equal(TestFramework.Core.Artifacts.ArtifactState.Setup, artifact.State));
     }
 
+    [Fact]
+    public async Task RunStage_AllowsSetupArtifactStepsToRunInParallelWhenCustomResourceKeysDiffer()
+    {
+        TaskCompletionSource firstSetupStarted = CreateSignal();
+        TaskCompletionSource secondSetupStarted = CreateSignal();
+        TaskCompletionSource releaseSetups = CreateSignal();
+
+        StageInstance stage = CreateStageInstance(
+            new SetupArtifactStep(new ArtifactIdentifier("artifact-a")),
+            new SetupArtifactStep(new ArtifactIdentifier("artifact-b")));
+
+        RuntimeContext runtime = RuntimeContext.Create();
+        runtime.ArtifactStore.AddArtifact(new ArtifactInstance<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>(
+            new TestKeyedArtifactDescriber(firstSetupStarted, releaseSetups),
+            new ArtifactIdentifier("artifact-a"),
+            new TestKeyedArtifactReference("a", "sql-a"),
+            new TestKeyedArtifactData()));
+        runtime.ArtifactStore.AddArtifact(new ArtifactInstance<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>(
+            new TestKeyedArtifactDescriber(secondSetupStarted, releaseSetups),
+            new ArtifactIdentifier("artifact-b"),
+            new TestKeyedArtifactReference("b", "sql-b"),
+            new TestKeyedArtifactData()));
+
+        CoreRunner runner = new();
+
+        Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
+
+        await firstSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        releaseSetups.TrySetResult();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(StageState.Complete, stage.Result.State);
+    }
+
+    [Fact]
+    public async Task RunStage_WaitsForArtifactSetupBeforeStartingSameArtifactConsumer()
+    {
+        TaskCompletionSource setupStarted = CreateSignal();
+        TaskCompletionSource setupRelease = CreateSignal();
+        TaskCompletionSource consumerStarted = CreateSignal();
+
+        StageInstance stage = CreateStageInstance(
+            new SetupArtifactStep(new ArtifactIdentifier("artifact-a")),
+            new BlockingStep(
+                "consumer",
+                consumerStarted,
+                CreateSignal(completed: true),
+                inputs: [new StepIOEntry("artifact-a", StepIOKind.Artifact)]));
+
+        RuntimeContext runtime = RuntimeContext.Create();
+        runtime.ArtifactStore.AddArtifact(new ArtifactInstance<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>(
+            new TestSerializedArtifactDescriber(setupStarted, setupRelease),
+            new ArtifactIdentifier("artifact-a"),
+            new TestSerializedArtifactReference("a", new TestSerializedArtifactData()),
+            new TestSerializedArtifactData()));
+
+        CoreRunner runner = new();
+
+        Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
+
+        await setupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertDoesNotCompleteAsync(consumerStarted.Task, TimeSpan.FromMilliseconds(200));
+
+        setupRelease.TrySetResult();
+        await consumerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(StageState.Complete, stage.Result.State);
+    }
+
     private static async Task AssertDoesNotCompleteAsync(Task task, TimeSpan timeout)
     {
         var completed = await Task.WhenAny(task, Task.Delay(timeout));
@@ -188,7 +320,7 @@ public class CoreRunnerParallelizationTests
         public object? GetService(Type serviceType) => null;
     }
 
-    private sealed class BlockingStep : Step<EmptyStepResultContext>
+    private class BlockingStep : Step<EmptyStepResultContext>
     {
         private readonly string name;
         private readonly TaskCompletionSource started;
@@ -230,6 +362,29 @@ public class CoreRunnerParallelizationTests
         public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
+    private sealed class PrepareBlockingStep : BlockingStep
+    {
+        private readonly string stepName;
+        private readonly TaskCompletionSource started;
+        private readonly TaskCompletionSource release;
+        private readonly IReadOnlyList<StepIOEntry>? inputs;
+        private readonly IReadOnlyList<StepIOEntry>? outputs;
+
+        public PrepareBlockingStep(string name, TaskCompletionSource started, TaskCompletionSource release, IReadOnlyList<StepIOEntry>? inputs = null, IReadOnlyList<StepIOEntry>? outputs = null)
+            : base(name, started, release, inputs, outputs)
+        {
+            stepName = name;
+            this.started = started;
+            this.release = release;
+            this.inputs = inputs;
+            this.outputs = outputs;
+        }
+
+        public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
+
+        public override Step<EmptyStepResultContext> Clone() => new PrepareBlockingStep(stepName, started, release, inputs, outputs).WithClonedOptions(this);
+    }
+
     private sealed class TestSerializedArtifactDescriber : ArtifactDescriber<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>
     {
         private readonly TaskCompletionSource started;
@@ -261,6 +416,71 @@ public class CoreRunnerParallelizationTests
     private sealed class TestSerializedArtifactData : ArtifactData<TestSerializedArtifactData, TestSerializedArtifactDescriber, TestSerializedArtifactReference>
     {
         public override string ToString() => "artifact-data";
+    }
+
+    private sealed class TestKeyedArtifactDescriber : ArtifactDescriber<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>
+    {
+        private readonly TaskCompletionSource started;
+        private readonly TaskCompletionSource release;
+
+        public TestKeyedArtifactDescriber() : this(CreateSignal(completed: true), CreateSignal(completed: true))
+        {
+        }
+
+        public TestKeyedArtifactDescriber(TaskCompletionSource started, TaskCompletionSource release)
+        {
+            this.started = started;
+            this.release = release;
+        }
+
+        public override ArtifactSetupParallelizationMode SetupParallelization => ArtifactSetupParallelizationMode.SerializeByArtifactType;
+
+        public override string? GetSetupParallelizationResourceKey(ArtifactInstanceGeneric artifactInstance)
+        {
+            TestKeyedArtifactReference reference = (TestKeyedArtifactReference)artifactInstance.Reference;
+            return $"keyed:{reference.ResourceKey}";
+        }
+
+        public override async Task Setup(IServiceProvider serviceProvider, TestKeyedArtifactData data, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        {
+            started.TrySetResult();
+            await release.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        public override Task Deconstruct(IServiceProvider serviceProvider, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+
+        public override string ToString() => "keyed-artifact";
+    }
+
+    private sealed class TestKeyedArtifactData : ArtifactData<TestKeyedArtifactData, TestKeyedArtifactDescriber, TestKeyedArtifactReference>
+    {
+        public override string ToString() => "keyed-artifact-data";
+    }
+
+    private sealed class TestKeyedArtifactReference(string name, string resourceKey) : ArtifactReference<TestKeyedArtifactReference, TestKeyedArtifactDescriber, TestKeyedArtifactData>
+    {
+        public string Name { get; } = name;
+
+        public string ResourceKey { get; } = resourceKey;
+
+        public override Task<ArtifactResolveResult<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        {
+            return Task.FromResult(new ArtifactResolveResult<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>
+            {
+                Found = true,
+                Data = new TestKeyedArtifactData { Identifier = versionIdentifier }
+            });
+        }
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        {
+        }
+
+        public override string ToString() => Name;
     }
 
     private sealed class TestSerializedArtifactReference(string name, TestSerializedArtifactData data) : ArtifactReference<TestSerializedArtifactReference, TestSerializedArtifactDescriber, TestSerializedArtifactData>

@@ -14,6 +14,8 @@ internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifact
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
 {
+    public override StepExecutionPhase Phase => StepExecutionPhase.Materialize;
+
     public override bool DoesReturn => false;
 
     public override string Name => "Register Artifact";
