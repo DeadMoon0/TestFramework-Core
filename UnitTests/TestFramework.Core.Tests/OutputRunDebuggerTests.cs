@@ -100,10 +100,9 @@ public class OutputRunDebuggerTests
             Assert.Equal(99, lastStepHeader.Length);
             Assert.Contains("> L0  Prepare  x2", rendered);
             Assert.Contains(output.Lines, line => line.Contains("1. [RUN ] [#0]     -> FetchUsers") || line.Contains("1. [RUN ] [#1]     -> RenderSummary"));
-            Assert.Contains(output.Lines, line => line.StartsWith("│   │ ACTIVITY"));
+            Assert.Contains(output.Lines, line => line.StartsWith("│   │ LOGS ATTEMPT 1"));
             Assert.Contains("State: PASS", rendered);
             Assert.Contains("State: FAIL", rendered);
-            Assert.Contains(output.Lines, line => line.StartsWith("└─┤ STAGE") || line.StartsWith("│ └─┤ State:"));
             Assert.Contains("Flow Trace", rendered);
             Assert.Contains("1. [RUN ] [#0]     -> FetchUsers", rendered);
             Assert.Contains("2. [RUN ] [#1]     -> RenderSummary", rendered);
@@ -111,8 +110,10 @@ public class OutputRunDebuggerTests
             Assert.Contains("4. [FAIL] [#1]     <- RenderSummary", rendered);
             Assert.Contains("Step [#0]  FetchUsers", rendered);
             Assert.Contains("Step [#1]  RenderSummary", rendered);
-            Assert.Contains("Phase: Prepare | Layer: L0", rendered);
-            Assert.Contains("│ ACTIVITY", rendered);
+            Assert.Contains("Phase: Prepare", rendered);
+            Assert.Contains("1 attempt | Layer: L0", rendered);
+            Assert.Contains("LOGS ATTEMPT 1", rendered);
+            Assert.Contains("FINAL RESULT", rendered);
             Assert.Contains("Variable count  [observed]  = 2", rendered);
             Assert.Contains("Assertions", rendered);
             Assert.Contains("[FAIL] summaryText  Be(\"ok\")", rendered);
@@ -269,6 +270,13 @@ public class OutputRunDebuggerTests
             Assert.Contains("[RETRY] [#0:r2]  -> FlakyCall (retry 2)", rendered);
             Assert.Contains("[PASS] [#0:r2]  <- FlakyCall", rendered);
             Assert.Contains("[SKIP] [#1]     <- OptionalCleanup", rendered);
+            Assert.Single(output.Lines.Where(line => line.Contains("Step [#0]  FlakyCall", StringComparison.Ordinal)));
+            Assert.Contains("LOGS ATTEMPT 1", rendered);
+            Assert.Contains("LOGS ATTEMPT 2", rendered);
+            Assert.Contains("FINAL RESULT", rendered);
+            Assert.Contains("State: PASS", rendered);
+            Assert.Contains("Attempts: 2", rendered);
+            Assert.DoesNotContain("EmptyStepResultContext", rendered);
         });
     }
 

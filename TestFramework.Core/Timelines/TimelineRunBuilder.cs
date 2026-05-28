@@ -91,14 +91,22 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         try
         {
             await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Running, DebugLifecycleState.Initialized);
+            logger.Log(new TimelineRunHeaderLogEvent(
+                DateTime.UtcNow,
+                [.. _newVariableStore.GetAll().Select(entry => (entry.Key, entry.Value))],
+                [.. _newArtifactStore.GetAll().Select(instance => (instance.Identifier, instance))],
+                newRun.Stages,
+                mainStageSteps));
             foreach (var stage in newRun.Stages)
             {
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Running, DebugLifecycleState.Initialized);
+                logger.Log(new EnterStageLogEvent(stage));
 
                 using var _ = logger.EnterIndentScope();
                 var stageStopwatch = Stopwatch.StartNew();
                 await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
                 stageStopwatch.Stop();
+                logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
             }
             DebugLifecycleState finalRunState = newRun.Stages.Any(stage => stage.Result.State == StageState.Error)

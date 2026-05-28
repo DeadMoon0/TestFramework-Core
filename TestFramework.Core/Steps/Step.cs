@@ -5,6 +5,7 @@ using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
+using System.ComponentModel;
 
 namespace TestFramework.Core.Steps;
 
@@ -114,8 +115,9 @@ public abstract class StepGeneric : IFreezable
     public TimeOutOptions TimeOutOptions { get; init; } = new TimeOutOptions();
 
     /// <summary>
-    /// Gets the label configuration for the step.
+    /// Gets the label configuration for the step. Prefer the fluent <c>Name(...)</c> modifier when authoring timelines.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public LabelOptions LabelOptions { get; init; } = new LabelOptions();
 
     /// <summary>

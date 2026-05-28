@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
-internal class StepResultLogEvent(string stepName, string? label, StepResultGeneric stepResult, TimeSpan elapsed) : LogEvent
+internal class StepResultLogEvent(string stepName, string? label, StepResultGeneric stepResult, TimeSpan elapsed, int attempt, bool willRetry, IEnumerable<ResultBinding> resultBindings) : LogEvent
 {
     private const int MaxExceptionMessageLength = 400;
     private const int MaxStackTraceLines = 10;
@@ -29,12 +31,16 @@ internal class StepResultLogEvent(string stepName, string? label, StepResultGene
     {
         string symbol = StateSymbol(stepResult.State);
         var labelSuffix = label is not null ? $"  [{label}]" : "";
-        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"{symbol}  {stepName}{labelSuffix}  ({(int)elapsed.TotalMilliseconds}ms)"));
+        string retrySuffix = willRetry ? "  -> retry scheduled" : "";
+        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"{symbol}  {stepName}{labelSuffix}  attempt {attempt}  ({(int)elapsed.TotalMilliseconds}ms){retrySuffix}"));
 
         CurrentIndentLevel++;
 
-        if (stepResult.Result is not null)
+        if (stepResult.Result is not null && stepResult.Result is not EmptyStepResultContext)
             writer.WriteLine(PrefixLineWithIndentLevel(writer, "Result: " + VariableFormatter.Format(stepResult.Result)));
+
+        if (stepResult.State == StepState.Complete && resultBindings.Any())
+            writer.WriteLine(PrefixLineWithIndentLevel(writer, $"Bindings: {string.Join(", ", resultBindings.Select(binding => binding.Variable.Identifier))}"));
 
         if (stepResult.Exception is not null)
         {

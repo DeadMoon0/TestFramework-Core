@@ -110,6 +110,7 @@ internal sealed class PipeClient : IDisposable
     private readonly object stateLock = new();
     private NamedPipeClientStream? pipeClient;
     private PipeProtocolStream? stream;
+    private bool connectionUnavailable;
     private bool disposed;
 
     internal PipeClient(string pipeName)
@@ -182,6 +183,9 @@ internal sealed class PipeClient : IDisposable
         if (disposed)
             return false;
 
+        if (connectionUnavailable)
+            return false;
+
         if (IsConnected)
             return true;
 
@@ -189,6 +193,9 @@ internal sealed class PipeClient : IDisposable
         try
         {
             if (disposed)
+                return false;
+
+            if (connectionUnavailable)
                 return false;
 
             if (IsConnected)
@@ -206,6 +213,7 @@ internal sealed class PipeClient : IDisposable
             catch
             {
                 candidate.Dispose();
+                connectionUnavailable = true;
                 return false;
             }
 
@@ -214,6 +222,8 @@ internal sealed class PipeClient : IDisposable
                 pipeClient = candidate;
                 stream = new PipeProtocolStream(candidate);
             }
+
+            connectionUnavailable = false;
 
             return true;
         }

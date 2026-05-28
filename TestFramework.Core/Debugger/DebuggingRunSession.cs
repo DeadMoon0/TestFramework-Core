@@ -133,6 +133,10 @@ internal class DebuggingRunSession(IRunDebugger debugger)
 
     private static string GetProjectPath()
     {
+        string? processPath = System.Environment.ProcessPath;
+        if (LooksLikeTestHostPath(processPath))
+            return processPath!;
+
         string? commandLineAssembly = System.Environment.GetCommandLineArgs().FirstOrDefault(LooksLikeUserAssemblyPath);
         if (!string.IsNullOrWhiteSpace(commandLineAssembly))
             return commandLineAssembly;
@@ -144,8 +148,11 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         if (!string.IsNullOrWhiteSpace(loadedAssembly))
             return loadedAssembly;
 
+        if (!string.IsNullOrWhiteSpace(processPath))
+            return processPath;
+
         return Assembly.GetEntryAssembly()?.Location
-            ?? System.Environment.ProcessPath
+            ?? processPath
             ?? Path.Combine(AppContext.BaseDirectory, AppDomain.CurrentDomain.FriendlyName);
     }
 
@@ -155,11 +162,20 @@ internal class DebuggingRunSession(IRunDebugger debugger)
             return false;
 
         string fileName = Path.GetFileName(path);
+        if (fileName.Equals("netstandard.dll", StringComparison.OrdinalIgnoreCase))
+            return false;
+
         return !fileName.StartsWith("testhost", StringComparison.OrdinalIgnoreCase)
             && !fileName.StartsWith("xunit", StringComparison.OrdinalIgnoreCase)
             && !fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
             && !fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase)
             && !fileName.StartsWith("dotnet-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeTestHostPath(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path)
+            && Path.GetFileName(path).StartsWith("testhost", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void PublishNonBlocking(Task task)

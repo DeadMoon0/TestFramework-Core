@@ -2,11 +2,12 @@
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
-internal class EnterStepLogEvent(StepInstanceGeneric step) : LogEvent
+internal class EnterStepLogEvent(StepInstanceGeneric step, int attempt) : LogEvent
 {
     public override void FormatLogEvent(LogLineWriter writer)
     {
         var labelSuffix = step.Step.LabelOptions.Label is not null ? $"  [{step.Step.LabelOptions.Label}]" : "";
-        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"Executing Step: {step.Step.Name}{labelSuffix}"));
+        string prefix = attempt <= 1 ? "Executing Step" : $"Retry Attempt {attempt}";
+        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"{prefix}: {step.Step.Name}{labelSuffix} | phase {step.Step.Phase}"));
     }
 }

@@ -23,6 +23,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
     private readonly Dictionary<string, StageRenderState> stagesByName = new(System.StringComparer.Ordinal);
     private readonly Dictionary<string, VariableState> variablesByKey = new(System.StringComparer.Ordinal);
     private readonly Dictionary<string, ArtifactState> artifactsByKey = new(System.StringComparer.Ordinal);
+    private readonly List<string> runLogLines = [];
     private readonly List<string> assertionLines = [];
     private string? runName;
     private string? projectPath;
@@ -43,6 +44,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
         stagesByName.Clear();
         variablesByKey.Clear();
         artifactsByKey.Clear();
+        runLogLines.Clear();
         assertionLines.Clear();
 
         foreach (VariableState variable in runStructure.Variables.Values)
@@ -132,8 +134,26 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
     {
-        if (entry.Stage is null || entry.StepId is null || entry.Iteration is null)
+        string[] lines = entry.Lines.Length == 0
+            ? (entry.Message.Length == 0 ? [] : entry.Message.Split(["\r\n", "\r", "\n", "\n\r"], System.StringSplitOptions.None))
+            : entry.Lines;
+
+        if (entry.Stage is null)
+        {
+            foreach (string line in lines)
+                runLogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
+
             return Task.CompletedTask;
+        }
+
+        if (entry.StepId is null || entry.Iteration is null)
+        {
+            StageRenderState stage = EnsureStage(entry.Stage);
+            foreach (string line in lines)
+                stage.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
+
+            return Task.CompletedTask;
+        }
 
         string stepKey = GetStepKey(entry.Stage, entry.StepId.Value);
         if (!stepIterations.TryGetValue(stepKey, out int activeIteration) || activeIteration != entry.Iteration.Value)
@@ -143,12 +163,8 @@ internal sealed class OutputRunDebugger : IRunDebugger
         if (stepRun is null)
             return Task.CompletedTask;
 
-        string[] lines = entry.Lines.Length == 0
-            ? (entry.Message.Length == 0 ? [] : entry.Message.Split(["\r\n", "\r", "\n", "\n\r"], System.StringSplitOptions.None))
-            : entry.Lines;
-
         foreach (string line in lines)
-            stepRun.LogLines.Add(string.IsNullOrWhiteSpace(line) ? "<blank>" : line);
+            stepRun.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
 
         return Task.CompletedTask;
     }
@@ -185,6 +201,13 @@ internal sealed class OutputRunDebugger : IRunDebugger
             WriteWrappedContent($"Project: {projectPath}", runPrefix, false);
         WriteBottomBorder('=', runPrefix);
 
+        if (runLogLines.Count > 0)
+        {
+            BoxPrefix runLogPrefix = CreateBoxPrefix(string.Empty, orderedStages.Count > 0 || assertionLines.Count > 0);
+            WriteGapLine(runLogPrefix.Gap);
+            RenderSection("Run Log", runLogLines, runLogPrefix);
+        }
+
         for (int stageIndex = 0; stageIndex < orderedStages.Count; stageIndex++)
         {
             bool hasFollowingSibling = stageIndex < orderedStages.Count - 1 || assertionLines.Count > 0;
@@ -214,6 +237,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
     {
         int layerCount = stage.LayerPlans.Count;
         int peakParallel = stage.LayerPlans.Count == 0 ? 0 : stage.LayerPlans.Max(candidate => candidate.StepIds.Length);
+        IReadOnlyList<StepGroupRenderState> stepGroups = stage.GetOrderedStepGroups();
         WriteTopBorder('=', stagePrefix);
         WriteKeyValueContent(
             $"STAGE  {stage.Name}",
@@ -224,30 +248,38 @@ internal sealed class OutputRunDebugger : IRunDebugger
             WriteWrappedContent(stage.Description, stagePrefix, false);
         WriteBottomBorder('=', stagePrefix);
 
+        if (stage.LogLines.Count > 0)
+        {
+            WriteGapLine(stagePrefix.Rest);
+            RenderSection("Stage Activity", stage.LogLines, stagePrefix);
+        }
+
         string childAncestorPrefix = stagePrefix.Rest;
-        int childCount = 1 + stage.OrderedSteps.Count;
+        int childCount = 1 + stepGroups.Count;
         BoxPrefix flowTracePrefix = CreateBoxPrefix(childAncestorPrefix, childCount > 1);
         WriteGapLine(flowTracePrefix.Gap);
         RenderFlowTrace(stage, flowTracePrefix);
 
-        for (int stepIndex = 0; stepIndex < stage.OrderedSteps.Count; stepIndex++)
+        for (int stepIndex = 0; stepIndex < stepGroups.Count; stepIndex++)
         {
-            bool hasFollowingSibling = stepIndex < stage.OrderedSteps.Count - 1;
+            bool hasFollowingSibling = stepIndex < stepGroups.Count - 1;
             BoxPrefix stepPrefix = CreateBoxPrefix(childAncestorPrefix, hasFollowingSibling);
             WriteGapLine(stepPrefix.Gap);
-            RenderStep(stage.OrderedSteps[stepIndex], stepPrefix);
+            RenderStep(stepGroups[stepIndex], stepPrefix);
         }
     }
 
-    private void RenderStep(StepRenderState stepRun, BoxPrefix stepPrefix)
+    private void RenderStep(StepGroupRenderState stepGroup, BoxPrefix stepPrefix)
     {
-        string[] inputLines = RenderInputLines(stepRun);
-        string[] outputLines = RenderOutputLines(stepRun);
-        string title = $"Step {stepRun.Marker}  {stepRun.DisplayName}";
+        StepRenderState firstAttempt = stepGroup.FirstAttempt;
+        StepRenderState lastAttempt = stepGroup.LastAttempt;
+        string[] inputLines = RenderInputLines(firstAttempt);
+        string[] outputLines = RenderOutputLines(lastAttempt);
+        string title = $"Step {stepGroup.Marker}  {stepGroup.DisplayName}";
         WriteTitledBorder(title, '-', stepPrefix);
-        WriteKeyValueContent($"State: {MapStateLabel(stepRun.State)}", GetStepMetadata(stepRun), stepPrefix, true);
-        if (!string.IsNullOrWhiteSpace(stepRun.Definition?.Description))
-            WriteWrappedContent($"Summary: {stepRun.Definition.Description}", stepPrefix, false);
+        WriteKeyValueContent($"Phase: {stepGroup.PhaseDisplay}", GetStepMetadata(stepGroup), stepPrefix, true);
+        if (!string.IsNullOrWhiteSpace(firstAttempt.Definition?.Description))
+            WriteWrappedContent($"Summary: {firstAttempt.Definition.Description}", stepPrefix, false);
 
         if (ShouldRenderSideBySide(inputLines, outputLines))
             RenderDualBoxSection("Inputs", inputLines, "Outputs", outputLines, stepPrefix);
@@ -257,7 +289,10 @@ internal sealed class OutputRunDebugger : IRunDebugger
             RenderBoxSection("Outputs", outputLines, stepPrefix);
         }
 
-        RenderBoxSection("Activity", stepRun.LogLines.Count == 0 ? ["(no log lines)"] : stepRun.LogLines, stepPrefix);
+        foreach (StepRenderState attempt in stepGroup.Attempts)
+            RenderBoxSection($"Logs Attempt {attempt.Iteration}", attempt.LogLines.Count == 0 ? ["(no log lines)"] : attempt.LogLines, stepPrefix);
+
+        RenderBoxSection("Final Result", BuildFinalResultLines(stepGroup), stepPrefix);
         WriteBottomBorder('-', stepPrefix);
     }
 
@@ -310,16 +345,21 @@ internal sealed class OutputRunDebugger : IRunDebugger
         WriteBottomBorder('-', prefix);
     }
 
-    private static string GetStepMetadata(StepRenderState stepRun)
+    private static string GetStepMetadata(StepGroupRenderState stepGroup)
     {
-        if (stepRun.Definition is null)
-            return "Phase: Unknown";
+        string attemptsText = stepGroup.Attempts.Count == 1 ? "1 attempt" : $"{stepGroup.Attempts.Count} attempts";
+        return stepGroup.LayerDisplay is null
+            ? attemptsText
+            : $"{attemptsText} | Layer: {stepGroup.LayerDisplay}";
+    }
 
-        string phaseText = $"Phase: {stepRun.Definition.Phase}";
-        if (stepRun.LayerDisplay is null)
-            return phaseText;
-
-        return $"{phaseText} | Layer: {stepRun.LayerDisplay}";
+    private static string[] BuildFinalResultLines(StepGroupRenderState stepGroup)
+    {
+        return
+        [
+            $"State: {MapStateLabel(stepGroup.LastAttempt.State)}",
+            $"Attempts: {stepGroup.Attempts.Count}"
+        ];
     }
 
     private void RenderBoxSection(string title, IReadOnlyCollection<string> lines, BoxPrefix prefix)
@@ -615,6 +655,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
         public string Description => StageDefinition?.Description ?? string.Empty;
         public int StepCount => StageDefinition?.Steps.Length ?? 0;
         public List<FlowEventRenderState> FlowEvents { get; } = [];
+        public List<string> LogLines { get; } = [];
         public List<StepRenderState> OrderedSteps { get; } = [];
 
         public StepRenderState StartStep(int stepId, int iteration, DebugStepState? definition, string displayName)
@@ -660,6 +701,23 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
             banner = $"> {layer.Phase} phase  x{phaseRun.TotalSteps}";
             return true;
+        }
+
+        public IReadOnlyList<StepGroupRenderState> GetOrderedStepGroups()
+        {
+            List<StepGroupRenderState> groups = [];
+            HashSet<int> emittedStepIds = [];
+
+            foreach (StepRenderState attempt in OrderedSteps)
+            {
+                if (!emittedStepIds.Add(attempt.StepId))
+                    continue;
+
+                List<StepRenderState> attempts = [.. OrderedSteps.Where(candidate => candidate.StepId == attempt.StepId)];
+                groups.Add(new StepGroupRenderState(attempts));
+            }
+
+            return groups;
         }
 
         private void SeedPhaseRuns()
@@ -916,6 +974,22 @@ internal sealed class OutputRunDebugger : IRunDebugger
                 InputSnapshots.Add(new InputSnapshotRenderState(input.Kind, input.Key, input.Required, displayText));
             }
         }
+    }
+
+    private sealed class StepGroupRenderState
+    {
+        public StepGroupRenderState(IReadOnlyList<StepRenderState> attempts)
+        {
+            Attempts = attempts;
+        }
+
+        public IReadOnlyList<StepRenderState> Attempts { get; }
+        public StepRenderState FirstAttempt => Attempts[0];
+        public StepRenderState LastAttempt => Attempts[^1];
+        public string Marker => $"[#{FirstAttempt.StepId}]";
+        public string DisplayName => FirstAttempt.DisplayName;
+        public string PhaseDisplay => FirstAttempt.Definition?.Phase.ToString() ?? "Unknown";
+        public string? LayerDisplay => FirstAttempt.LayerDisplay;
     }
 
     private sealed record FlowEventRenderState(string Badge, string Marker, string Message, int? StepId, bool StartsExecution);

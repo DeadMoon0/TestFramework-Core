@@ -14,6 +14,7 @@ public class Timeline : IFreezable
 {
     /// <summary>
     /// Starts a new timeline builder using the consumer-first fluent API.
+    /// Step-producing calls return typed modifiers so step labels, retry, timeout, and result bindings can be configured inline.
     /// </summary>
     public static ITimelineBuilder Create()
     {

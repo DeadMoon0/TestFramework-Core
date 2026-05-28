@@ -1,10 +1,12 @@
-﻿using TestFramework.Core;
+﻿using System.ComponentModel;
+using TestFramework.Core;
 
 namespace TestFramework.Core.Steps.Options;
 
 /// <summary>
-/// Configures the optional consumer-facing label assigned to a step.
+/// Internal label configuration used by the fluent <c>Name(...)</c> modifier.
 /// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public class LabelOptions : IFreezable
 {
     /// <summary>

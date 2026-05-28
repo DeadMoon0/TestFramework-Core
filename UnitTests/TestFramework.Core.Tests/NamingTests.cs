@@ -46,6 +46,16 @@ public class NamingTests
             invalidOperationException.Message.Contains("FindArtifactsAs expected 1 artifact names"));
     }
 
+    [Fact]
+    public void Name_Throws_When_Label_Is_Blank()
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => Timeline.Create()
+            .SetVariable("user", Var.Const("Ada"))
+            .Name(" "));
+
+        Assert.Contains("label", exception.ParamName ?? string.Empty, System.StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class DummyFinder : ArtifactFinder<DummyDescriber, DummyData, DummyReference>
     {
         private readonly int _count;

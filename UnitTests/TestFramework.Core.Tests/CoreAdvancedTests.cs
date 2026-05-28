@@ -48,7 +48,25 @@ public class CoreAdvancedTests
         TestStep consumer = new("consumer");
         consumer.IOContract.Inputs.Add(new StepIOEntry("input", StepIOKind.Variable, true, typeof(string)));
 
-        Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer], [], []));
+        IOContractViolationException exception = Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer], [], []));
+
+        Assert.Contains("main stage index 0", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Known Variable keys at this point: none", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IOContractValidator_MissingInput_IncludesAvailableKeysAndSuggestions()
+    {
+        TestStep producer = new("produce-user-id");
+        producer.IOContract.Outputs.Add(new StepIOEntry("userId", StepIOKind.Variable, true, typeof(string)));
+        TestStep consumer = new("consumer");
+        consumer.IOContract.Inputs.Add(new StepIOEntry("userIdentifier", StepIOKind.Variable, true, typeof(string)));
+
+        IOContractViolationException exception = Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
+
+        Assert.Contains("Earlier steps: produce-user-id", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Known Variable keys at this point: userId", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Similar keys: userId", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -59,7 +77,10 @@ public class CoreAdvancedTests
         TestStep consumer = new("consumer");
         consumer.IOContract.Inputs.Add(new StepIOEntry("input", StepIOKind.Variable, true, typeof(string)));
 
-        Assert.Throws<IOContractTypeViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
+        IOContractTypeViolationException exception = Assert.Throws<IOContractTypeViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
+
+        Assert.Contains("step 'producer'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Actual producer type", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

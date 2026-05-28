@@ -177,6 +177,8 @@ internal class TimelineBuilder : ITimelineBuilder
 
     internal void Name(string label)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             step.LabelOptions.Label = label;

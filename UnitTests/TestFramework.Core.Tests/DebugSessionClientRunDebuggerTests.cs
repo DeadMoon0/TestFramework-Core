@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using TestFramework.Core.Debugger;
 
@@ -64,14 +65,47 @@ public class DebugSessionClientRunDebuggerTests
         Assert.Equal(nameof(DebuggingRunSession_UsesCurrentXunitMethodName_ForRunName), debugger.InitializedRunName);
     }
 
+    [Fact]
+    public async Task DebuggingRunSession_UsesCurrentTestHostProcessPath_ForProjectPath()
+    {
+        RecordingRunDebugger debugger = new();
+        DebuggingRunSession session = new(debugger);
+
+        await session.InitSessionAsync(new TimelineRunStructure
+        {
+            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, VariableState>(),
+            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, ArtifactState>(),
+            Stages = []
+        });
+
+        Assert.Equal(System.Environment.ProcessPath, debugger.InitializedProjectPath);
+        Assert.EndsWith("testhost.exe", debugger.InitializedProjectPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PipeClient_DoesNotRepeatConnectTimeoutAfterInitialFailure()
+    {
+        using PipeClient client = new($"testframework-missing-{Guid.NewGuid():N}");
+
+        await client.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-1" });
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await client.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-2" });
+        stopwatch.Stop();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(250), $"Expected cached connect failure to return quickly, but it took {stopwatch.Elapsed}.");
+    }
+
     private sealed class RecordingRunDebugger : IRunDebugger
     {
         public string FinishedSessionId { get; private set; } = string.Empty;
         public string InitializedRunName { get; private set; } = string.Empty;
+        public string InitializedProjectPath { get; private set; } = string.Empty;
 
         public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)
         {
             InitializedRunName = name;
+            InitializedProjectPath = projectPath;
             return Task.CompletedTask;
         }
 

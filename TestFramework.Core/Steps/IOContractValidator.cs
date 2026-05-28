@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -26,15 +27,19 @@ internal static class IOContractValidator
         List<VariableIdentifier> externalVariables,
         List<ArtifactIdentifier> externalArtifacts)
     {
-        // key → declared producer type (null = known but no type declared)
-        var knownVars = new Dictionary<string, Type?>(StringComparer.OrdinalIgnoreCase);
-        var knownArtifacts = new Dictionary<string, Type?>(StringComparer.OrdinalIgnoreCase);
+        // key -> known producer metadata (external or last declared producer)
+        var knownVars = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
+        var knownArtifacts = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
+        List<string> executedStepNames = [];
 
-        foreach (var v in externalVariables) knownVars[v.Identifier] = null;
-        foreach (var a in externalArtifacts) knownArtifacts[a.Identifier] = null;
+        foreach (var v in externalVariables)
+            knownVars[v.Identifier] = KnownContractValue.External(v.Identifier);
+        foreach (var a in externalArtifacts)
+            knownArtifacts[a.Identifier] = KnownContractValue.External(a.Identifier);
 
-        foreach (var step in mainSteps)
+        for (int stepIndex = 0; stepIndex < mainSteps.Count; stepIndex++)
         {
+            StepGeneric step = mainSteps[stepIndex];
             var contract = step.IOContract;
             string stepName = step.LabelOptions.Label ?? step.Name;
 
@@ -44,16 +49,34 @@ internal static class IOContractValidator
                 bool known = lookup.ContainsKey(input.Key);
 
                 if (!known && input.Required)
-                    throw new IOContractViolationException(stepName, input);
+                {
+                    IReadOnlyList<string> availableKeys = [.. lookup.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase)];
+                    IReadOnlyList<string> similarKeys = FindSimilarKeys(input.Key, lookup.Keys);
+                    throw new IOContractViolationException(
+                        stepName,
+                        input,
+                        stepIndex,
+                        [.. executedStepNames],
+                        availableKeys,
+                        similarKeys);
+                }
 
                 // Type compatibility - only when both sides declare a type
-                if (known && input.DeclaredType != null && lookup[input.Key] is Type producerType)
+                if (known && input.DeclaredType != null && lookup[input.Key].DeclaredType is Type producerType)
                 {
                     // The consumer expects input.DeclaredType; the producer emits producerType.
                     // The cast in VariableStore is (TConsumer?)object, so the producer value must
                     // be an instance of TConsumer — i.e. TConsumer must be assignable from producerType.
                     if (!input.DeclaredType.IsAssignableFrom(producerType))
-                        throw new IOContractTypeViolationException(stepName, input, producerType);
+                    {
+                        KnownContractValue producer = lookup[input.Key];
+                        throw new IOContractTypeViolationException(
+                            stepName,
+                            input,
+                            producerType,
+                            producer.SourceStepName,
+                            producer.IsExternal);
+                    }
                 }
             }
 
@@ -61,8 +84,54 @@ internal static class IOContractValidator
             {
                 var lookup = output.Kind == StepIOKind.Variable ? knownVars : knownArtifacts;
                 // Last declared producer wins (mirrors linear overwrite semantics)
-                lookup[output.Key] = output.DeclaredType;
+                lookup[output.Key] = KnownContractValue.FromStep(output.Key, output.DeclaredType, stepName);
             }
+
+            executedStepNames.Add(stepName);
         }
+    }
+
+    private static IReadOnlyList<string> FindSimilarKeys(string missingKey, IEnumerable<string> availableKeys)
+    {
+        string normalizedMissingKey = NormalizeKey(missingKey);
+        return [..
+            availableKeys
+                .Where(key => IsSimilarKey(normalizedMissingKey, NormalizeKey(key)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                .Take(3)];
+    }
+
+    private static bool IsSimilarKey(string expected, string candidate)
+    {
+        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(candidate))
+            return false;
+
+        return candidate.Contains(expected, StringComparison.OrdinalIgnoreCase)
+            || expected.Contains(candidate, StringComparison.OrdinalIgnoreCase)
+            || SharedPrefixLength(expected, candidate) >= 4;
+    }
+
+    private static int SharedPrefixLength(string left, string right)
+    {
+        int count = 0;
+        int max = Math.Min(left.Length, right.Length);
+        while (count < max && left[count] == right[count])
+            count++;
+
+        return count;
+    }
+
+    private static string NormalizeKey(string key)
+    {
+        char[] buffer = key.Where(char.IsLetterOrDigit).ToArray();
+        return new string(buffer);
+    }
+
+    private sealed record KnownContractValue(string Key, Type? DeclaredType, string? SourceStepName, bool IsExternal)
+    {
+        public static KnownContractValue External(string key) => new(key, null, null, true);
+
+        public static KnownContractValue FromStep(string key, Type? declaredType, string sourceStepName) => new(key, declaredType, sourceStepName, false);
     }
 }

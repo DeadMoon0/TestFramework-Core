@@ -54,13 +54,16 @@ internal class TimelineRunHeaderLogEvent(
         }
 
         // Stages
-        writer.WriteLine(P("  Stages"));
+        writer.WriteLine(P("  Stage Plan"));
         int stagePad = stages.Max(s => s.Stage.Name.Length);
         foreach (var stage in stages)
         {
             int count = stage.Steps.Count;
             string stepLabel = count == 1 ? "1 step" : $"{count} steps";
-            writer.WriteLine(P($"    {stage.Stage.Name.PadRight(stagePad)}  {stepLabel}"));
+            string phaseSummary = stage.Steps.Count == 0
+                ? "no phases"
+                : string.Join(" -> ", stage.Steps.Select(step => step.Step.Phase).Distinct());
+            writer.WriteLine(P($"    {stage.Stage.Name.PadRight(stagePad)}  {stepLabel}  [{phaseSummary}]"));
         }
 
         // Dependency graph — only steps with manually declared inputs or outputs beyond the auto-generated "out"

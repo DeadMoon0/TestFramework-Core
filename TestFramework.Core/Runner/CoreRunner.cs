@@ -60,6 +60,7 @@ internal class CoreRunner
             await debuggingSession.TransitionStepAsync(stageName, stepIndex, DebugLifecycleState.Running, iteration == 1 ? DebugLifecycleState.Initialized : DebugLifecycleState.WaitingForRetry);
 
             using var iterationScope = debuggingSession.BeginStepIterationContext(iteration);
+            logger.Log(new EnterStepLogEvent(step, iteration));
 
             if (iteration > 1)
                 await DelayForRetryAsync(step, iteration, variableStore);
@@ -68,6 +69,14 @@ internal class CoreRunner
             step.RetryResults.Add(stepResult);
 
             willRetry = ShouldRetry(step, variableStore, iteration, stepResult);
+            logger.Log(new StepResultLogEvent(
+                step.Step.Name,
+                step.Step.LabelOptions.Label,
+                stepResult,
+                stepResult.TimeSpent,
+                iteration,
+                willRetry,
+                step.Step.ResultOptions.ResultBindings));
             DebugLifecycleState outcomeState = MapLifecycleState(stepResult.State);
             await debuggingSession.TransitionStepAsync(
                 stageName,
@@ -121,6 +130,7 @@ internal class CoreRunner
         }
 
         stopwatch.Stop();
+        stepResult.TimeSpent = stopwatch.Elapsed;
         stepResult.Freeze();
         return stepResult;
     }

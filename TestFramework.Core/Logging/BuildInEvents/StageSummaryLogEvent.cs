@@ -29,6 +29,6 @@ internal class StageSummaryLogEvent(StageInstance stage, TimeSpan elapsed) : Log
         if (timeout > 0) sb.Append($"  {timeout} TIMEOUT");
         if (skipped > 0) sb.Append($"  {skipped} SKIPPED");
         sb.Append($"  ({(int)elapsed.TotalMilliseconds}ms)");
-        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"Stage Done  {sb}"));
+        writer.WriteLine(PrefixLineWithIndentLevel(writer, $"Stage Summary: {stage.Stage.Name}  {sb}"));
     }
 }

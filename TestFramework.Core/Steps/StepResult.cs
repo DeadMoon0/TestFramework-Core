@@ -81,4 +81,11 @@ public class StepResultGeneric : IFreezable
     /// Gets or sets the exception captured for the step attempt, when one exists.
     /// </summary>
     public Exception? Exception { get => _exception; set { ((IFreezable)this).EnsureNotFrozen(); _exception = value; } }
+
+    private TimeSpan _timeSpent = TimeSpan.Zero;
+
+    /// <summary>
+    /// Gets or sets the total elapsed time spent executing the step attempt.
+    /// </summary>
+    public TimeSpan TimeSpent { get => _timeSpent; set { ((IFreezable)this).EnsureNotFrozen(); _timeSpent = value; } }
 }

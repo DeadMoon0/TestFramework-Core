@@ -178,6 +178,45 @@ public class CoreTimelineCoverageTests
     }
 
     [Fact]
+    public async Task TimelineRun_SetupRunWithOutputHelper_WritesExecutionDiagnostics()
+    {
+        RecordingOutputHelper output = new();
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ReturnConstantStep("logic-run"))
+            .Name("return-run")
+            .GetValue("logicRun")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+
+        run.EnsureRanToCompletion();
+        Assert.Contains(output.Lines, line => line.Contains("Timeline Run", StringComparison.Ordinal));
+        Assert.Contains(output.Lines, line => line.Contains("Stage Plan", StringComparison.Ordinal));
+        Assert.Contains(output.Lines, line => line.Contains("Executing Step: Return Constant", StringComparison.Ordinal));
+        Assert.Contains(output.Lines, line => line.Contains("Bindings: logicRun", StringComparison.Ordinal));
+        Assert.Contains(output.Lines, line => line.Contains("Stage Summary:", StringComparison.Ordinal));
+        Assert.DoesNotContain(output.Lines, line => line.Contains("<blank>", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TimelineRun_SetupRunWithOutputHelper_WritesRetryDiagnostics()
+    {
+        RecordingOutputHelper output = new();
+        RetryProbe probe = new();
+        Timeline timeline = Timeline.Create()
+            .Trigger(new FlakyStep(probe, failuresBeforeSuccess: 1))
+            .Name("flaky")
+            .WithRetry(2, CalcDelays.None)
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+
+        run.EnsureRanToCompletion();
+        Assert.Contains(output.Lines, line => line.Contains("retry scheduled", StringComparison.Ordinal));
+        Assert.Contains(output.Lines, line => line.Contains("Retry Attempt 2:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TimelineRun_AssertionScope_GroupsFailuresUntilDispose()
     {
         Timeline timeline = Timeline.Create().Build();
