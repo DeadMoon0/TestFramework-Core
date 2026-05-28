@@ -13,12 +13,12 @@
 		<PackageTags>Test;UnitTest;IntegrationTest,Framework;Fluent;Timeline;Config</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>An easy to use utility for managing your configs inside the TestFramework timeline.</Description>
-		<Version>0.1.3</Version>
+		<Version>0.1.4</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Add Supporting structure for Persistent Environments</PackageReleaseNotes>
+		<PackageReleaseNotes>Use Core Version 0.1.7</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -47,12 +47,9 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="TestFramework.Core" Version="0.1.7" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\TestFramework.Core\TestFramework.Core.csproj" />
-	</ItemGroup>
-	
 	<ItemGroup>
 		<None Update="README.md">
 			<Pack>True</Pack>
