@@ -1,12 +1,11 @@
-﻿using System.ComponentModel;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
 /// <summary>
 /// Defines the integration contract used by debugger frontends to observe timeline execution.
+/// Register implementations through dependency injection to mirror timeline runs into custom tools.
 /// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public interface IRunDebugger
 {
     /// <summary>

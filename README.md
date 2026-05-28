@@ -94,6 +94,18 @@ You compose actions in order and call `Build()` to freeze the plan.
 Steps are executable units (trigger external systems, wait for events, transform or assert data).
 Step-level options such as retry and timeout can be applied fluently.
 
+### Parallel Execution
+
+The main stage planner can execute authored steps in parallel when three conditions hold:
+
+- the step phase is mergeable
+- the IO contracts do not conflict
+- the step has not been marked sequential explicitly
+
+In the built-in planner, `Prepare` and `Materialize` steps are mergeable. `Act` and `Observe` steps stay sequential so test intent and side-effect ordering remain easy to read.
+
+Use `.Sequential()` or `.DoNotParallelize()` on a step modifier chain when a step must remain isolated even inside a mergeable phase.
+
 ### Variables
 
 Variables are the data flow channel between steps and between builder/run phases.

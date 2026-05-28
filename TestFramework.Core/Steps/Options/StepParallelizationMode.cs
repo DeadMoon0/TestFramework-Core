@@ -6,7 +6,9 @@ namespace TestFramework.Core.Steps.Options;
 public enum StepParallelizationMode
 {
     /// <summary>
-    /// The step may run in parallel with other non-conflicting steps.
+    /// The step may run in parallel with other non-conflicting steps when the planner allows that phase to merge.
+    /// In the built-in planner, authored steps in <see cref="StepExecutionPhase.Prepare"/> and <see cref="StepExecutionPhase.Materialize"/> are mergeable;
+    /// <see cref="StepExecutionPhase.Act"/> and <see cref="StepExecutionPhase.Observe"/> remain sequential even when marked parallelizable.
     /// </summary>
     Parallelizable,
 

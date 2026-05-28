@@ -61,7 +61,7 @@ public class VariableStore : IFreezable
             return;
         }
 
-        debuggingSession.UpdateVariableAsync(identifier, GetDebuggingStateFromValue(value, identifier));
+        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier));
     }
 
     internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier)

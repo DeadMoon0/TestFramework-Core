@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace TestFramework.Core.Logging;
 
@@ -11,9 +11,10 @@ internal static class VariableFormatter
     private const int MaxStringLength = 120;
     private const int MaxCollectionPreviewItems = 4;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerSettings JsonSettings = new()
     {
-        WriteIndented = false,
+        Formatting = Formatting.None,
+        ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
         MaxDepth = MaxDepth
     };
 
@@ -35,7 +36,7 @@ internal static class VariableFormatter
     {
         try
         {
-            return Truncate(JsonSerializer.Serialize(value, _jsonOptions));
+            return Truncate(JsonConvert.SerializeObject(value, JsonSettings));
         }
         catch
         {

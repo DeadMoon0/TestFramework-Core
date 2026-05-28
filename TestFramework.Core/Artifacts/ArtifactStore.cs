@@ -49,7 +49,7 @@ public class ArtifactStore : IFreezable
             _artifacts[instance.Identifier] = instance;
         }
 
-        debuggingSession.UpdateArtifactAsync(instance.Identifier, GetDebuggingStateFromInstance(instance));
+        debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
     }
 
     internal static Debugger.ArtifactState GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)

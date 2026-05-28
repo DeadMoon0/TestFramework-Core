@@ -3,8 +3,6 @@ namespace TestFramework.Core.Debugger;
 
 internal class EmptyRunDebugger : IRunDebugger
 {
-    public static EmptyRunDebugger CreateNew() => new();
-
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
     {
         return Task.CompletedTask;

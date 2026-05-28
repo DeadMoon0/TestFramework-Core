@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections;
-using System.Diagnostics;
-using System.Reflection;
+using System.Collections.Generic;
 using Xunit.Abstractions;
 
 namespace TestFramework.Core.Debugger;
 
 internal static class CommonDebugger
 {
-    private const string RUN_DEBUGGER_PIPED_TYPE = "TestFramework.DebugUI.PipeAdapter.RunDebuggerPiped";
-    private const string RUN_DEBUGGER_PIPED_PROJECT = "TestFramework.DebugUI.PipeAdapter";
-
     internal static IRunDebugger GetCommon()
     {
         return GetCommon(null, null);
@@ -18,7 +14,7 @@ internal static class CommonDebugger
 
     internal static IRunDebugger GetCommon(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper)
     {
-        ArrayList debuggers = [];
+        List<IRunDebugger> debuggers = [];
 
         if (serviceProvider is not null)
         {
@@ -39,22 +35,18 @@ internal static class CommonDebugger
         if (outputHelper is not null)
             debuggers.Add(new OutputRunDebugger(outputHelper));
 
-        if (CreateFromType(SearchTypeInLoadedAssemblies(RUN_DEBUGGER_PIPED_TYPE, RUN_DEBUGGER_PIPED_PROJECT)) is { } discoveredDebugger
-            && !ContainsSameType(debuggers, discoveredDebugger.GetType()))
+        IRunDebugger builtInPipeDebugger = new PipeRunDebugger();
+        if (!ContainsSameType(debuggers, builtInPipeDebugger.GetType()))
         {
-            debuggers.Add(discoveredDebugger);
+            debuggers.Add(builtInPipeDebugger);
         }
 
-        IRunDebugger[] debuggerArray = new IRunDebugger[debuggers.Count];
-        for (int index = 0; index < debuggers.Count; index++)
-            debuggerArray[index] = (IRunDebugger)debuggers[index]!;
-
-        return CompositeRunDebugger.Create(debuggerArray);
+        return CompositeRunDebugger.Create([.. debuggers]);
     }
 
-    private static bool ContainsSameInstance(ArrayList debuggers, IRunDebugger candidate)
+    private static bool ContainsSameInstance(IEnumerable<IRunDebugger> debuggers, IRunDebugger candidate)
     {
-        foreach (object? debugger in debuggers)
+        foreach (IRunDebugger debugger in debuggers)
         {
             if (ReferenceEquals(debugger, candidate))
                 return true;
@@ -63,52 +55,14 @@ internal static class CommonDebugger
         return false;
     }
 
-    private static bool ContainsSameType(ArrayList debuggers, Type candidateType)
+    private static bool ContainsSameType(IEnumerable<IRunDebugger> debuggers, Type candidateType)
     {
-        foreach (object? debugger in debuggers)
+        foreach (IRunDebugger debugger in debuggers)
         {
-            if (debugger?.GetType() == candidateType)
+            if (debugger.GetType() == candidateType)
                 return true;
         }
 
         return false;
-    }
-
-    private static IRunDebugger? CreateFromType(Type? type)
-    {
-        if (type is { } nnType)
-        {
-            try
-            {
-                return (IRunDebugger)(Activator.CreateInstance(nnType) ?? throw new InvalidOperationException("Could not create Instance of Type: " + RUN_DEBUGGER_PIPED_TYPE));
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-                return null;
-            }
-        }
-        else return null;
-    }
-
-    private static Type? SearchTypeInLoadedAssemblies(string typeName, string projName)
-    {
-        try
-        {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                var type = assembly.GetType(typeName);
-                if (type != null)
-                    return type;
-            }
-
-            var asm = Assembly.Load(projName);
-            var foundType = asm.GetType(typeName);
-            if (foundType != null)
-                return foundType;
-        }
-        catch { }
-
-        return null;
     }
 }

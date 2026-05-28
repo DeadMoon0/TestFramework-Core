@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -12,6 +15,7 @@ internal class DebuggingRunSession(IRunDebugger debugger)
 {
     private readonly AsyncLocal<ExecutionContextInfo?> currentExecutionContext = new();
     private readonly AsyncLocal<IterationContextInfo?> currentIterationContext = new();
+    private bool sessionInitialized;
 
     internal string SessionId { get; } = Guid.NewGuid().ToString();
     internal IRunDebugger Debugger { get; set; } = debugger;
@@ -19,6 +23,7 @@ internal class DebuggingRunSession(IRunDebugger debugger)
     internal async Task InitSessionAsync(TimelineRunStructure runStructure)
     {
         await Debugger.SignalInitTimelineRunAsync(SessionId, GetTestName(), GetProjectPath(), runStructure);
+        sessionInitialized = true;
     }
 
     internal Task TransitionRunAsync(DebugLifecycleState state, DebugLifecycleState? previousState = null)
@@ -36,14 +41,20 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         return Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState);
     }
 
-    internal Task UpdateVariableAsync(VariableIdentifier identifier, VariableState state)
+    internal void PublishVariableUpdate(VariableIdentifier identifier, VariableState state)
     {
-        return Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope);
+        if (!sessionInitialized)
+            return;
+
+        PublishNonBlocking(Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope));
     }
 
-    internal Task UpdateArtifactAsync(ArtifactIdentifier identifier, ArtifactState state)
+    internal void PublishArtifactUpdate(ArtifactIdentifier identifier, ArtifactState state)
     {
-        return Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope);
+        if (!sessionInitialized)
+            return;
+
+        PublishNonBlocking(Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope));
     }
 
     internal Task LogAsync(DebugLogEntry entry)
@@ -111,14 +122,91 @@ internal class DebuggingRunSession(IRunDebugger debugger)
 
     private static string GetTestName()
     {
-        return AppDomain.CurrentDomain.FriendlyName;
+        MethodInfo? testMethod = new StackTrace().GetFrames()?
+            .Select(frame => frame.GetMethod())
+            .OfType<MethodInfo>()
+            .Select(ResolveTestMethod)
+            .FirstOrDefault(method => method is not null && HasXunitTestAttribute(method))!;
+
+        return testMethod?.Name ?? AppDomain.CurrentDomain.FriendlyName;
     }
 
     private static string GetProjectPath()
     {
+        string? commandLineAssembly = System.Environment.GetCommandLineArgs().FirstOrDefault(LooksLikeUserAssemblyPath);
+        if (!string.IsNullOrWhiteSpace(commandLineAssembly))
+            return commandLineAssembly;
+
+        string? loadedAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(assembly => !assembly.IsDynamic)
+            .Select(assembly => assembly.Location)
+            .FirstOrDefault(LooksLikeUserAssemblyPath);
+        if (!string.IsNullOrWhiteSpace(loadedAssembly))
+            return loadedAssembly;
+
         return Assembly.GetEntryAssembly()?.Location
             ?? System.Environment.ProcessPath
             ?? Path.Combine(AppContext.BaseDirectory, AppDomain.CurrentDomain.FriendlyName);
+    }
+
+    private static bool LooksLikeUserAssemblyPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        string fileName = Path.GetFileName(path);
+        return !fileName.StartsWith("testhost", StringComparison.OrdinalIgnoreCase)
+            && !fileName.StartsWith("xunit", StringComparison.OrdinalIgnoreCase)
+            && !fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+            && !fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase)
+            && !fileName.StartsWith("dotnet-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void PublishNonBlocking(Task task)
+    {
+        if (task.IsCompletedSuccessfully)
+            return;
+
+        _ = ObservePublicationAsync(task);
+    }
+
+    private static async Task ObservePublicationAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+        }
+    }
+
+    private static MethodInfo? ResolveTestMethod(MethodInfo method)
+    {
+        if (HasXunitTestAttribute(method))
+            return method;
+
+        Type? stateMachineType = method.DeclaringType;
+        Type? containingType = stateMachineType?.DeclaringType;
+        if (method.Name != nameof(IAsyncStateMachine.MoveNext) || stateMachineType is null || containingType is null)
+            return null;
+
+        return containingType.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(candidate => candidate.GetCustomAttribute<AsyncStateMachineAttribute>()?.StateMachineType == stateMachineType && HasXunitTestAttribute(candidate));
+    }
+
+    private static bool HasXunitTestAttribute(MethodInfo method)
+    {
+        return method.GetCustomAttributes(inherit: true)
+            .Any(attribute =>
+            {
+                Type attributeType = attribute.GetType();
+                string? fullName = attributeType.FullName;
+                return fullName is not null
+                    && fullName.StartsWith("Xunit.", StringComparison.Ordinal)
+                    && (fullName.EndsWith("FactAttribute", StringComparison.Ordinal) || fullName.EndsWith("TheoryAttribute", StringComparison.Ordinal));
+            });
     }
 
     private sealed record ExecutionContextInfo(string Stage, int StepId);
