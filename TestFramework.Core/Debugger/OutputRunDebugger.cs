@@ -561,7 +561,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
                 .ToArray();
 
             if (readyStepIds.Length == 0)
-                throw new InvalidOperationException("Unable to derive debugger-visible execution layers for the stage.");
+                throw new TestFramework.Core.Exceptions.DependencyGraphException("Unable to derive debugger-visible execution layers for the stage.");
 
             int layerIndex = layers.Count;
             layers.Add(new ExecutionLayerPlan(layerIndex, readyStepIds, steps[readyStepIds[0]].Phase));

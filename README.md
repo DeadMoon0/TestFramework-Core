@@ -82,6 +82,20 @@ public class SampleIntegrationTest
 }
 ```
 
+## Start Here
+
+If you are learning Core as a consumer, ignore most of the public surface at first and stay on this path:
+
+1. `Timeline.Create()`
+2. `Var.Const(...)` and `Var.Ref<T>(...)`
+3. fluent scenario verbs such as `Trigger(...)`, `WaitForEvent(...)`, `SetVariable(...)`, `Transform(...)`, and `AssertVariable(...)`
+4. `Build()`
+5. `SetupRun(...)`
+6. `RunAsync()`
+7. `TimelineRun` assertions such as `EnsureRanToCompletion()`, `Variable<T>(...)`, `Artifact(...)`, and `Step(...)`
+
+Do not start with artifact describers, environment internals, action interfaces, or custom step primitives unless you are extending the framework itself.
+
 ## Core Concepts
 
 ### Timeline
@@ -115,6 +129,15 @@ Use `Var.Const(...)` for constants and `Var.Ref<T>(...)` for runtime-resolved va
 
 Artifacts represent external resources that are created, registered, versioned, and cleaned up as part of the run.
 This enables deterministic setup/cleanup in integration tests.
+
+Treat artifact usage as a lifecycle, not as one undifferentiated feature bucket:
+
+1. Declare with `SetupArtifact("name")` when the run will set the resource up from external data before the main steps execute.
+2. Register with `RegisterArtifact("name", reference)` when a step creates the resource during the run and the framework should start tracking it afterward.
+3. Discover with `FindArtifact(...)` or `FindArtifacts(...)` when the resource should be searched for after earlier work completes.
+4. Assert or capture versions from `TimelineRun` once the artifact exists.
+
+Most artifact confusion comes from mixing those paths together mentally. The API is easier to read once you decide which lifecycle path your resource is taking.
 
 ## Public Contract Layers
 
@@ -170,6 +193,8 @@ For runnable consumer examples see the showroom repository and start with:
 - `TestFramework.Showroom.Basic/01_MinimalTimeline.cs`
 - `TestFramework.Showroom.Basic/04_Variables.cs`
 - `TestFramework.Showroom.Basic/09_StepValidations.cs`
+- `TestFramework.Showroom.Basic/14_ArtifactLifecycle.cs`
+- `TestFramework.Showroom.Basic/15_ErrorPaths.cs`
 
 ## Related Repositories
 

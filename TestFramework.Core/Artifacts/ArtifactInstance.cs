@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -118,18 +119,22 @@ public class ArtifactInstanceGeneric : IFreezable
     /// </summary>
     public ArtifactDataGeneric this[ArtifactVersionIdentifier identifier]
     {
-        get { return _dataVersions.FirstOrDefault(x => x.Identifier == identifier) ?? throw new System.InvalidOperationException("No Version has the Identifier: '" + identifier + "'."); }
+        get
+        {
+            return _dataVersions.FirstOrDefault(x => x.Identifier == identifier)
+                ?? throw new ArtifactVersionNotFoundException(Identifier, identifier, _dataVersions.Select(x => x.Identifier).ToArray());
+        }
     }
 
     /// <summary>
     /// Gets the first artifact data version.
     /// </summary>
-    public ArtifactDataGeneric First { get => _dataVersions.First(); }
+    public ArtifactDataGeneric First { get => TryGetBoundaryVersion(first: true); }
 
     /// <summary>
     /// Gets the latest artifact data version.
     /// </summary>
-    public ArtifactDataGeneric Last { get => _dataVersions.Last(); }
+    public ArtifactDataGeneric Last { get => TryGetBoundaryVersion(first: false); }
 
     /// <summary>
     /// Gets the number of data versions stored for the artifact.
@@ -172,5 +177,18 @@ public class ArtifactInstanceGeneric : IFreezable
     public void AddVersionGeneric(ArtifactDataGeneric data)
     {
         _dataVersions.Add(data);
+    }
+
+    private ArtifactDataGeneric TryGetBoundaryVersion(bool first)
+    {
+        if (_dataVersions.Count > 0)
+            return first ? _dataVersions.First() : _dataVersions.Last();
+
+        return State switch
+        {
+            ArtifactState.NotFound => throw new ArtifactDoesNotExistException(Identifier),
+            ArtifactState.Cleaned => throw new ArtifactDoesNotExistException(Identifier),
+            _ => throw new ArtifactDoesNotYetExistException(Identifier)
+        };
     }
 }

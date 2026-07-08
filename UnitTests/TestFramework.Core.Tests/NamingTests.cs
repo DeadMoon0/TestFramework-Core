@@ -7,6 +7,7 @@ using TestFramework.Core.Variables;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Exceptions;
 using Xunit;
 
 namespace TestFramework.Core.Tests;
@@ -39,11 +40,21 @@ public class NamingTests
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
 
-        TestFramework.Core.Exceptions.TimelineRunFailedException exception = Assert.Throws<TestFramework.Core.Exceptions.TimelineRunFailedException>(() => run.EnsureRanToCompletion());
+        TimelineRunFailedException exception = Assert.Throws<TimelineRunFailedException>(() => run.EnsureRanToCompletion());
 
         Assert.Contains(exception.FailedSteps, step =>
-            step.StepException is InvalidOperationException invalidOperationException &&
-            invalidOperationException.Message.Contains("FindArtifactsAs expected 1 artifact names"));
+            step.StepException is ArtifactCountMismatchException mismatchException &&
+            mismatchException.Message.Contains("expected 1 artifact name", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void FindArtifactsAs_Throws_When_Identifier_List_Is_Empty()
+    {
+        ArtifactIdentifierRequiredException exception = Assert.Throws<ArtifactIdentifierRequiredException>(() => Timeline.Create()
+            .FindArtifactsAs(System.Array.Empty<TestFramework.Core.Artifacts.ArtifactIdentifier>(), new DummyFinder(1)));
+
+        Assert.Contains("FindArtifactsAs", exception.Message, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("FindArtifact(name, ...)", exception.ToString(), System.StringComparison.Ordinal);
     }
 
     [Fact]

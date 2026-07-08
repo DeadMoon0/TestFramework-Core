@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using TestFramework.Core.Timelines;
 
@@ -38,10 +39,22 @@ public class TimelineRunFailedException : Exception
         sb.AppendLine($"Timeline run failed: {failedSteps.Count} step(s) did not complete.");
         foreach (var f in failedSteps)
         {
-            string exInfo = f.StepException is null
-                ? "no exception recorded"
-                : $"{f.StepException.GetType().Name}: {f.StepException.Message}";
-            sb.AppendLine($"  [{f.StageName} / {f.StepName}] {exInfo}");
+            sb.AppendLine($"  [{f.StageName} / {f.StepName}]");
+
+            if (f.StepException is null)
+            {
+                sb.AppendLine("    no exception recorded");
+                continue;
+            }
+
+            if (f.StepException is TimelineFrameworkException frameworkException)
+            {
+                foreach (string line in frameworkException.ToString().Split(System.Environment.NewLine).Select(x => "    " + x))
+                    sb.AppendLine(line);
+                continue;
+            }
+
+            sb.AppendLine($"    {f.StepException.GetType().Name}: {f.StepException.Message}");
         }
         return sb.ToString().TrimEnd();
     }

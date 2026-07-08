@@ -29,6 +29,32 @@ var serviceProvider = ConfigInstance
 	.BuildServiceProvider();
 ```
 
+## Which Configuration Abstraction Do I Use?
+
+For ordinary timeline tests, treat `ConfigInstance` as the default and primary entry point.
+
+- Use `ConfigInstance` when you want to prepare configuration, register services, build an `IServiceProvider`, and pass that provider into `SetupRun(...)`.
+- Treat package-specific typed stores such as Azure's `ConfigStore<T>` as advanced runtime services that may live inside that provider. They are not a second root setup model for most consumers.
+
+The practical ownership rule is:
+
+- `ConfigInstance` owns the run setup container.
+- typed stores live inside that container when a module needs named resource records at runtime.
+
+| If your question is... | Prefer |
+|---|---|
+| "How do I prepare config and services for `SetupRun(...)`?" | `ConfigInstance` |
+| "How does Azure/SQL/Container look up a named runtime record like `MainDb`?" | module-owned `ConfigStore<T>` inside DI |
+| "Do I need to choose one model for the whole test?" | no, start with `ConfigInstance`; typed stores are advanced runtime services, not a second root setup style |
+
+If you need both, you still start with `ConfigInstance`, then let your module register or resolve the typed store through DI.
+
+## Decision Guide
+
+- You have JSON files, a few overrides, or normal service registration: use `ConfigInstance`.
+- You want a reusable shared base with per-test variants: build a `ConfigInstance`, then call `SetupSubInstance()`.
+- A richer module such as Azure or SQL needs named resource records like `MainSql` or `Default`: keep using `ConfigInstance` for setup, and treat the typed store as an implementation detail consumed from DI.
+
 ## Typical Pattern
 
 Use a shared base config and derive per-test variants:
@@ -90,6 +116,7 @@ run.EnsureRanToCompletion();
 - Prefer `Build()` when you want a reusable base configuration that can spawn multiple sub-instances.
 - Prefer `SetupSubInstance()` when tests share most configuration but need a few targeted overrides.
 - Use the `AddService((services, configuration) => ...)` overload when service registration depends on effective configuration values after overrides have been applied.
+- If a module also uses a typed registry inside DI, keep the ownership boundary clear: `ConfigInstance` prepares the provider, the typed registry serves that module's runtime lookup needs.
 
 ## Target Framework
 

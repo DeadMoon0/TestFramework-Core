@@ -1,4 +1,5 @@
 ﻿using System;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Variables;
 
@@ -19,7 +20,7 @@ public abstract class VariableReference<T> : VariableReferenceGeneric
     /// <param name="store">The variable store used for resolution.</param>
     /// <param name="requiredReason">Additional context included in the exception message.</param>
     /// <returns>The resolved non-null value.</returns>
-    public T GetRequiredValue(VariableStore store, string requiredReason = "") => GetValue(store) ?? throw new InvalidOperationException("The Value cannot be Null of Variable: " + (Identifier ?? "ConstVariable") + ". " + requiredReason);
+    public T GetRequiredValue(VariableStore store, string requiredReason = "") => GetValue(store) ?? throw new VariableResolvedToNullException(Identifier?.Identifier ?? "ConstVariable", requiredReason);
 
     /// <summary>
     /// Resolves the referenced value from the provided store.

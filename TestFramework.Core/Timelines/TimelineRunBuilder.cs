@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TestFramework.Core;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
@@ -239,7 +240,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     public ITimelineRunBuilder SetEnv(IEnvironmentProvider environment)
     {
         if (_environment is not null)
-            throw new InvalidOperationException("Only one environment can be configured for a timeline run.");
+            throw new FrameworkConfigurationException("Only one environment can be configured for a timeline run.");
 
         _environment = environment;
         return this;

@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\TestFramework.Core\TestFramework.Core.csproj" />
+    <ProjectReference Include="..\..\..\TestFramework-LocalIO\TestFramework.LocalIO\TestFramework.LocalIO.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Artifacts;
@@ -91,7 +92,10 @@ public class ArtifactStore : IFreezable
     {
         lock (syncRoot)
         {
-            return _artifacts[identifier];
+            if (_artifacts.TryGetValue(identifier, out ArtifactInstanceGeneric? instance))
+                return instance;
+
+            throw new ArtifactNotFoundException(identifier.Identifier, _artifacts.Keys.Select(k => k.Identifier).OrderBy(x => x).ToArray());
         }
     }
 
@@ -103,10 +107,7 @@ public class ArtifactStore : IFreezable
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
-        lock (syncRoot)
-        {
-            return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
-        }
+        return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)GetArtifact(identifier);
     }
 
     /// <summary>
@@ -117,10 +118,7 @@ public class ArtifactStore : IFreezable
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
-        lock (syncRoot)
-        {
-            return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)_artifacts[identifier];
-        }
+        return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)GetArtifact(identifier);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using System;
 using TestFramework.Core;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Timelines.Builder.TimelineRunBuilder;
@@ -74,7 +75,7 @@ public class Timeline : IFreezable
     /// <exception cref="InvalidOperationException">Thrown when the timeline has not been built completely yet.</exception>
     public ITimelineRunBuilder SetupRun(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper)
     {
-        if (!ReadyToRun) throw new InvalidOperationException("The " + nameof(Timeline) + " cannot Setup a Run when the Builder did not finish Building.");
+        if (!ReadyToRun) throw new FrameworkStateException("The timeline cannot create a run before Build() has completed.");
         serviceProvider ??= new EmptyServiceProvider();
         return new TimelineRunBuilder(serviceProvider, outputHelper, this, MainStage);
     }

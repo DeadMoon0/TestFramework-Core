@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Environment;
 
@@ -76,7 +77,7 @@ public static class ComponentGraphValidator
             {
                 if (!nodesByIdentity.ContainsKey(dependency.RealizedComponentIdentity))
                 {
-                    throw new InvalidOperationException(
+                    throw new DependencyGraphException(
                         $"Component '{node.RealizedComponentIdentity}' depends on '{dependency.RealizedComponentIdentity}', but no matching component node was resolved.");
                 }
             }
@@ -98,7 +99,7 @@ public static class ComponentGraphValidator
             return;
 
         if (!visiting.Add(identity))
-            throw new InvalidOperationException($"A cyclic component dependency was detected at '{identity}'.");
+            throw new DependencyGraphException($"A cyclic component dependency was detected at '{identity}'.");
 
         foreach (ComponentGraphDependency dependency in nodesByIdentity[identity].Dependencies)
             Visit(dependency.RealizedComponentIdentity, nodesByIdentity, visiting, visited);
@@ -124,7 +125,7 @@ public static class ComponentGraphValidator
             string[] owners = group.Select(x => x.Owner).Distinct(StringComparer.Ordinal).ToArray();
             if (owners.Length > 1)
             {
-                throw new InvalidOperationException(
+                throw new DependencyGraphException(
                     $"Multiple exclusive dependencies resolved to the same realized component identity '{group.Key}'. Owners: {string.Join(", ", owners)}.");
             }
         }
@@ -170,7 +171,7 @@ public static class ContractBindingPass
 
                 if (compatibleProviders.Length == 0)
                 {
-                    throw new InvalidOperationException(
+                    throw new DependencyGraphException(
                         $"Component '{consumer.RealizedComponentIdentity}' requires '{requirement}', but no compatible provider was found.");
                 }
 
@@ -180,7 +181,7 @@ public static class ContractBindingPass
                         .Select(x => x.ProviderIdentity)
                         .Distinct(StringComparer.Ordinal)
                         .ToArray();
-                    throw new InvalidOperationException(
+                    throw new DependencyGraphException(
                         $"Component '{consumer.RealizedComponentIdentity}' requires '{requirement}', but multiple compatible providers were found: {string.Join(", ", providers)}.");
                 }
 

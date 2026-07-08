@@ -1,5 +1,6 @@
 using System;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Timelines.Assertions;
@@ -58,5 +59,11 @@ public class ArtifactHandle<TData> where TData : ArtifactDataGeneric
     /// <typeparam name="TNew">The projected value type.</typeparam>
     /// <param name="selector">Maps the latest typed artifact data version to a new value.</param>
     public ValueHandle<TNew> Select<TNew>(Func<TData, TNew> selector)
-        => new ValueHandle<TNew>(selector((TData)_instance.Last), _instance.Identifier.ToString(), _logger);
+    {
+        ArtifactDataGeneric latest = _instance.Last;
+        if (latest is not TData typedData)
+            throw new ArtifactTypeMismatchException(_instance.Identifier, typeof(TData), latest.GetType());
+
+        return new ValueHandle<TNew>(selector(typedData), _instance.Identifier.ToString(), _logger);
+    }
 }

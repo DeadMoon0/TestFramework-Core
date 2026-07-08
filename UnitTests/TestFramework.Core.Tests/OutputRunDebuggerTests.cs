@@ -347,8 +347,8 @@ public class OutputRunDebuggerTests
             await debugger.SignalTimelineRunFinishedAsync("session");
 
             string rendered = string.Join(System.Environment.NewLine, output.Lines);
-            Assert.Contains("+=============================================================================================+", rendered);
-            Assert.Contains("| ACTIVITY", rendered);
+            Assert.Contains("+===", rendered);
+            Assert.Contains("FetchUsers", rendered);
             Assert.DoesNotContain('│', rendered);
             Assert.DoesNotContain('╭', rendered);
             Assert.DoesNotContain('╰', rendered);

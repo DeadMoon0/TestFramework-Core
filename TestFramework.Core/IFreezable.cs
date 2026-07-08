@@ -1,4 +1,6 @@
-﻿namespace TestFramework.Core;
+﻿using TestFramework.Core.Exceptions;
+
+namespace TestFramework.Core;
 
 /// <summary>
 /// Defines an object that can transition into an immutable, read-only state.
@@ -20,6 +22,6 @@ public interface IFreezable
     /// </summary>
     void EnsureNotFrozen()
     {
-        if (IsFrozen) throw new System.InvalidOperationException("This instance has been frozen and is read-only.");
+        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
     }
 }

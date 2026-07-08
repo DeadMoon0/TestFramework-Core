@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Environment.Internal;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
@@ -99,20 +100,20 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private IReadOnlyCollection<EnvComponentIdentifier> ValidatePersistentRoots(IReadOnlyCollection<EnvComponentIdentifier> persistentRoots)
     {
         if (persistentRoots.Count == 0)
-            throw new InvalidOperationException("Persistent environment setup must declare at least one persistent component root.");
+            throw new FrameworkConfigurationException("Persistent environment setup must declare at least one persistent component root.");
 
         HashSet<string> seenIdentifiers = [];
         foreach (EnvComponentIdentifier identifier in persistentRoots)
         {
             if (string.IsNullOrWhiteSpace(identifier.Identifier))
-                throw new InvalidOperationException("Persistent environment setup contains an empty component identifier.");
+                throw new FrameworkConfigurationException("Persistent environment setup contains an empty component identifier.");
 
             if (!seenIdentifiers.Add(identifier.Identifier))
-                throw new InvalidOperationException($"Persistent environment setup contains duplicate component identifier '{identifier}'.");
+                throw new FrameworkConfigurationException($"Persistent environment setup contains duplicate component identifier '{identifier}'.");
 
             EnvComponent component = _bootstrapEnvironment.GetComponent(identifier);
             if (component.ReuseMode != EnvComponentReuseMode.PersistentContext)
-                throw new InvalidOperationException($"Persistent environment component '{identifier}' must opt into '{EnvComponentReuseMode.PersistentContext}'.");
+                throw new FrameworkConfigurationException($"Persistent environment component '{identifier}' must opt into '{EnvComponentReuseMode.PersistentContext}'.");
         }
 
         return persistentRoots;
@@ -124,7 +125,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
             return timeout;
 
         if (timeout <= TimeSpan.Zero)
-            throw new InvalidOperationException("Persistent environment setup timeout must be greater than zero or Timeout.InfiniteTimeSpan.");
+            throw new FrameworkConfigurationException("Persistent environment setup timeout must be greater than zero or Timeout.InfiniteTimeSpan.");
 
         return timeout;
     }
@@ -142,7 +143,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
         EnvComponent component = environment.GetComponent(current);
         if (component.ReuseMode != EnvComponentReuseMode.PersistentContext)
-            throw new InvalidOperationException($"Persistent environment component '{root}' depends on per-run component '{current}'. Split the dependency or mark the dependency as persistent.");
+            throw new FrameworkConfigurationException($"Persistent environment component '{root}' depends on per-run component '{current}'. Split the dependency or mark the dependency as persistent.");
 
         foreach (EnvComponentIdentifier dependency in component.Dependencies)
             VisitPersistentClosure(environment, dependency, root, visited);
@@ -180,7 +181,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
         {
-            throw new TimeoutException($"Persistent environment setup exceeded the configured timeout of {_persistentSetupTimeout} while bootstrapping roots: {string.Join(", ", persistentRoots)}.", exception);
+            throw new FrameworkTimeoutException($"Persistent environment setup exceeded the configured timeout of {_persistentSetupTimeout} while bootstrapping roots: {string.Join(", ", persistentRoots)}.", exception);
         }
     }
 
@@ -224,7 +225,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                 return innerComponent;
 
             if (!persistentStates.TryGetValue(identifier, out object? state))
-                throw new InvalidOperationException($"Persistent environment component '{identifier}' was not created during bootstrap.");
+                throw new FrameworkStateException($"Persistent environment component '{identifier}' was not created during bootstrap.");
 
             return new PersistentStateEnvComponent(innerComponent, state);
         }

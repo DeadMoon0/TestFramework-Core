@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using System.Linq;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Events;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
@@ -169,7 +170,7 @@ internal class TimelineBuilder : ITimelineBuilder
         {
             foreach (var type in exceptionTypes)
             {
-                if (!type.IsAssignableTo(typeof(Exception))) throw new InvalidOperationException("Only Exception Types are Allowed.");
+                if (!type.IsAssignableTo(typeof(Exception))) throw new UnsupportedFrameworkValueException("Only exception types are allowed in ExpectExceptions(...).");
                 step.ErrorHandlingOptions.IgnoreExceptionTypes.Add(type);
             }
         });
@@ -204,13 +205,13 @@ internal class TimelineBuilder : ITimelineBuilder
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             if (!step.DoesReturn)
-                throw new InvalidOperationException($"Step '{step.Name}' does not return a result context and cannot bind '{memberPath}' into variable '{identifier}'.");
+                throw new FrameworkStateException($"Step '{step.Name}' does not return a result context and cannot bind '{memberPath}' into variable '{identifier}'.");
 
             if (!typeof(TStepResultContext).IsAssignableFrom(step.ResultType))
-                throw new InvalidOperationException($"Step '{step.Name}' returns '{step.ResultType.Name}' and cannot bind result context '{typeof(TStepResultContext).Name}'.");
+                throw new FrameworkStateException($"Step '{step.Name}' returns '{step.ResultType.Name}' and cannot bind result context '{typeof(TStepResultContext).Name}'.");
 
             if (step.ResultOptions.ResultBindings.Any(existing => existing.Variable == identifier))
-                throw new InvalidOperationException($"Step '{step.Name}' already binds a result value into variable '{identifier}'.");
+                throw new FrameworkConfigurationException($"Step '{step.Name}' already binds a result value into variable '{identifier}'.");
 
             step.ResultOptions.ResultBindings.Add(new ResultBinding(
                 identifier,
@@ -236,11 +237,11 @@ internal class TimelineBuilder : ITimelineBuilder
         while (current is MemberExpression memberExpression)
         {
             segments.Push(memberExpression.Member.Name);
-            current = memberExpression.Expression ?? throw new InvalidOperationException("Result binding expressions must resolve from the context parameter.");
+            current = memberExpression.Expression ?? throw new FrameworkStateException("Result binding expressions must resolve from the context parameter.");
         }
 
         if (current is not ParameterExpression)
-            throw new InvalidOperationException("Only simple member-access expressions are supported for result bindings.");
+            throw new UnsupportedFrameworkValueException("Only simple member-access expressions are supported for result bindings.");
 
         return string.Join(".", segments);
     }

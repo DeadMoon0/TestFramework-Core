@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
@@ -49,7 +50,7 @@ internal sealed class StageExecutionPlanner
                 .ToArray();
 
             if (readySteps.Length == 0)
-                throw new InvalidOperationException($"Could not build an execution plan for stage '{stageInstance.Stage.Name}'. The step dependency graph contains a cycle.");
+                throw new DependencyGraphException($"Could not build an execution plan for stage '{stageInstance.Stage.Name}'. The step dependency graph contains a cycle.");
 
             layers.Add(readySteps);
 

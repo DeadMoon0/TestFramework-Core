@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -30,7 +31,8 @@ internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifact
     {
         reference.OnPinReference(variableStore, logger);
         ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await reference.ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger);
-        if (artifactDataResult.Found && artifactDataResult.Data is null) throw new InvalidOperationException($"Artifact '{identifier}' resolved with Found=true but Data was null.");
+        if (artifactDataResult.Found && artifactDataResult.Data is null)
+            throw new ArtifactResolutionInvariantException(identifier, "artifact registration");
         artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(reference.GetArtifactDescriber(), identifier, reference, artifactDataResult.Data)
         {
             State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound

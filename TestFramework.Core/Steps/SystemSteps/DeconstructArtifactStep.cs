@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -25,7 +26,7 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
         logger.LogInformation("Artifact: '{0}' of Type: '{1}'", identifier, artifactInstance.Artifact.GetType());
         if (artifactInstance.State != ArtifactState.Setup) return EmptyStepResultContext.Instance;
-        if (!artifactInstance.Reference.CanDeconstruct) throw new InvalidOperationException($"Artifact '{identifier}' cannot be deconstructed because its reference has no data.");
+        if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(identifier);
         await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
         artifactInstance.State = ArtifactState.Cleaned;
         return EmptyStepResultContext.Instance;

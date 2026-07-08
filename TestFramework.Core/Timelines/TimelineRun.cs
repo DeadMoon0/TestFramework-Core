@@ -78,6 +78,15 @@ public class TimelineRun : IFreezable
         return steps.Any();
     }
 
+    private IReadOnlyList<string> GetAvailableLabels()
+        => Stages.SelectMany(x => x.Steps)
+            .Select(x => x.Step.LabelOptions.Label)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToArray();
+
     /// <summary>
     /// Returns the single step with the given label.
     /// </summary>
@@ -87,9 +96,9 @@ public class TimelineRun : IFreezable
     public StepHandle Step(string label)
     {
         if (!TryGetWithLabel(label, out var instances))
-            throw new InvalidOperationException($"No step with label '{label}' was found. Make sure you called .Name(\"{label}\") on the step in the builder.");
+            throw new StepLabelNotFoundException(label, GetAvailableLabels());
         if (instances.Count > 1)
-            throw new InvalidOperationException($"Label '{label}' matches {instances.Count} step instances (e.g. from a ForEach). Use Steps(\"{label}\") to get all of them.");
+            throw new StepLabelAmbiguousException(label, instances.Count);
         return new StepHandle(instances[0], _logger);
     }
 
@@ -102,7 +111,7 @@ public class TimelineRun : IFreezable
     public IReadOnlyList<StepHandle> Steps(string label)
     {
         if (!TryGetWithLabel(label, out var instances))
-            throw new InvalidOperationException($"No step with label '{label}' was found. Make sure you called .Name(\"{label}\") on the step in the builder.");
+            throw new StepLabelNotFoundException(label, GetAvailableLabels());
         return instances.ConvertAll(i => new StepHandle(i, _logger));
     }
 

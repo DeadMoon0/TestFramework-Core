@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 
@@ -45,7 +46,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
     private FindArtifactStep(ArtifactIdentifier[] identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder, FindArtifactNamingMode namingMode)
     {
         if (identifiers.Length == 0)
-            throw new InvalidOperationException("At least one artifact identifier is required.");
+            throw new ArtifactIdentifierRequiredException("FindArtifactsAs(...)");
 
         _identifiers = identifiers;
         _finder = finder;
@@ -86,9 +87,13 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
         {
             ArtifactIdentifier identifier = GetIdentifier(i);
             artifacts[i].PinReference(variableStore, logger);
-            artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], (await artifacts[i].ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger)).Data)
+            ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await artifacts[i].ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger);
+            if (artifactDataResult.Found && artifactDataResult.Data is null)
+                throw new ArtifactResolutionInvariantException(identifier, "artifact discovery");
+
+            artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], artifactDataResult.Data)
             {
-                State = ArtifactState.Setup
+                State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound
             });
         }
         return EmptyStepResultContext.Instance;
@@ -108,7 +113,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
             return;
 
         if (artifactCount != _identifiers.Length)
-            throw new InvalidOperationException($"FindArtifactsAs expected {_identifiers.Length} artifact names but finder produced {artifactCount} results.");
+            throw new ArtifactCountMismatchException(_identifiers.Length, artifactCount);
     }
 
     private ArtifactIdentifier GetIdentifier(int index)
@@ -118,7 +123,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
             FindArtifactNamingMode.Single => _identifiers[0],
             FindArtifactNamingMode.Exact => _identifiers[index],
             FindArtifactNamingMode.Generated => _identifiers[0] + "_" + index,
-            _ => throw new InvalidOperationException($"Unknown naming mode {_namingMode}.")
+            _ => throw new FindArtifactNamingModeInvalidException(_namingMode)
         };
     }
 }

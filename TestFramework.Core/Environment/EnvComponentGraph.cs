@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Environment;
 
@@ -28,7 +29,7 @@ internal static class EnvComponentGraph
         {
             EnvComponent[] layer = [.. pending.Where(component => component.Dependencies.All(created.Contains))];
             if (layer.Length == 0)
-                throw new InvalidOperationException("Unable to resolve dependency-ready environment component layer.");
+                throw new DependencyGraphException("Unable to resolve a dependency-ready environment component layer.");
 
             layers.Add(layer);
             pending.RemoveAll(component => layer.Contains(component));
@@ -45,7 +46,7 @@ internal static class EnvComponentGraph
             return;
 
         if (!visiting.Add(identifier))
-            throw new InvalidOperationException($"A cyclic environment component dependency was detected at '{identifier}'.");
+            throw new DependencyGraphException($"A cyclic environment component dependency was detected at '{identifier}'.");
 
         EnvComponent component = environment.GetComponent(identifier);
         foreach (EnvComponentIdentifier dependency in component.Dependencies)

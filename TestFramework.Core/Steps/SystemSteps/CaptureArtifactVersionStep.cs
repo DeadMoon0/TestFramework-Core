@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
@@ -25,7 +26,8 @@ internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, Artifac
     {
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
         ArtifactResolveResultGeneric artifactDataResult = await artifactInstance.Reference.ResolveToDataGenericAsync(serviceProvider, versionIdentifier, variableStore, logger);
-        if (artifactDataResult.Found && artifactDataResult.Data is null) throw new InvalidOperationException($"Artifact '{identifier}' version resolved with Found=true but Data was null.");
+        if (artifactDataResult.Found && artifactDataResult.Data is null)
+            throw new ArtifactResolutionInvariantException(identifier, "artifact version capture", versionIdentifier);
         artifactInstance.AddVersionGeneric(artifactDataResult.Data!);
         return EmptyStepResultContext.Instance;
     }
