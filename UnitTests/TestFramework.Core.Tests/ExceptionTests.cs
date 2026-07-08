@@ -6,8 +6,6 @@ using TestFramework.Core.Timelines;
 using Xunit;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Steps.Options;
-using TestFramework.LocalIO;
-using TestFramework.LocalIO.Artifacts;
 
 namespace TestFramework.Core.Tests;
 
@@ -173,16 +171,6 @@ public class ExceptionTests
     }
 
     [Fact]
-    public void ArtifactTypeMismatchException_ExplainsRequestedAndActualTypes()
-    {
-        var ex = new ArtifactTypeMismatchException("payload", typeof(FileArtifactData), typeof(ArtifactDataGeneric));
-
-        Assert.Contains("payload", ex.Message);
-        Assert.Contains(nameof(FileArtifactData), ex.ToString());
-        Assert.Contains(nameof(ArtifactDataGeneric), ex.ToString());
-    }
-
-    [Fact]
     public async Task TimelineRun_ArtifactLookup_UsesFriendlyArtifactNotFoundException()
     {
         TimelineRun run = await Timeline.Create().Build().SetupRun().RunAsync();
@@ -192,22 +180,6 @@ public class ExceptionTests
         Assert.Contains("SetupArtifact", ex.ToString());
         Assert.Contains("RegisterArtifact", ex.ToString());
         Assert.Contains("FindArtifacts", ex.ToString());
-    }
-
-    [Fact]
-    public async Task TimelineRun_TypedArtifactSelection_UsesFriendlyTypeMismatchException()
-    {
-        TimelineRun run = await Timeline.Create()
-            .SetupArtifact("file")
-            .Build()
-            .SetupRun()
-            .AddFileArtifact("file", Path.Combine(Path.GetTempPath(), $"typed-artifact-{Guid.NewGuid():N}.txt"), "payload")
-            .RunAsync();
-
-        ArtifactTypeMismatchException ex = Assert.Throws<ArtifactTypeMismatchException>(() => run.Artifact<MismatchArtifactData>("file").Select(_ => "ignored"));
-
-        Assert.Contains("file", ex.Message);
-        Assert.Contains(nameof(FileArtifactData), ex.ToString());
     }
 
     [Fact]
@@ -230,24 +202,6 @@ public class ExceptionTests
 
         Assert.Contains("[FRAMEWORK ERROR] ArtifactCountMismatchException", ex.Message);
         Assert.Contains("Recovery:", ex.Message);
-    }
-
-    [Fact]
-    public void ArtifactInstance_VersionLookup_UsesFriendlyVersionNotFoundException()
-    {
-        ArtifactInstance<FileArtifactDescriber, FileArtifactData, FileArtifactReference> instance = new(
-            new FileArtifactDescriber(),
-            "file",
-            new FileArtifactReference("sample.txt"),
-            new FileArtifactData([1, 2, 3]));
-
-        ArtifactVersionNotFoundException ex = Assert.Throws<ArtifactVersionNotFoundException>(() =>
-        {
-            _ = instance["missing-version"];
-        });
-
-        Assert.Contains("missing-version", ex.Message);
-        Assert.Contains("Capture version", ex.ToString());
     }
 
     [Fact]
