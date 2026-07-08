@@ -1,5 +1,6 @@
 using System;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Tests;
 
@@ -30,7 +31,7 @@ public class ComponentGraphValidatorTests
                 [])
         ];
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ComponentGraphValidator.Validate(nodes));
+        DependencyGraphException exception = Assert.Throws<DependencyGraphException>(() => ComponentGraphValidator.Validate(nodes));
 
         Assert.Contains("exclusive", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("servicebus:bus", exception.Message, StringComparison.Ordinal);
@@ -47,7 +48,7 @@ public class ComponentGraphValidatorTests
             new(typeof(TestProviderB), "provider-b", [], [new TestContract("trigger", "bus", "queue")], [])
         ];
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ContractBindingPass.Bind(nodes, static (required, provided) => object.Equals(required, provided)));
+        DependencyGraphException exception = Assert.Throws<DependencyGraphException>(() => ContractBindingPass.Bind(nodes, static (required, provided) => object.Equals(required, provided)));
 
         Assert.Contains("compatible providers", exception.Message, StringComparison.OrdinalIgnoreCase);
     }

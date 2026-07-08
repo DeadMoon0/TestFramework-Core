@@ -2,6 +2,7 @@ using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using Newtonsoft.Json.Linq;
 
 namespace TestFramework.Core.Tests;
@@ -20,7 +21,7 @@ public class CoreRuntimeTests
         Assert.True(dictionary.IsFrozen);
         Assert.True(dictionary.IsReadOnly);
         Assert.True(nested.IsFrozen);
-        Assert.Throws<InvalidOperationException>(() => dictionary.Add("second", new TestFreezable()));
+        Assert.Throws<FrameworkStateException>(() => dictionary.Add("second", new TestFreezable()));
     }
 
     [Fact]

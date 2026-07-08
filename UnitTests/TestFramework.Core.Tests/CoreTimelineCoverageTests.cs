@@ -159,7 +159,7 @@ public class CoreTimelineCoverageTests
         run.EnsureRanToCompletion();
         Assert.Equal(new[] { "Ada", "Grace" }, seen);
         Assert.Equal(2, run.Steps("capture").Count);
-        Assert.Throws<InvalidOperationException>(() => run.Step("capture"));
+        Assert.Throws<StepLabelAmbiguousException>(() => run.Step("capture"));
     }
 
     [Fact]

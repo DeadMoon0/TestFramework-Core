@@ -152,7 +152,7 @@ public class CoreEnvironmentTests
 
         Action act = () => builder.SetEnv(new RequirementEnvironment());
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(act);
+        FrameworkConfigurationException exception = Assert.Throws<FrameworkConfigurationException>(act);
 
         Assert.Contains("Only one environment", exception.Message, StringComparison.Ordinal);
     }
@@ -200,7 +200,7 @@ public class CoreEnvironmentTests
     [Fact]
     public void PersistentEnvironmentContext_WhenPersistentRootDependsOnPerRunComponent_Throws()
     {
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new PersistentEnvironmentContext<InvalidPersistentSetup>());
+        FrameworkConfigurationException exception = Assert.Throws<FrameworkConfigurationException>(() => new PersistentEnvironmentContext<InvalidPersistentSetup>());
 
         Assert.Contains("depends on per-run component", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -210,7 +210,7 @@ public class CoreEnvironmentTests
     {
         TimeoutPersistentEnvironment.Reset();
 
-        TimeoutException exception = Assert.Throws<TimeoutException>(() => new PersistentEnvironmentContext<TimeoutPersistentSetup>());
+        FrameworkTimeoutException exception = Assert.Throws<FrameworkTimeoutException>(() => new PersistentEnvironmentContext<TimeoutPersistentSetup>());
 
         Assert.Contains("configured timeout", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("delayed-network", exception.Message, StringComparison.OrdinalIgnoreCase);
