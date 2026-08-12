@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -13,12 +13,12 @@
 		<PackageTags>Test;UnitTest;IntegrationTest,Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>A wrapper for simple tasks the Timeline should perform. Like C# Actions, MessageBoxes</Description>
-		<Version>0.1.4</Version>
+		<Version>0.1.5</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Use Core Version 0.1.7</PackageReleaseNotes>
+		<PackageReleaseNotes>Multi-target net8.0 and net10.0</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -47,7 +47,7 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<None Update="README.md">
+		<None Include="README.md">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
