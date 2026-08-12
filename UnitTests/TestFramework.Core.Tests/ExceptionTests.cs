@@ -450,38 +450,6 @@ public class ExceptionTests
         Assert.Contains("Available:", str2);
     }
 
-    private sealed class MismatchArtifactReference : ArtifactReference<MismatchArtifactReference, MismatchArtifactDescriber, MismatchArtifactData>
-    {
-        public override Task<ArtifactResolveResult<MismatchArtifactDescriber, MismatchArtifactData, MismatchArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
-            => throw new NotSupportedException();
-
-        public override void DeclareIO(StepIOContract contract)
-        {
-        }
-
-        public override void OnPinReference(TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
-        {
-        }
-
-        public override string ToString() => nameof(MismatchArtifactReference);
-    }
-
-    private sealed class MismatchArtifactData : ArtifactData<MismatchArtifactData, MismatchArtifactDescriber, MismatchArtifactReference>
-    {
-        public override string ToString() => nameof(MismatchArtifactData);
-    }
-
-    private sealed class MismatchArtifactDescriber : ArtifactDescriber<MismatchArtifactDescriber, MismatchArtifactData, MismatchArtifactReference>
-    {
-        public override Task Setup(IServiceProvider serviceProvider, MismatchArtifactData data, MismatchArtifactReference reference, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
-            => Task.CompletedTask;
-
-        public override Task Deconstruct(IServiceProvider serviceProvider, MismatchArtifactReference reference, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
-            => Task.CompletedTask;
-
-        public override string ToString() => nameof(MismatchArtifactDescriber);
-    }
-
     private enum BrokenArtifactReferenceMode
     {
         ReturnNullData,
@@ -495,6 +463,24 @@ public class ExceptionTests
 
         public override Task<ArtifactFinderResultMulti> FindMultiAsync(IServiceProvider serviceProvider, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger, System.Threading.CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void ArtifactInstance_VersionLookup_UsesFriendlyVersionNotFoundException()
+    {
+        ArtifactInstance<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference> instance = new(
+            new BrokenArtifactDescriber(),
+            "artifact",
+            new BrokenArtifactReference(BrokenArtifactReferenceMode.ReturnConcreteData),
+            new BrokenArtifactData());
+
+        ArtifactVersionNotFoundException ex = Assert.Throws<ArtifactVersionNotFoundException>(() =>
+        {
+            _ = instance["missing-version"];
+        });
+
+        Assert.Contains("missing-version", ex.Message);
+        Assert.Contains("Capture version", ex.ToString());
     }
 
     private sealed class BrokenArtifactReference(BrokenArtifactReferenceMode mode) : ArtifactReference<BrokenArtifactReference, BrokenArtifactDescriber, BrokenArtifactData>
