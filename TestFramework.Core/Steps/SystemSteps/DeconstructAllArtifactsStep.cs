@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
-using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -28,8 +27,19 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
             try
             {
                 logger.LogInformation("Artifact: '{0}' of Type: '{1}'", artifactInstance.Identifier, artifactInstance.Artifact.GetType());
-                if (artifactInstance.State != ArtifactState.Setup) return EmptyStepResultContext.Instance;
-                if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(artifactInstance.Identifier);
+
+                // Skipped, not returned: one artifact that was never set up must not stop the
+                // artifacts after it from being cleaned up.
+                if (artifactInstance.State != ArtifactState.Setup) continue;
+
+                // An observed artifact cannot be deconstructed by design, so passing over it is the
+                // expected outcome rather than a failure worth reporting as one.
+                if (!artifactInstance.Reference.CanDeconstruct)
+                {
+                    logger.LogInformation("Artifact '{0}' is observed rather than owned, so it is left in place.", artifactInstance.Identifier);
+                    continue;
+                }
+
                 await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
                 artifactInstance.State = ArtifactState.Cleaned;
             }

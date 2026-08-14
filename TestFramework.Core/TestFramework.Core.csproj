@@ -18,7 +18,7 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Multi-target net8.0 and net10.0</PackageReleaseNotes>
+		<PackageReleaseNotes>Multi-target net8.0 and net10.0, and fix artifact teardown skipping the artifacts after an unfound one</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
