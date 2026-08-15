@@ -15,6 +15,14 @@ internal sealed class OutputRunDebugger : IRunDebugger
     private const string DisableUnicodeOutEnvironmentVariable = "TestFramework_Disable_Unicode_Out";
     private const int PanelWidth = 95;
     private const int PanelInnerWidth = PanelWidth - 4;
+    /// <summary>
+    /// Steps in one layer run concurrently, so their signals arrive on several threads at once. Every
+    /// handler below reads and writes the shared render state, several of them across more than one
+    /// container, so the whole handler body has to be one critical section — a concurrent collection
+    /// per container would not make those read-modify-write pairs atomic.
+    /// </summary>
+    private readonly object renderGate = new();
+
     private readonly LogLineWriter writer;
     private readonly bool useAsciiOutput;
     private TimelineRunStructure? runStructure;
@@ -36,6 +44,16 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)
     {
+        lock (renderGate)
+        {
+            HandleInitTimelineRun(name, projectPath, runStructure);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void HandleInitTimelineRun(string name, string projectPath, TimelineRunStructure runStructure)
+    {
         runName = name;
         this.projectPath = projectPath;
         this.runStructure = runStructure;
@@ -52,20 +70,28 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
         foreach (ArtifactState artifact in runStructure.Artifacts.Values)
             artifactsByKey[artifact.Key] = artifact;
-
-        return Task.CompletedTask;
     }
 
     public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
     {
+        lock (renderGate)
+        {
+            HandleEntityTransition(entityKind, stage, stepId, state, previousState, outcomeState);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void HandleEntityTransition(DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState, DebugLifecycleState? outcomeState)
+    {
         if (entityKind == DebugEntityKind.Stage && stage is not null && state == DebugLifecycleState.Running)
         {
             EnsureStage(stage);
-            return Task.CompletedTask;
+            return;
         }
 
         if (entityKind != DebugEntityKind.Step || stage is null || stepId is null)
-            return Task.CompletedTask;
+            return;
 
         StageRenderState stageState = EnsureStage(stage);
         string stepKey = GetStepKey(stage, stepId.Value);
@@ -86,7 +112,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
                 iteration == 1 ? $"-> {stepDisplayName}" : $"-> {stepDisplayName} (retry {iteration})",
                 stepId.Value,
                 true));
-            return Task.CompletedTask;
+            return;
         }
 
         if (previousState == DebugLifecycleState.Running)
@@ -105,11 +131,19 @@ internal sealed class OutputRunDebugger : IRunDebugger
                 stepId.Value,
                 false));
         }
+    }
+
+    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+    {
+        lock (renderGate)
+        {
+            HandleValueUpdate(name, valueKind, stage, stepId, value);
+        }
 
         return Task.CompletedTask;
     }
 
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+    private void HandleValueUpdate(string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
     {
         switch (valueKind)
         {
@@ -122,17 +156,26 @@ internal sealed class OutputRunDebugger : IRunDebugger
         }
 
         if (stage is null || stepId is null)
-            return Task.CompletedTask;
+            return;
 
         StepRenderState? stepRun = FindActiveStep(stage, stepId.Value);
         if (stepRun is null)
-            return Task.CompletedTask;
+            return;
 
         stepRun.ValueUpdates.Add(new ValueUpdateRenderState(name, valueKind, value.DisplayText));
-        return Task.CompletedTask;
     }
 
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
+    {
+        lock (renderGate)
+        {
+            HandleLogEntry(entry);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void HandleLogEntry(DebugLogEntry entry)
     {
         string[] lines = entry.Lines.Length == 0
             ? (entry.Message.Length == 0 ? [] : entry.Message.Split(["\r\n", "\r", "\n", "\n\r"], System.StringSplitOptions.None))
@@ -143,7 +186,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
             foreach (string line in lines)
                 runLogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
 
-            return Task.CompletedTask;
+            return;
         }
 
         if (entry.StepId is null || entry.Iteration is null)
@@ -152,24 +195,32 @@ internal sealed class OutputRunDebugger : IRunDebugger
             foreach (string line in lines)
                 stage.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
 
-            return Task.CompletedTask;
+            return;
         }
 
         string stepKey = GetStepKey(entry.Stage, entry.StepId.Value);
         if (!stepIterations.TryGetValue(stepKey, out int activeIteration) || activeIteration != entry.Iteration.Value)
-            return Task.CompletedTask;
+            return;
 
         StepRenderState? stepRun = FindActiveStep(entry.Stage, entry.StepId.Value, entry.Iteration.Value);
         if (stepRun is null)
-            return Task.CompletedTask;
+            return;
 
         foreach (string line in lines)
             stepRun.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
+    }
+
+    public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
+    {
+        lock (renderGate)
+        {
+            HandleAssertion(entry);
+        }
 
         return Task.CompletedTask;
     }
 
-    public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
+    private void HandleAssertion(DebugAssertionEntry entry)
     {
         assertionLines.Add(entry.Succeeded
             ? $"[PASS] {entry.Target}  {entry.AssertionDisplay}"
@@ -177,13 +228,16 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
         if (!entry.Succeeded && !string.IsNullOrWhiteSpace(entry.FailureReason))
             assertionLines.Add($"       {entry.FailureReason}");
-
-        return Task.CompletedTask;
     }
 
     public Task SignalTimelineRunFinishedAsync(string sessionId)
     {
-        RenderRunSummary();
+        // Rendering walks every container the handlers write to, so it belongs inside the same gate.
+        lock (renderGate)
+        {
+            RenderRunSummary();
+        }
+
         return Task.CompletedTask;
     }
 
