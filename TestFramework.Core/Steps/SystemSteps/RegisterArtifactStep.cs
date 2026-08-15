@@ -24,12 +24,14 @@ internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifact
 
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, reference).WithClonedOptions(this);
+        // Each run gets its own reference instance: the reference carries pinned state and would otherwise
+        // be shared by every run of the same built timeline.
+        return new RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, (TArtifactReference)reference.CloneForRun()).WithClonedOptions(this);
     }
 
     public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
-        reference.OnPinReference(variableStore, logger);
+        reference.PinReference(variableStore, logger);
         ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await reference.ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger);
         if (artifactDataResult.Found && artifactDataResult.Data is null)
             throw new ArtifactResolutionInvariantException(identifier, "artifact registration");

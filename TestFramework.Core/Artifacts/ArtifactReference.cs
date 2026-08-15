@@ -100,6 +100,22 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     }
 
     /// <summary>
+    /// Creates a run-scoped copy of the reference so that repeated runs of the same built timeline
+    /// never share pinned state.
+    /// </summary>
+    /// <remarks>
+    /// The default implementation shallow-copies the reference and resets the pinned and frozen flags.
+    /// Override when a reference owns mutable state that must not be shared between runs.
+    /// </remarks>
+    public virtual ArtifactReferenceGeneric CloneForRun()
+    {
+        ArtifactReferenceGeneric clone = (ArtifactReferenceGeneric)MemberwiseClone();
+        clone.IsPinned = false;
+        clone.IsFrozen = false;
+        return clone;
+    }
+
+    /// <summary>
     /// Gets a value indicating whether the reference supports deconstruction.
     /// </summary>
     public bool CanDeconstruct { get; protected set; }
