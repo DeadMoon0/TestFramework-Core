@@ -17,6 +17,16 @@ namespace TestFramework.Core.Tests;
 
 public class CoreRunnerParallelizationTests
 {
+    /// <summary>
+    /// Budget for "this signal should eventually arrive" waits.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately generous. These tests assert ordering and barrier semantics, not latency, so a
+    /// tight budget only converts CPU contention - a two-core runner executing collections in
+    /// parallel - into a false failure. The negative assertions keep their short windows, because
+    /// a slow machine can only make "this must not have started yet" more likely to hold.
+    /// </remarks>
+    private static readonly TimeSpan SignalTimeout = TimeSpan.FromSeconds(30);
     [Fact]
     public async Task RunStage_RunsIndependentPrepareStepsInParallel()
     {
@@ -33,11 +43,11 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await firstStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await secondStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstStepStarted.Task.WaitAsync(SignalTimeout);
+        await secondStepStarted.Task.WaitAsync(SignalTimeout);
 
         releaseSteps.TrySetResult();
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
         Assert.All(stage.Steps, step => Assert.Equal(StepState.Complete, step.State));
@@ -59,12 +69,12 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await firstStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstStepStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(secondStepStarted.Task, TimeSpan.FromMilliseconds(200));
 
         firstStepRelease.TrySetResult();
-        await secondStepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondStepStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -88,17 +98,17 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await firstPrepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstPrepareStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(actStarted.Task, TimeSpan.FromMilliseconds(200));
         await AssertDoesNotCompleteAsync(secondPrepareStarted.Task, TimeSpan.FromMilliseconds(200));
 
         firstPrepareRelease.TrySetResult();
-        await actStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await actStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(secondPrepareStarted.Task, TimeSpan.FromMilliseconds(200));
 
         actRelease.TrySetResult();
-        await secondPrepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondPrepareStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -119,12 +129,12 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await producerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await producerStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(consumerStarted.Task, TimeSpan.FromMilliseconds(200));
 
         producerRelease.TrySetResult();
-        await consumerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await consumerStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -148,12 +158,12 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await exclusiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await exclusiveStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(parallelCandidateStarted.Task, TimeSpan.FromMilliseconds(200));
 
         exclusiveRelease.TrySetResult();
-        await parallelCandidateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await parallelCandidateStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -185,12 +195,12 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await firstSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstSetupStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(secondSetupStarted.Task, TimeSpan.FromMilliseconds(200));
 
         firstSetupRelease.TrySetResult();
-        await secondSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondSetupStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
         Assert.All(runtime.ArtifactStore.GetAll(), artifact => Assert.Equal(TestFramework.Core.Artifacts.ArtifactState.Setup, artifact.State));
@@ -223,11 +233,11 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await firstSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await secondSetupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstSetupStarted.Task.WaitAsync(SignalTimeout);
+        await secondSetupStarted.Task.WaitAsync(SignalTimeout);
 
         releaseSetups.TrySetResult();
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -258,12 +268,12 @@ public class CoreRunnerParallelizationTests
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
-        await setupStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await setupStarted.Task.WaitAsync(SignalTimeout);
         await AssertDoesNotCompleteAsync(consumerStarted.Task, TimeSpan.FromMilliseconds(200));
 
         setupRelease.TrySetResult();
-        await consumerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await consumerStarted.Task.WaitAsync(SignalTimeout);
+        await runTask.WaitAsync(SignalTimeout);
 
         Assert.Equal(StageState.Complete, stage.Result.State);
     }
@@ -406,7 +416,7 @@ public class CoreRunnerParallelizationTests
         public override async Task Setup(IServiceProvider serviceProvider, TestSerializedArtifactData data, TestSerializedArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
         {
             started.TrySetResult();
-            await release.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await release.Task.WaitAsync(SignalTimeout);
         }
 
         public override Task Deconstruct(IServiceProvider serviceProvider, TestSerializedArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
@@ -445,7 +455,7 @@ public class CoreRunnerParallelizationTests
         public override async Task Setup(IServiceProvider serviceProvider, TestKeyedArtifactData data, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
         {
             started.TrySetResult();
-            await release.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await release.Task.WaitAsync(SignalTimeout);
         }
 
         public override Task Deconstruct(IServiceProvider serviceProvider, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;

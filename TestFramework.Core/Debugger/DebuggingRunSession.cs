@@ -72,19 +72,29 @@ internal class DebuggingRunSession
         return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, testName, projectPath, runStructure));
     }
 
+    // Transitions are queued, not awaited. The queue is FIFO with a single reader, so ordering
+    // against log entries is already guaranteed by enqueueing - waiting for the drain to catch up
+    // would only add a cross-thread round trip to the run's hot path, once per step. That cost is
+    // invisible on a developer machine and very visible on a two-core CI runner, where the drain
+    // competes for the thread pool with every other test running in parallel.
+    // FinishSessionAsync is what guarantees everything has actually been delivered.
+
     internal Task TransitionRunAsync(DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Run, null, null, state, previousState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Run, null, null, state, previousState));
+        return Task.CompletedTask;
     }
 
     internal Task TransitionStageAsync(string stage, DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Stage, stage, null, state, previousState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Stage, stage, null, state, previousState));
+        return Task.CompletedTask;
     }
 
     internal Task TransitionStepAsync(string stage, int stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
     {
-        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState));
+        return Task.CompletedTask;
     }
 
     internal void PublishVariableUpdate(VariableIdentifier identifier, VariableState state)
@@ -173,9 +183,18 @@ internal class DebuggingRunSession
         await finished.ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Asks the debugger whether this step should pause, and waits for the answer.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT queued. This is control flow, not telemetry: every step calls it before it
+    /// starts, so routing it through the signal queue would make a step's start wait on the queue
+    /// draining, coupling the run's progress to logging throughput. On a machine with few cores
+    /// that turns into seconds of delay per step.
+    /// </remarks>
     internal Task WaitWhenBreakpointHit(string stage, int index)
     {
-        return EnqueueAndAwait(() => Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index));
+        return Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index);
     }
 
     private void Enqueue(Func<Task> work) => Enqueue(new SignalWorkItem(work, null));
