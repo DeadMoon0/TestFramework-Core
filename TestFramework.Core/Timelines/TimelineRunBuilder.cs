@@ -37,6 +37,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     private readonly List<ArtifactIdentifier> _externalArtifacts = [];
     private IEnvironmentProvider? _environment;
 
+    /// <summary>
+    /// Set as soon as a run starts — before any work — so a failed run also invalidates the builder
+    /// instead of inviting a retry against the same, half-populated stores.
+    /// </summary>
+    private bool _hasRun;
+
     internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage)
     {
         _timeline = timeline;
@@ -51,8 +57,16 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         _environmentContext = new EnvComponentContext();
     }
 
+    private void EnsureNotAlreadyUsed(string operation)
+    {
+        if (_hasRun) throw new TimelineRunBuilderAlreadyUsedException(operation);
+    }
+
     public async Task<TimelineRun> RunAsync()
     {
+        EnsureNotAlreadyUsed(nameof(RunAsync));
+        _hasRun = true;
+
         IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
             ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
             : _serviceProvider;
@@ -232,6 +246,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
+        EnsureNotAlreadyUsed(nameof(AddArtifact));
+
         // Clone so a reference handed to several runs never shares its pinned state across them.
         TArtifactReference runReference = (TArtifactReference)reference.CloneForRun();
         _newArtifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(runReference.GetArtifactDescriber(), identifier, runReference, (TArtifactData)data));
@@ -241,6 +257,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
     public ITimelineRunBuilder SetEnv(IEnvironmentProvider environment)
     {
+        EnsureNotAlreadyUsed(nameof(SetEnv));
+
         if (_environment is not null)
             throw new FrameworkConfigurationException("Only one environment can be configured for a timeline run.");
 
@@ -250,6 +268,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
     public ITimelineRunBuilder AddVariable<T>(VariableIdentifier identifier, T value)
     {
+        EnsureNotAlreadyUsed(nameof(AddVariable));
+
         _newVariableStore.SetVariable(identifier, value);
         _externalVariables.Add(identifier);
         return this;
