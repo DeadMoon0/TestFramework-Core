@@ -43,29 +43,32 @@ public class VariableStore : IFreezable
     /// <param name="value">The value to store.</param>
     public void SetVariable<T>(VariableIdentifier identifier, T value)
     {
-        string newValue = Logging.VariableFormatter.Format(value);
-        string? oldValue = null;
+        // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
+        // expensive, and it used to happen up to three times per write with the lock held.
+        object? previousValue;
         bool existed;
-        bool unchanged;
 
         lock (syncRoot)
         {
             ((IFreezable)this).EnsureNotFrozen();
-            existed = _variables.TryGetValue(identifier, out var previousValue);
-            oldValue = existed ? Logging.VariableFormatter.Format(previousValue) : null;
-            unchanged = existed && oldValue == newValue;
+            existed = _variables.TryGetValue(identifier, out previousValue);
             _variables[identifier] = value;
         }
 
-        if (unchanged)
-        {
+        if (!debuggingSession.IsCapturing)
             return;
-        }
 
-        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier));
+        string newValue = Logging.VariableFormatter.Format(value);
+
+        // The formatted text is the sole dedupe rule on purpose. Comparing the values themselves
+        // would suppress an update after a reference type was mutated in place.
+        if (existed && Logging.VariableFormatter.Format(previousValue) == newValue)
+            return;
+
+        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier, newValue));
     }
 
-    internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier)
+    internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
     {
         string typeName = value?.GetType().FullName ?? "null";
         return new VariableState
@@ -75,7 +78,7 @@ public class VariableStore : IFreezable
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = typeName,
-                DisplayText = Logging.VariableFormatter.Format(value),
+                DisplayText = displayText ?? Logging.VariableFormatter.Format(value),
                 SchemaKey = $"tf.variable:{typeName}",
                 Core = new JObject
                 {
@@ -88,7 +91,19 @@ public class VariableStore : IFreezable
 
     private static JToken ToToken(object? value)
     {
-        return value is null ? JValue.CreateNull() : JToken.FromObject(value, JsonSerializer.CreateDefault());
+        if (value is null)
+            return JValue.CreateNull();
+
+        try
+        {
+            return JToken.FromObject(value, JsonSerializer.CreateDefault());
+        }
+        catch (JsonException)
+        {
+            // A value that cannot be serialized is still worth reporting; losing the whole run to a
+            // debug-payload failure is not an acceptable trade.
+            return new JValue($"<unserializable {value.GetType().FullName}>");
+        }
     }
 
     /// <summary>

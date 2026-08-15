@@ -81,29 +81,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts);
         TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, logger);
 
-        await _debuggingSession.InitSessionAsync(new TimelineRunStructure
-        {
-            Artifacts = _newArtifactStore.GetAll().ToDictionary(x => x.Identifier, ArtifactStore.GetDebuggingStateFromInstance),
-            Variables = _newVariableStore.GetAll().ToDictionary(x => x.Key, x => VariableStore.GetDebuggingStateFromValue(x.Value, x.Key)),
-            Stages = [.. newRun.Stages.Select(x => new DebugStageState
-            {
-                Name = x.Stage.Name,
-                Description = x.Stage.Description,
-                Steps = [.. x.Stage.Steps.Select(x => new DebugStepState
-                {
-                    Name = x.Name,
-                    Description = x.Description,
-                    DoesReturn = x.DoesReturn,
-                    ErrorHandlingOptions = x.ErrorHandlingOptions,
-                    ExecutionOptions = x.ExecutionOptions,
-                    IOContract = x.IOContract,
-                    Phase = x.Phase,
-                    LabelOptions = x.LabelOptions,
-                    RetryOptions = x.RetryOptions,
-                    TimeOutOptions = x.TimeOutOptions,
-                })]
-            })]
-        });
+        await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
         await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
 
         var coreRunner = new CoreRunner();
@@ -146,6 +124,50 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         }
         newRun.Freeze();
         return newRun;
+    }
+
+    /// <summary>
+    /// Builds the structural snapshot handed to debuggers at the start of a run.
+    /// </summary>
+    /// <remarks>
+    /// This serializes every seeded variable and artifact plus the whole step graph. When no debugger
+    /// is capturing it is pure waste, so an empty structure is returned instead.
+    /// </remarks>
+    private TimelineRunStructure BuildRunStructure(TimelineRun newRun)
+    {
+        if (!_debuggingSession.IsCapturing)
+        {
+            return new TimelineRunStructure
+            {
+                Artifacts = new Dictionary<ArtifactIdentifier, Debugger.ArtifactState>(),
+                Variables = new Dictionary<VariableIdentifier, VariableState>(),
+                Stages = []
+            };
+        }
+
+        return new TimelineRunStructure
+        {
+            Artifacts = _newArtifactStore.GetAll().ToDictionary(x => x.Identifier, ArtifactStore.GetDebuggingStateFromInstance),
+            Variables = _newVariableStore.GetAll().ToDictionary(x => x.Key, x => VariableStore.GetDebuggingStateFromValue(x.Value, x.Key)),
+            Stages = [.. newRun.Stages.Select(x => new DebugStageState
+            {
+                Name = x.Stage.Name,
+                Description = x.Stage.Description,
+                Steps = [.. x.Stage.Steps.Select(x => new DebugStepState
+                {
+                    Name = x.Name,
+                    Description = x.Description,
+                    DoesReturn = x.DoesReturn,
+                    ErrorHandlingOptions = x.ErrorHandlingOptions,
+                    ExecutionOptions = x.ExecutionOptions,
+                    IOContract = x.IOContract,
+                    Phase = x.Phase,
+                    LabelOptions = x.LabelOptions,
+                    RetryOptions = x.RetryOptions,
+                    TimeOutOptions = x.TimeOutOptions,
+                })]
+            })]
+        };
     }
 
     private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, out IReadOnlyList<StepGeneric> mainStageSteps)

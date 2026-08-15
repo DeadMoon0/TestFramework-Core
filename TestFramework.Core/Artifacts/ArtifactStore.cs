@@ -41,14 +41,14 @@ public class ArtifactStore : IFreezable
     /// </summary>
     public void AddArtifact(ArtifactInstanceGeneric instance)
     {
-        ArtifactInstanceGeneric? previous;
-        bool replaced;
-
         lock (syncRoot)
         {
-            replaced = _artifacts.TryGetValue(instance.Identifier, out previous);
             _artifacts[instance.Identifier] = instance;
         }
+
+        // Building the debug state serializes the reference and the data. Skip it when nothing reads it.
+        if (!debuggingSession.IsCapturing)
+            return;
 
         debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
     }
@@ -82,7 +82,18 @@ public class ArtifactStore : IFreezable
 
     private static JToken ToToken(object? value)
     {
-        return value is null ? JValue.CreateNull() : JToken.FromObject(value, JsonSerializer.CreateDefault());
+        if (value is null)
+            return JValue.CreateNull();
+
+        try
+        {
+            return JToken.FromObject(value, JsonSerializer.CreateDefault());
+        }
+        catch (JsonException)
+        {
+            // A debug payload that cannot be serialized must not take the run down with it.
+            return new JValue($"<unserializable {value.GetType().FullName}>");
+        }
     }
 
     /// <summary>
