@@ -39,17 +39,25 @@ public abstract class SequentialEvent<TEvent, TStepResultContext> : Event<TEvent
     /// <summary>
     /// Executes the polling loop until a completed result is returned.
     /// </summary>
+    /// <remarks>
+    /// The loop runs on the caller's thread. An <see cref="OnSequentialPolling"/> implementation that
+    /// blocks synchronously therefore blocks the start of its execution layer; make it genuinely async.
+    /// In exchange, cancelling the step stops the loop instead of merely abandoning it.
+    /// </remarks>
     public override async Task<TStepResultContext?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
-        return await Task.Run(async () =>
+        // No Task.Run wrapper: WaitAsync would abandon the loop rather than stop it, so a long
+        // NextDelay kept polling long after the step had been cancelled.
+        while (true)
         {
-            do
-            {
-                var result = await OnSequentialPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
-                if (result.IsDone) return result.Result;
-                await Task.Delay(result.NextDelay);
-            }
-            while (true);
-        }).WaitAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            SequentialPollingResult<TStepResultContext> result =
+                await OnSequentialPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
+
+            if (result.IsDone) return result.Result;
+
+            await Task.Delay(result.NextDelay, cancellationToken);
+        }
     }
 }
