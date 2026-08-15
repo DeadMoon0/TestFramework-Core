@@ -100,12 +100,19 @@ internal class CoreRunner
         var stopwatch = Stopwatch.StartNew();
         StepResultGeneric stepResult = new StepResultGeneric();
         TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
-        using CancellationTokenSource cancellationTokenSource = new(timeout);
+
+        // One source of truth for the timeout. There used to be two — a CTS *and* a WaitAsync(timeout)
+        // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
+        // was never told to stop, its exception went unobserved, and the retry started immediately
+        // alongside the attempt it was supposedly replacing.
+        CancellationTokenSource cancellationTokenSource = new(timeout);
+        bool ownsCancellationTokenSource = true;
+        Task<object?>? executionTask = null;
 
         try
         {
-            Task<object?> executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
-            object? result = await executionTask.WaitAsync(timeout);
+            executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
+            object? result = await executionTask.WaitAsync(cancellationTokenSource.Token);
             stepResult.Result = result;
             stepResult.State = StepState.Complete;
 
@@ -120,6 +127,16 @@ internal class CoreRunner
         {
             stepResult.Exception = new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", exception);
             stepResult.State = StepState.Timeout;
+
+            if (executionTask is not null && !executionTask.IsCompleted)
+            {
+                logger.LogWarning($"Step '{step.Step.Name}' did not stop when it timed out after {timeout}. The abandoned attempt may still be running and writing to this run's stores.");
+
+                // Hand ownership of the CTS to the continuation: disposing it here would race the
+                // still-running attempt, and someone has to observe that attempt's exception.
+                ownsCancellationTokenSource = false;
+                ObserveAbandonedAttempt(executionTask, cancellationTokenSource);
+            }
         }
         catch (Exception exception)
         {
@@ -128,11 +145,36 @@ internal class CoreRunner
                 ? StepState.Complete
                 : StepState.Error;
         }
+        finally
+        {
+            if (ownsCancellationTokenSource)
+                cancellationTokenSource.Dispose();
+        }
 
         stopwatch.Stop();
         stepResult.TimeSpent = stopwatch.Elapsed;
         stepResult.Freeze();
         return stepResult;
+    }
+
+    /// <summary>
+    /// Keeps an abandoned step attempt from surfacing later as an unobserved task exception, and
+    /// releases its cancellation source once the attempt finally settles.
+    /// </summary>
+    private static void ObserveAbandonedAttempt(Task executionTask, CancellationTokenSource cancellationTokenSource)
+    {
+        _ = executionTask.ContinueWith(
+            static (task, state) =>
+            {
+                if (task.Exception is not null)
+                    Debug.WriteLine(task.Exception);
+
+                ((CancellationTokenSource)state!).Dispose();
+            },
+            cancellationTokenSource,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private static void ApplyResultBindings(StepInstanceGeneric step, object? result, VariableStore variableStore)
