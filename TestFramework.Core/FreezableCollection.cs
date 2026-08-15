@@ -43,7 +43,6 @@ internal class FreezableCollection<T> : IFreezableCollection<T>
 
     public bool Contains(T item)
     {
-        ((IFreezable)this).EnsureNotFrozen();
         return _collection.Contains(item);
     }
 
