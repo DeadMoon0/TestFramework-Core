@@ -92,7 +92,8 @@ public class TimelineRun : IFreezable
     /// </summary>
     /// <param name="label">The label assigned through <c>Name(...)</c>.</param>
     /// <returns>A handle for the matched step.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when no step or more than one step matches the label.</exception>
+    /// <exception cref="StepLabelNotFoundException">Thrown when no step matches the label.</exception>
+    /// <exception cref="StepLabelAmbiguousException">Thrown when more than one step matches the label.</exception>
     public StepHandle Step(string label)
     {
         if (!TryGetWithLabel(label, out var instances))
@@ -107,7 +108,7 @@ public class TimelineRun : IFreezable
     /// </summary>
     /// <param name="label">The label assigned through <c>Name(...)</c>.</param>
     /// <returns>All matching step handles.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when no step matches the label.</exception>
+    /// <exception cref="StepLabelNotFoundException">Thrown when no step matches the label.</exception>
     public IReadOnlyList<StepHandle> Steps(string label)
     {
         if (!TryGetWithLabel(label, out var instances))

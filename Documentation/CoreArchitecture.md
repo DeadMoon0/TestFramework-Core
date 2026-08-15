@@ -61,7 +61,7 @@ flowchart LR
 
 ## 2. Freezable Pattern
 
-Every domain object implements `IFreezable`. Once `Freeze()` is called, mutations throw `InvalidOperationException`.
+Every domain object implements `IFreezable`. Once `Freeze()` is called, mutations throw `FrameworkStateException`.
 
 ```csharp
 public interface IFreezable
@@ -231,9 +231,9 @@ RunAsync()
   │     ├─ Apply modifier chains (timeout, retry, exceptions)
   │     └─ Track variable/artifact dependencies
   │
-  ├─ 2. Validate
-  │     ├─ VariableTracker.EnsureValidity()  → definition-order + immutability
-  │     └─ ArtifactTracker.EnsureValidity()  → definition-order
+  ├─ 2. IOContractValidator.Validate()
+  │     ├─ declared step IO contracts → producer-before-consumer + type compatibility
+  │     └─ VariableTracker records      → immutability
   │
   ├─ 3. Execute Main Stage
   │     └─ CoreRunner.RunStage() → sequential step execution with retry
@@ -581,20 +581,31 @@ public class VariableStore : IFreezable
 
 The store holds values as `object?`. Transforms are not applied by the store — they are applied by the `VariableReference` implementations during `GetValue()`.
 
-### 6.5 VariableTracker — Compile-Time-Like Validation
+### 6.5 IOContractValidator — Compile-Time-Like Validation
 
-During preprocessing, every step's `Track()` method logs its variable dependencies to a `VariableTracker`. After preprocessing, `EnsureValidity()` validates:
+After preprocessing, `IOContractValidator.Validate()` walks the linearly-ordered main stage steps and
+checks their declared `StepIOContract` entries:
 
-1. **Definition order**: Every `GET` must reference a variable that was `SET` earlier (or is an external variable).
-2. **Immutability**: No `SET` may target a variable that was accessed through an `ImmutableVariable`.
+1. **Definition order**: every required input must already be produced — by an earlier step's declared
+   output, or by a variable/artifact supplied to the run.
+2. **Type compatibility**: where both the producing output and the consuming input declare a type, the
+   producer's type must be assignable to the consumer's, mirroring `GetVariable<T>()` cast semantics.
+3. **Immutability**: a variable read through an `ImmutableVariable` may not be written afterwards.
+
+Declared contracts carry no notion of immutability, so rule 3 comes from a different source: the
+`VariableTracker` built during preprocessing, which records reads together with whether the reference
+demanded an immutable binding. `PreProcessStages` hands that tracker to `Validate`.
 
 Validation errors:
 
 | Exception | Cause |
 |-----------|-------|
-| `VariableDoesNotExistException` | GET references an identifier that is never SET |
-| `VariableDoesNotYetExistException` | GET references an identifier that is SET later (order violation) |
-| `CannotSetImmutableVariableException` | SET targets an identifier that was read via ImmutableVariable |
+| `IOContractViolationException` | A required input has no producer before the consuming step |
+| `IOContractTypeViolationException` | Producer and consumer both declare a type and they are incompatible |
+| `CannotSetImmutableVariableException` | A variable read through an ImmutableVariable is written later |
+
+`VariableTracker` and `ArtifactTracker` remain part of the public `StepEmitter.Emit` signature so that
+emitters can record what they touch, but they no longer validate anything themselves.
 
 ---
 
@@ -721,7 +732,7 @@ public class ArtifactStore : IFreezable
 }
 ```
 
-`ArtifactTracker` mirrors `VariableTracker`: it logs SET/GET operations and `EnsureValidity()` checks definition order.
+`ArtifactTracker` mirrors `VariableTracker`: it records SET/GET operations during preprocessing. Artifact definition order is validated by `IOContractValidator` from the declared step contracts, not by the tracker.
 
 ### 7.6 Identifiers
 

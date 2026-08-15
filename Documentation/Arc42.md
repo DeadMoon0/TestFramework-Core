@@ -466,7 +466,7 @@ graph LR
 stateDiagram-v2
     [*] --> Mutable : new()
     Mutable --> Frozen : Freeze()
-    Frozen --> Frozen : Add/Set → InvalidOperationException
+    Frozen --> Frozen : Add/Set → FrameworkStateException
     state Mutable {
         [*] --> Adding
         Adding --> Adding : Add / Set / Remove
@@ -623,7 +623,7 @@ mindmap
 | # | Risk / Debt | Impact | Mitigation |
 |---|------------|--------|-----------|
 | 1 | **Missing XML documentation** on public API | Reduced discoverability | Add XML docs incrementally |
-| 2 | **Variable immutability only enforced at runtime** | Faulty tests compile but fail at run | `VariableTracker.EnsureValidity()` is called automatically; consider a Roslyn analyser |
+| 2 | **Variable immutability only enforced at runtime** | Faulty tests compile but fail at run | `IOContractValidator.Validate()` runs the immutability pass automatically before any step executes; consider a Roslyn analyser |
 | 3 | **`CalcDelay` iteration starts at 1** | Confusion when writing custom delegates | Use `CalcDelays.Exponential/Fixed/Linear/None` predefined helpers |
 | 4 | **ForEach auto-naming may collide** | Implicit names like `"artifact_1"` clash with user names | Document convention or enforce a prefix |
 | 5 | **Artifact resolution `Found=false` is silent** | Subsequent steps operate on a `NotFound` artifact | Consider a `FailIfNotFound` option |

@@ -72,7 +72,7 @@ public class Timeline : IFreezable
     /// <param name="serviceProvider">The service provider available to steps and environment setup.</param>
     /// <param name="outputHelper">The output helper that receives timeline log output.</param>
     /// <returns>A run builder that can be configured and executed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the timeline has not been built completely yet.</exception>
+    /// <exception cref="FrameworkStateException">Thrown when the timeline has not been built completely yet.</exception>
     public ITimelineRunBuilder SetupRun(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper)
     {
         if (!ReadyToRun) throw new FrameworkStateException("The timeline cannot create a run before Build() has completed.");

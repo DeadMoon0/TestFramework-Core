@@ -118,7 +118,7 @@ The main stage planner can execute authored steps in parallel when three conditi
 
 In the built-in planner, `Prepare` and `Materialize` steps are mergeable. `Act` and `Observe` steps stay sequential so test intent and side-effect ordering remain easy to read.
 
-Use `.Sequential()` or `.DoNotParallelize()` on a step modifier chain when a step must remain isolated even inside a mergeable phase.
+Use `.DoNotParallelize()` on a step modifier chain when a step must remain isolated even inside a mergeable phase.
 
 ### Variables
 
