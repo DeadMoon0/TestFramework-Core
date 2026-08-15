@@ -51,12 +51,14 @@ public abstract class VariableReference<T> : VariableReferenceGeneric
     /// <summary>
     /// Projects the resolved value without a static compile-time type.
     /// </summary>
-    public override VariableReferenceGeneric Transform(Func<object?, object?> transform) => Transform(transform);
+    public override VariableReferenceGeneric Transform(Func<object?, object?> transform)
+        => Transform<object>(value => transform(value));
 
     /// <summary>
     /// Projects the resolved value with additional dependency variables without a static compile-time type.
     /// </summary>
-    public override VariableReferenceGeneric Transform(Func<object?, object?[], object?> transform, params VariableReferenceGeneric[] variables) => Transform(transform, variables);
+    public override VariableReferenceGeneric Transform(Func<object?, object?[], object?> transform, params VariableReferenceGeneric[] variables)
+        => Transform<object>((value, resolved) => transform(value, resolved), variables);
 }
 
 /// <summary>
