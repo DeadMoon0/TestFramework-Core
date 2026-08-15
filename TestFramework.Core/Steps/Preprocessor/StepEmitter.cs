@@ -21,15 +21,33 @@ public record StepEmitterStepResult(StepGeneric Step, bool RedirectToCleanUp = f
 /// Provides the base contract for objects that emit concrete steps during preprocessing.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public abstract class StepEmitter
+public abstract class StepEmitter : IFreezable
 {
     private readonly List<Action<StepGeneric, VariableTracker, ArtifactTracker>> _modifierActions = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the emitter has been frozen against further mutation.
+    /// </summary>
+    /// <remarks>
+    /// A built timeline hands the same emitters to every run, so an emitter that still accepts
+    /// modifiers after Build() lets one run change what a later run emits.
+    /// </remarks>
+    public bool IsFrozen { get; private set; }
+
+    /// <summary>
+    /// Freezes the emitter against further label and modifier changes.
+    /// </summary>
+    public void Freeze() => IsFrozen = true;
 
     /// <summary>
     /// Gets the label assigned to the emitter.
     /// </summary>
     public string? Label { get; private set; }
-    internal void SetLabel(string label) => Label = label;
+    internal void SetLabel(string label)
+    {
+        ((IFreezable)this).EnsureNotFrozen();
+        Label = label;
+    }
 
     /// <summary>
     /// Emits steps using the emitter's stored modifier actions.
@@ -44,5 +62,9 @@ public abstract class StepEmitter
     /// <summary>
     /// Adds a modifier that will be applied to emitted steps.
     /// </summary>
-    public void AddModifier(Action<StepGeneric, VariableTracker, ArtifactTracker> action) => _modifierActions.Add(action);
+    public void AddModifier(Action<StepGeneric, VariableTracker, ArtifactTracker> action)
+    {
+        ((IFreezable)this).EnsureNotFrozen();
+        _modifierActions.Add(action);
+    }
 }
