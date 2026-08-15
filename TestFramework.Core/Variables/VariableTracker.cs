@@ -53,44 +53,17 @@ public class VariableTracker : IFreezable
     }
 
     /// <summary>
-    /// Validates variable usage order and immutability constraints against the external variables and current store.
+    /// Returns the recorded reads and writes in the order they were composed.
     /// </summary>
-    /// <param name="externalVariables">Variables that are already available before the tracked operations run.</param>
-    /// <param name="variableStore">The current variable store.</param>
-    public void EnsureValidity(List<VariableIdentifier> externalVariables, VariableStore variableStore)
+    /// <remarks>
+    /// Usage ordering and existence are validated by <c>IOContractValidator</c> from the declared step
+    /// contracts. This is what remains that only the tracker knows: which reads demanded immutability.
+    /// </remarks>
+    internal IEnumerable<TrackedVariableOperation> GetRecordedOperations()
     {
-        // Check definition order
-        HashSet<VariableIdentifier> existingIdentifier = [.. externalVariables];
-        foreach (var reference in _referencedIdentifier)
-        {
-            switch (reference.Operation)
-            {
-                case VariableOperation.Set:
-                    existingIdentifier.Add(reference.Identifier);
-                    break;
-                case VariableOperation.Get:
-                    if (!existingIdentifier.TryGetValue(reference.Identifier, out _))
-                    {
-                        if (_referencedIdentifier.Count(x => x.Identifier == reference.Identifier) > 1) throw new VariableDoesNotYetExistException(reference.Identifier);
-                        else throw new VariableDoesNotExistException(reference.Identifier);
-                    }
-                    break;
-                default: throw new System.ArgumentOutOfRangeException(nameof(reference.Operation), reference.Operation, null);
-            }
-        }
-
-        // Check Immutability restrained
-        HashSet<VariableIdentifier> immutableVars = [.. _referencedIdentifier.Where(x => x.Operation == VariableOperation.Get && x.NeedsImmutability).Select(x => x.Identifier)];
-        foreach (var reference in _referencedIdentifier)
-        {
-            switch (reference.Operation)
-            {
-                case VariableOperation.Set:
-                    if (immutableVars.Contains(reference.Identifier)) throw new CannotSetImmutableVariableException(reference.Identifier);
-                    break;
-                case VariableOperation.Get: break;
-                default: throw new System.ArgumentOutOfRangeException(nameof(reference.Operation), reference.Operation, null);
-            }
-        }
+        foreach (VariableIdentifierOperation operation in _referencedIdentifier)
+            yield return new TrackedVariableOperation(operation.Operation == VariableOperation.Set, operation.Identifier, operation.NeedsImmutability);
     }
+
+    internal readonly record struct TrackedVariableOperation(bool IsWrite, VariableIdentifier Identifier, bool RequiresImmutability);
 }

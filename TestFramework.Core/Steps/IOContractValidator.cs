@@ -19,14 +19,26 @@ namespace TestFramework.Core.Steps;
 ///     producer type must be assignable TO the consumer type
 ///     (mirrors VariableStore.GetVariable&lt;T&gt;() cast semantics).
 ///   - Steps with no IOContract declarations are transparent to this validator.
+///   - A variable read through an immutable reference may not be written afterwards.
 /// </summary>
 internal static class IOContractValidator
 {
+    /// <param name="mainSteps">The linearly-ordered main stage steps.</param>
+    /// <param name="externalVariables">Variables supplied to the run before any step executes.</param>
+    /// <param name="externalArtifacts">Artifacts supplied to the run before any step executes.</param>
+    /// <param name="variableTracker">
+    /// The tracker built during preprocessing. Declared IO contracts do not carry immutability, so
+    /// this is the only record of which reads demanded an immutable binding.
+    /// </param>
     internal static void Validate(
         IReadOnlyList<StepGeneric> mainSteps,
         List<VariableIdentifier> externalVariables,
-        List<ArtifactIdentifier> externalArtifacts)
+        List<ArtifactIdentifier> externalArtifacts,
+        VariableTracker? variableTracker = null)
     {
+        if (variableTracker is not null)
+            ValidateImmutability(variableTracker);
+
         // key -> known producer metadata (external or last declared producer)
         var knownVars = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
         var knownArtifacts = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
@@ -88,6 +100,29 @@ internal static class IOContractValidator
             }
 
             executedStepNames.Add(stepName);
+        }
+    }
+
+    /// <summary>
+    /// Fails when a variable that an earlier composition step read through an immutable reference is
+    /// written afterwards. Reading a value immutably is a promise that it will not move underneath you.
+    /// </summary>
+    private static void ValidateImmutability(VariableTracker variableTracker)
+    {
+        HashSet<VariableIdentifier> readImmutably = [];
+
+        foreach (VariableTracker.TrackedVariableOperation operation in variableTracker.GetRecordedOperations())
+        {
+            if (operation.IsWrite)
+            {
+                if (readImmutably.Contains(operation.Identifier))
+                    throw new CannotSetImmutableVariableException(operation.Identifier);
+
+                continue;
+            }
+
+            if (operation.RequiresImmutability)
+                readImmutably.Add(operation.Identifier);
         }
     }
 

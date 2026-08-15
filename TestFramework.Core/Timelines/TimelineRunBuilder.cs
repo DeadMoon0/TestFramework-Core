@@ -77,8 +77,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
             : _serviceProvider;
 
-        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps);
-        IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts);
+        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
+        IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
         TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, logger);
 
         await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
@@ -170,7 +170,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         };
     }
 
-    private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, out IReadOnlyList<StepGeneric> mainStageSteps)
+    private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker trackedVariables)
     {
         Stage preSetupStage = new Stage()
         {
@@ -190,6 +190,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         var artifactTracker = new ArtifactTracker();
         var variableTracker = new VariableTracker();
+        trackedVariables = variableTracker;
 
         List<StepGeneric> bufferedPreSetupSteps = [];
         List<StepGeneric> bufferedMainSteps = [];

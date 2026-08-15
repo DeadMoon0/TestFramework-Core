@@ -14,32 +14,63 @@ namespace TestFramework.Core.Tests;
 public class CoreAdvancedTests
 {
     [Fact]
-    public void VariableTracker_ThrowsDoesNotExist_WhenReferencedVariableWasNeverDefined()
+    public void Validate_ThrowsWhenAReadVariableWasNeverProduced()
     {
-        VariableTracker tracker = new();
-        tracker.GetReference(Var.Ref<string>("user"));
+        TestStep consumer = new("consumer");
+        consumer.IOContract.Inputs.Add(new StepIOEntry("user", StepIOKind.Variable, true));
 
-        Assert.Throws<VariableDoesNotExistException>(() => tracker.EnsureValidity([], CreateRuntime().VariableStore));
+        Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer], [], []));
     }
 
     [Fact]
-    public void VariableTracker_ThrowsDoesNotYetExist_WhenVariableIsReadBeforeItIsSet()
+    public void Validate_ThrowsWhenAVariableIsReadBeforeTheStepThatProducesIt()
     {
-        VariableTracker tracker = new();
-        tracker.GetReference(Var.Ref<string>("user"));
-        tracker.SetReference("user");
+        TestStep consumer = new("consumer");
+        consumer.IOContract.Inputs.Add(new StepIOEntry("user", StepIOKind.Variable, true));
 
-        Assert.Throws<VariableDoesNotYetExistException>(() => tracker.EnsureValidity([], CreateRuntime().VariableStore));
+        TestStep producer = new("producer");
+        producer.IOContract.Outputs.Add(new StepIOEntry("user", StepIOKind.Variable));
+
+        // Reading before the producer runs is a violation; the same pair in the other order is fine.
+        Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer, producer], [], []));
+        IOContractValidator.Validate([producer, consumer], [], []);
     }
 
     [Fact]
-    public void VariableTracker_ThrowsWhenImmutableVariableIsLaterSet()
+    public void Validate_ThrowsWhenAVariableReadImmutablyIsWrittenAfterwards()
     {
+        // The immutability rule lives only in the tracker: a declared IO contract says nothing about
+        // whether a read demanded an immutable binding.
         VariableTracker tracker = new();
         tracker.GetReference(Var.RefImmutable<string>("user"));
         tracker.SetReference("user");
 
-        Assert.Throws<CannotSetImmutableVariableException>(() => tracker.EnsureValidity(["user"], CreateRuntime().VariableStore));
+        CannotSetImmutableVariableException exception = Assert.Throws<CannotSetImmutableVariableException>(
+            () => IOContractValidator.Validate([], ["user"], [], tracker));
+
+        Assert.Contains("user", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_AllowsWritingAVariableThatWasOnlyReadMutably()
+    {
+        VariableTracker tracker = new();
+        tracker.GetReference(Var.Ref<string>("user"));
+        tracker.SetReference("user");
+
+        IOContractValidator.Validate([], ["user"], [], tracker);
+    }
+
+    [Fact]
+    public void Validate_AllowsWritingAVariableBeforeItIsReadImmutably()
+    {
+        // Writing first and then binding immutably is the normal way to use an immutable reference;
+        // only a write that comes after the immutable read breaks the promise.
+        VariableTracker tracker = new();
+        tracker.SetReference("user");
+        tracker.GetReference(Var.RefImmutable<string>("user"));
+
+        IOContractValidator.Validate([], [], [], tracker);
     }
 
     [Fact]
