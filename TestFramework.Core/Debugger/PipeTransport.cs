@@ -355,8 +355,23 @@ internal sealed class PipeClient : IDisposable
             NamedPipeClientStream candidate = new(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             try
             {
-                using CancellationTokenSource cts = new(PipeTransport.GetConnectTimeout());
-                await candidate.ConnectAsync(cts.Token);
+                TimeSpan connectTimeout = PipeTransport.GetConnectTimeout();
+                using CancellationTokenSource cts = new(connectTimeout);
+                Task connectTask = candidate.ConnectAsync(cts.Token);
+
+                // The token is the primary mechanism, but it is not enough on its own: on Unix a
+                // named pipe is a Unix domain socket and ConnectAsync retries internally, so it can
+                // overrun the budget by a wide margin before it notices the cancellation. Racing a
+                // timer makes the probe cost the same on every platform, which is the whole point
+                // of Auto mode. The abandoned task is observed so it cannot resurface unhandled.
+                Task finished = await Task.WhenAny(connectTask, Task.Delay(connectTimeout)).ConfigureAwait(false);
+                if (!ReferenceEquals(finished, connectTask))
+                {
+                    ObserveAbandonedConnect(connectTask);
+                    throw new TimeoutException($"Connecting to the debug pipe did not finish within {connectTimeout}.");
+                }
+
+                await connectTask.ConfigureAwait(false);
             }
             catch
             {
@@ -385,6 +400,17 @@ internal sealed class PipeClient : IDisposable
             connectionLock.Release();
         }
     }
+
+    /// <summary>
+    /// Swallows the result of a connect attempt the probe stopped waiting for, so an abandoned
+    /// task cannot surface later as an unobserved exception.
+    /// </summary>
+    private static void ObserveAbandonedConnect(Task connectTask)
+        => _ = connectTask.ContinueWith(
+            static completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
     private PipeProtocolStream? GetConnectedStream()
     {

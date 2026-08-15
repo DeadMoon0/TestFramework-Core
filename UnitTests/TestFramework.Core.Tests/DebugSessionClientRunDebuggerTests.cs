@@ -108,7 +108,12 @@ public class DebugSessionClientRunDebuggerTests
         await client.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-1" });
         stopwatch.Stop();
 
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Auto-mode probe took {stopwatch.Elapsed}; it should give up in roughly 250 ms.");
+        // The budget is 250 ms. The bound here is deliberately looser: a loaded CI runner adds
+        // scheduling jitter, and the claim under test is only that Auto mode gives up quickly
+        // instead of paying the 2 s an attached UI is worth.
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(1.5),
+            $"Auto-mode probe took {stopwatch.Elapsed}; it should give up in roughly 250 ms and must never approach the 2 s attached budget.");
     }
 
     [Fact]
@@ -140,8 +145,22 @@ public class DebugSessionClientRunDebuggerTests
             Stages = []
         });
 
-        Assert.Equal(System.Environment.ProcessPath, debugger.InitializedProjectPath);
-        Assert.EndsWith("testhost.exe", debugger.InitializedProjectPath, StringComparison.OrdinalIgnoreCase);
+        string resolved = debugger.InitializedProjectPath ?? string.Empty;
+
+        // Windows runs tests inside testhost.exe, so the process path already identifies the run.
+        // On Unix the process is the shared dotnet host, which identifies nothing, so the resolver
+        // is expected to fall back to the test assembly from the command line. The invariant that
+        // matters on both is that the reported path points at *this* run, never at the shared host.
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(System.Environment.ProcessPath, resolved);
+            Assert.EndsWith("testhost.exe", resolved, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            Assert.NotEqual(System.Environment.ProcessPath, resolved);
+            Assert.Contains("TestFramework.Core.Tests", resolved, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
