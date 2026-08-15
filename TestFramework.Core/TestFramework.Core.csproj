@@ -16,7 +16,12 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Multi-target net8.0 and net10.0, and fix artifact teardown skipping the artifacts after an unfound one</PackageReleaseNotes>
+		<PackageReleaseNotes>Performance: the debug pipe is no longer attached unconditionally, removing a ~2s stall from every run (test suites that paid it are roughly an order of magnitude faster). Set TESTFRAMEWORK_DEBUG_PIPE=on to force it, off to disable it.
+Security: the debug pipe client now uses CurrentUserOnly, and both the breakpoint wait and the pipe write are bounded so an unresponsive UI can no longer stall a run.
+Run isolation: an artifact reference is now copied per run, so two runs of one timeline no longer share pinned state. A frozen run is now genuinely immutable.
+Fixes: VariableReference.Transform no longer recurses into a StackOverflow; ConstVariable.Transform no longer drops an existing transform chain; FreezableCollection.Contains no longer throws once frozen; SequentialEvent honours cancellation instead of polling on; OutputRunDebugger is safe under parallel steps; a step timeout no longer leaves the abandoned attempt racing its own retry.
+Usability: reusing a run builder throws TimelineRunBuilderAlreadyUsedException instead of failing obscurely; immutable-variable enforcement is restored; logging no longer blocks the calling step.
+Also adds PersistentEnvironmentContext.CreateAsync as a non-blocking alternative to the constructor, which is now obsolete.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
