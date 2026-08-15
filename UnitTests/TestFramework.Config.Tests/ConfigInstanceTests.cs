@@ -127,7 +127,8 @@ public class ConfigInstanceTests
     [Fact]
     public async Task ConfigPersistentEnvironmentContext_LayersRunConfig_AndSupportsTimelineSetupRunExtension()
     {
-        await using ConfigPersistentEnvironmentContext<ConfigPersistentTestSetup> persistent = new();
+        await using ConfigPersistentEnvironmentContext<ConfigPersistentTestSetup> persistent =
+            await ConfigPersistentEnvironmentContext<ConfigPersistentTestSetup>.CreateAsync();
 
         ConfigInstance runConfig = persistent.CreateRunConfig(builder => builder.OverrideConfig("App:Mode", "run"));
 

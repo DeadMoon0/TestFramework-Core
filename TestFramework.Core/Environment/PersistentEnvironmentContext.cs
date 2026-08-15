@@ -25,12 +25,17 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private readonly Dictionary<EnvComponentIdentifier, object?> _persistentStates = [];
     private readonly List<EnvComponentIdentifier> _persistentCreationOrder = [];
     private readonly HashSet<EnvComponentIdentifier> _persistentComponents;
+    private readonly IReadOnlyCollection<EnvComponentIdentifier> _persistentRoots;
     private readonly TimeSpan _persistentSetupTimeout;
     private bool _disposed;
+
+    private const string BlockingConstructorObsoleteMessage =
+        "This constructor blocks the calling thread for the entire bootstrap — up to the persistent setup timeout, two minutes by default — and deadlocks under a SynchronizationContext. Use PersistentEnvironmentContext<TSetup>.CreateAsync(...) instead.";
 
     /// <summary>
     /// Creates and bootstraps the persistent environment slice immediately.
     /// </summary>
+    [Obsolete(BlockingConstructorObsoleteMessage)]
     public PersistentEnvironmentContext(IServiceProvider? persistentServiceProvider = null, bool disposePersistentServiceProvider = false)
         : this(new TSetup(), persistentServiceProvider, disposePersistentServiceProvider)
     {
@@ -39,7 +44,22 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     /// <summary>
     /// Creates and bootstraps the persistent environment slice immediately using an explicit setup instance.
     /// </summary>
+    [Obsolete(BlockingConstructorObsoleteMessage)]
     public PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider = null, bool disposePersistentServiceProvider = false)
+        : this(setup, persistentServiceProvider, disposePersistentServiceProvider, bootstrap: false)
+    {
+        try
+        {
+            BootstrapPersistentComponentsAsync(_persistentRoots, CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            DisposePersistentComponentsAsync().GetAwaiter().GetResult();
+            throw;
+        }
+    }
+
+    private PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider, bool disposePersistentServiceProvider, bool bootstrap)
     {
         ArgumentNullException.ThrowIfNull(setup);
 
@@ -49,19 +69,54 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _persistentSetupTimeout = ValidatePersistentSetupTimeout(_setup.GetPersistentSetupTimeout());
         _bootstrapEnvironment = _setup.CreateEnvironment();
 
-        IReadOnlyCollection<EnvComponentIdentifier> persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
-        ValidatePersistentClosure(_bootstrapEnvironment, persistentRoots);
-        _persistentComponents = [.. EnvComponentGraph.Order(_bootstrapEnvironment, persistentRoots).Select(component => component.Id)];
+        _persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
+        ValidatePersistentClosure(_bootstrapEnvironment, _persistentRoots);
+        _persistentComponents = [.. EnvComponentGraph.Order(_bootstrapEnvironment, _persistentRoots).Select(component => component.Id)];
+
+        // 'bootstrap' exists only so CreateAsync can build the object and then await the bootstrap.
+        // A constructor cannot await, which is the whole reason the blocking overloads are obsolete.
+        _ = bootstrap;
+    }
+
+    /// <summary>
+    /// Creates the persistent environment slice and awaits its bootstrap.
+    /// </summary>
+    /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
+    /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
+    /// <param name="cancellationToken">Cancels the bootstrap.</param>
+    public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
+        IServiceProvider? persistentServiceProvider = null,
+        bool disposePersistentServiceProvider = false,
+        CancellationToken cancellationToken = default)
+        => CreateAsync(new TSetup(), persistentServiceProvider, disposePersistentServiceProvider, cancellationToken);
+
+    /// <summary>
+    /// Creates the persistent environment slice from an explicit setup instance and awaits its bootstrap.
+    /// </summary>
+    /// <param name="setup">The persistent environment setup.</param>
+    /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
+    /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
+    /// <param name="cancellationToken">Cancels the bootstrap.</param>
+    public static async Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
+        TSetup setup,
+        IServiceProvider? persistentServiceProvider = null,
+        bool disposePersistentServiceProvider = false,
+        CancellationToken cancellationToken = default)
+    {
+        PersistentEnvironmentContext<TSetup> context = new(setup, persistentServiceProvider, disposePersistentServiceProvider, bootstrap: false);
 
         try
         {
-            BootstrapPersistentComponents(persistentRoots);
+            await context.BootstrapPersistentComponentsAsync(context._persistentRoots, cancellationToken);
         }
         catch
         {
-            DisposePersistentComponentsAsync().GetAwaiter().GetResult();
+            // Whatever was already created has to come back down, or the next attempt inherits it.
+            await context.DisposePersistentComponentsAsync();
             throw;
         }
+
+        return context;
     }
 
     /// <summary>
@@ -149,38 +204,37 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
             VisitPersistentClosure(environment, dependency, root, visited);
     }
 
-    private void BootstrapPersistentComponents(IReadOnlyCollection<EnvComponentIdentifier> persistentRoots)
+    private async Task BootstrapPersistentComponentsAsync(IReadOnlyCollection<EnvComponentIdentifier> persistentRoots, CancellationToken cancellationToken)
     {
         DebuggingRunSession debuggingSession = new(CommonDebugger.GetCommon(_persistentServiceProvider, null));
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(debuggingSession);
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 
-        using CancellationTokenSource cancellationTokenSource = _persistentSetupTimeout == Timeout.InfiniteTimeSpan
-            ? new CancellationTokenSource()
-            : new CancellationTokenSource(_persistentSetupTimeout);
+        using CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (_persistentSetupTimeout != Timeout.InfiniteTimeSpan)
+            cancellationTokenSource.CancelAfter(_persistentSetupTimeout);
 
         try
         {
-            EnvComponentLifecycleRunner.CreateAsync(
-                    _bootstrapEnvironment,
-                    persistentRoots,
-                    _persistentServiceProvider,
-                    variableStore,
-                    artifactStore,
-                    logger,
-                    cancellationTokenSource.Token,
-                    (identifier, state) =>
-                    {
-                        _persistentStates[identifier] = state;
-                        if (!_persistentCreationOrder.Contains(identifier))
-                            _persistentCreationOrder.Add(identifier);
-                    })
-                .GetAwaiter()
-                .GetResult();
+            await EnvComponentLifecycleRunner.CreateAsync(
+                _bootstrapEnvironment,
+                persistentRoots,
+                _persistentServiceProvider,
+                variableStore,
+                artifactStore,
+                logger,
+                cancellationTokenSource.Token,
+                (identifier, state) =>
+                {
+                    _persistentStates[identifier] = state;
+                    if (!_persistentCreationOrder.Contains(identifier))
+                        _persistentCreationOrder.Add(identifier);
+                });
         }
-        catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            // Only the configured timeout fired; a caller-driven cancellation stays an OperationCanceledException.
             throw new FrameworkTimeoutException($"Persistent environment setup exceeded the configured timeout of {_persistentSetupTimeout} while bootstrapping roots: {string.Join(", ", persistentRoots)}.", exception);
         }
     }

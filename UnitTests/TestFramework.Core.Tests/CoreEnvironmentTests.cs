@@ -160,7 +160,8 @@ public class CoreEnvironmentTests
     [Fact]
     public async Task PersistentEnvironmentContext_ReusesPersistentComponentsAcrossRuns_AndDisposesThemOnce()
     {
-        PersistentEnvironmentContext<PersistentTestSetup> persistent = new();
+        PersistentEnvironmentContext<PersistentTestSetup> persistent =
+            await PersistentEnvironmentContext<PersistentTestSetup>.CreateAsync();
         try
         {
             Timeline timeline = Timeline.Create()
@@ -198,19 +199,21 @@ public class CoreEnvironmentTests
     }
 
     [Fact]
-    public void PersistentEnvironmentContext_WhenPersistentRootDependsOnPerRunComponent_Throws()
+    public async Task PersistentEnvironmentContext_WhenPersistentRootDependsOnPerRunComponent_Throws()
     {
-        FrameworkConfigurationException exception = Assert.Throws<FrameworkConfigurationException>(() => new PersistentEnvironmentContext<InvalidPersistentSetup>());
+        FrameworkConfigurationException exception = await Assert.ThrowsAsync<FrameworkConfigurationException>(
+            () => PersistentEnvironmentContext<InvalidPersistentSetup>.CreateAsync());
 
         Assert.Contains("depends on per-run component", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void PersistentEnvironmentContext_WhenBootstrapExceedsConfiguredTimeout_Throws()
+    public async Task PersistentEnvironmentContext_WhenBootstrapExceedsConfiguredTimeout_Throws()
     {
         TimeoutPersistentEnvironment.Reset();
 
-        FrameworkTimeoutException exception = Assert.Throws<FrameworkTimeoutException>(() => new PersistentEnvironmentContext<TimeoutPersistentSetup>());
+        FrameworkTimeoutException exception = await Assert.ThrowsAsync<FrameworkTimeoutException>(
+            () => PersistentEnvironmentContext<TimeoutPersistentSetup>.CreateAsync());
 
         Assert.Contains("configured timeout", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("delayed-network", exception.Message, StringComparison.OrdinalIgnoreCase);
