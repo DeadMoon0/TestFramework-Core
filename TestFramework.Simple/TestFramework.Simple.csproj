@@ -16,7 +16,8 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Multi-target net8.0 and net10.0</PackageReleaseNotes>
+		<PackageReleaseNotes>Adds Trigger.Message(...), a cross-platform trigger that writes a captioned line to the run log. Prefer it over Trigger.MessageBox(...), which is Windows-only and blocks on a modal dialog - unusable headless or in CI.
+MessageBoxTrigger.Invoker is now public and settable so the dialog can be replaced in a test, and setting TESTFRAMEWORK_MESSAGEBOX=off makes it return without showing a dialog. The interactive default is unchanged.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
