@@ -16,7 +16,8 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Multi-target net8.0 and net10.0</PackageReleaseNotes>
+		<PackageReleaseNotes>BREAKING (binary): ConfigInstance.BuildServiceProvider() now returns the concrete ServiceProvider instead of IServiceProvider, so the caller can dispose it. A return type is part of the signature, so any assembly compiled against 0.1.5 throws MissingMethodException against this version and must be recompiled. Source-compatible for callers assigning to IServiceProvider.
+Also adds a non-blocking CreateAsync for the persistent environment context and marks the blocking constructor obsolete.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
