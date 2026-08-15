@@ -134,6 +134,7 @@ The model is:
 
 Higher-level packages may wrap this primitive with package-specific helpers. In the container stack, `DockerAzureHostedCollectionFixture<TState>` is the xUnit-facing example of that pattern.
 
-## Target Framework
+## Target Frameworks
 
 - .NET 8 (`net8.0`)
+- .NET 10 (`net10.0`)

@@ -131,6 +131,7 @@ sitting in front of the run.
 - `SimpleExt.Trigger.Message(...)` for a captioned line in the run log, on any platform
 - `SimpleExt.Trigger.MessageBox(...)` for simple Windows message box flows
 
-## Target Framework
+## Target Frameworks
 
 - .NET 8 (`net8.0`)
+- .NET 10 (`net10.0`)

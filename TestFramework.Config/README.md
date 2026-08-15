@@ -138,6 +138,7 @@ run.EnsureRanToCompletion();
 - Use the `AddService((services, configuration) => ...)` overload when service registration depends on effective configuration values after overrides have been applied.
 - If a module also uses a typed registry inside DI, keep the ownership boundary clear: `ConfigInstance` prepares the provider, the typed registry serves that module's runtime lookup needs.
 
-## Target Framework
+## Target Frameworks
 
 - .NET 8 (`net8.0`)
+- .NET 10 (`net10.0`)
