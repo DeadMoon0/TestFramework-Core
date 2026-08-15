@@ -38,10 +38,10 @@ Also adds a non-blocking CreateAsync for the persistent environment context and 
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<!-- Core lives in this solution. A pinned package reference silently built Config against an
-		     older Core than the one shipping alongside it. dotnet pack turns this into a versioned
-		     package dependency, so the produced nuspec is unaffected — do not add PrivateAssets. -->
-		<ProjectReference Include="..\TestFramework.Core\TestFramework.Core.csproj" />
+		<!-- Config consumes Core as a published package, not as a project. The dependency tree stays
+		     explicit: this pin is exactly what the produced nuspec declares, and it is the version a
+		     consumer will resolve. Core must therefore be published before Config ships against it. -->
+		<PackageReference Include="TestFramework.Core" Version="0.1.10" />
 	</ItemGroup>
 
 	<ItemGroup>
