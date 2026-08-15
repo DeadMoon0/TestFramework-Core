@@ -18,7 +18,13 @@ internal class DebuggingRunSession(IRunDebugger debugger)
     private bool sessionInitialized;
 
     internal string SessionId { get; } = Guid.NewGuid().ToString();
-    internal IRunDebugger Debugger { get; set; } = debugger;
+    internal IRunDebugger Debugger { get; } = debugger;
+
+    /// <summary>
+    /// Gets a value indicating whether anything downstream will use the signals this session emits.
+    /// Callers gate expensive signal preparation on this.
+    /// </summary>
+    internal bool IsCapturing => Debugger.IsCapturing;
 
     internal async Task InitSessionAsync(TimelineRunStructure runStructure)
     {

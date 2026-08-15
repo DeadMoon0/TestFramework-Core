@@ -223,6 +223,24 @@ internal sealed class PipeClient : IDisposable
         this.pipeName = pipeName;
     }
 
+    /// <summary>
+    /// Reports whether signals sent through this client can still reach a UI: either one is already
+    /// connected, or the transport is enabled and this process has not yet found the pipe empty.
+    /// </summary>
+    internal bool IsAttachedOrCouldAttach
+    {
+        get
+        {
+            if (disposed)
+                return false;
+
+            if (IsConnected)
+                return true;
+
+            return PipeTransport.GetMode() != PipeDebuggerMode.Off && !IsKnownUnavailable(pipeName);
+        }
+    }
+
     private bool IsConnected
     {
         get

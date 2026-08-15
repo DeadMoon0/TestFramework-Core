@@ -13,6 +13,15 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable
     private readonly PipeClient client = new(PipeTransport.GetPipeName());
 
     /// <summary>
+    /// Gets a value indicating whether a debugger UI is attached, or might still be.
+    /// </summary>
+    /// <remarks>
+    /// The connection is made lazily on the first signal, so before then the honest answer is
+    /// "possibly": the transport is enabled and this process has not already found the pipe empty.
+    /// </remarks>
+    public bool IsCapturing => client.IsAttachedOrCouldAttach;
+
+    /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
     public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)

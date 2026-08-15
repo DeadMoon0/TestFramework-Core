@@ -1,9 +1,13 @@
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
 internal sealed class CompositeRunDebugger : IRunDebugger
 {
+    /// <summary>One interested consumer is enough to make producing the signals worthwhile.</summary>
+    public bool IsCapturing => debuggers.Any(debugger => debugger.IsCapturing);
+
     private delegate Task DebuggerSignal(IRunDebugger debugger);
 
     private readonly IRunDebugger[] debuggers;

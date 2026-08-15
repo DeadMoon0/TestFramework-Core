@@ -143,6 +143,35 @@ public class DebugSessionClientRunDebuggerTests
     }
 
     [Fact]
+    public void IsCapturing_IsFalseOnlyWhenNothingDownstreamWantsTheSignals()
+    {
+        Assert.False(new EmptyRunDebugger().IsCapturing);
+        Assert.True(((IRunDebugger)new RecordingRunDebugger()).IsCapturing);
+
+        Assert.False(CompositeRunDebugger.Create([new EmptyRunDebugger(), new EmptyRunDebugger()]).IsCapturing);
+        Assert.True(CompositeRunDebugger.Create([new EmptyRunDebugger(), new RecordingRunDebugger()]).IsCapturing);
+
+        Assert.False(new DebuggingRunSession(new EmptyRunDebugger()).IsCapturing);
+        Assert.True(new DebuggingRunSession(new RecordingRunDebugger()).IsCapturing);
+    }
+
+    [Fact]
+    public void PipeRunDebugger_StopsCapturing_OnceThePipeIsKnownUnavailable()
+    {
+        PipeDebuggerMode? previous = PipeTransport.ModeOverride;
+        try
+        {
+            TestFrameworkDebugging.PipeDebuggerEnabled = false;
+            using PipeRunDebugger disabled = new();
+            Assert.False(disabled.IsCapturing);
+        }
+        finally
+        {
+            PipeTransport.ModeOverride = previous;
+        }
+    }
+
+    [Fact]
     public async Task PipeClient_DoesNotRepeatConnectTimeoutAfterInitialFailure()
     {
         PipeClient.ResetAvailabilityForTests();

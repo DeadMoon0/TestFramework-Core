@@ -3,6 +3,9 @@ namespace TestFramework.Core.Debugger;
 
 internal class EmptyRunDebugger : IRunDebugger
 {
+    /// <summary>Nothing is listening, so nothing needs to be produced.</summary>
+    public bool IsCapturing => false;
+
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
     {
         return Task.CompletedTask;

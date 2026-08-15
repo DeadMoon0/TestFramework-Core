@@ -9,6 +9,17 @@ namespace TestFramework.Core.Debugger;
 public interface IRunDebugger
 {
     /// <summary>
+    /// Gets a value indicating whether this debugger will do anything with the signals it is sent.
+    /// </summary>
+    /// <remarks>
+    /// Producing a signal is not free — values are formatted, JSON is built, stack traces are walked.
+    /// A debugger that reports <see langword="false"/> lets the framework skip that work entirely.
+    /// The default is <see langword="true"/>, which is the safe answer for any implementation that
+    /// does not opt out.
+    /// </remarks>
+    public bool IsCapturing => true;
+
+    /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
     public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure);
