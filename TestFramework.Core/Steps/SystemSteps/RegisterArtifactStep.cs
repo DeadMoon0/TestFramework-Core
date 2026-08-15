@@ -9,7 +9,8 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-//TODO: Make failable on NotFound
+// Current behaviour: an artifact that does not resolve is still registered, in the NotFound state,
+// and the step completes. Registration reports what is there rather than demanding that it exists.
 internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier identifier, TArtifactReference reference) : Step<EmptyStepResultContext>
     where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>

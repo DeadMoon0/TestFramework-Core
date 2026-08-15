@@ -12,7 +12,6 @@ using TestFramework.Core.Steps.SystemSteps;
 
 namespace TestFramework.Core.Steps.Preprocessor;
 
-//TODO: Track variable and collection var
 /// <summary>
 /// Emits nested steps once for each item in a collection variable.
 /// </summary>
@@ -26,6 +25,11 @@ public class ForEachStepEmitter<TItem>(VariableReference<IEnumerable<TItem>> col
     public override IEnumerable<StepEmitterStepResult> Emit(ArtifactStore artifactStore, VariableStore variableStore, VariableTracker variableTracker, ArtifactTracker artifactTracker, List<Action<StepGeneric, VariableTracker, ArtifactTracker>> modifierActions, ScopedLogger? logger = null)
     {
         if (modifierActions.Count != 0) throw new NotSupportedException("Modifier on an ConditionalStepEmitter is not Supported.");
+
+        // Record both sides before resolving anything: the loop reads the collection and writes the
+        // item variable once per iteration, and validation has to see that in composition order.
+        variableTracker.GetReference(collection);
+        variableTracker.SetReference(variable);
 
         var items = (collection.GetValue(variableStore) ?? throw new ArgumentNullException(nameof(collection), "The ForEach collection variable resolved to null.")).ToList();
         logger?.LogInformation($"ForEach '{variable.Identifier}': {items.Count} item(s)");

@@ -10,7 +10,6 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.Preprocessor;
 
-//TODO: Track shouldRun var
 /// <summary>
 /// Emits nested steps only when a condition variable resolves to <see langword="true"/>.
 /// </summary>
@@ -23,6 +22,10 @@ public class ConditionalStepEmitter(VariableReference<bool> shouldRun, Action<IT
     public override IEnumerable<StepEmitterStepResult> Emit(ArtifactStore artifactStore, VariableStore variableStore, VariableTracker variableTracker, ArtifactTracker artifactTracker, List<Action<StepGeneric, VariableTracker, ArtifactTracker>> modifierActions, ScopedLogger? logger = null)
     {
         if (modifierActions.Count != 0) throw new NotSupportedException("Modifier on an ConditionalStepEmitter is not Supported.");
+
+        // Record the read before resolving it, so validation sees the condition variable in the same
+        // order the timeline actually uses it.
+        variableTracker.GetReference(shouldRun);
 
         bool cond = shouldRun.GetValue(variableStore);
         logger?.LogInformation($"Conditional '{shouldRun.Identifier}' = {cond} -> {(cond ? "steps included" : "steps skipped")}");

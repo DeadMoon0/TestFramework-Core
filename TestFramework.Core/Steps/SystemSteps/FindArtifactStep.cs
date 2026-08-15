@@ -18,7 +18,9 @@ internal enum FindArtifactNamingMode
     Exact
 }
 
-//TODO: Find a way to not have loos identifiers when no Artifact is found
+// Current behaviour: when the finder returns nothing in Single naming mode the step logs a warning
+// and completes, so the declared identifier is left with no artifact behind it. Later steps that
+// read that identifier fail at IO-contract validation, not here.
 internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<EmptyStepResultContext>
     where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
