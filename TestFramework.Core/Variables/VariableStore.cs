@@ -23,7 +23,7 @@ public class VariableStore : IFreezable
     /// <summary>
     /// Freezes the variable store against further mutation.
     /// </summary>
-    public void Freeze() { lock (syncRoot) { IsFrozen = true; } }
+    public void Freeze() { lock (syncRoot) { IsFrozen = true; _variables.Freeze(); } }
 
     private readonly FreezableDictionary<VariableIdentifier, object?> _variables = [];
     private readonly ScopedLogger logger;
@@ -50,6 +50,7 @@ public class VariableStore : IFreezable
 
         lock (syncRoot)
         {
+            ((IFreezable)this).EnsureNotFrozen();
             existed = _variables.TryGetValue(identifier, out var previousValue);
             oldValue = existed ? Logging.VariableFormatter.Format(previousValue) : null;
             unchanged = existed && oldValue == newValue;

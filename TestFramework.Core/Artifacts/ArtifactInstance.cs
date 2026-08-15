@@ -102,6 +102,7 @@ public class ArtifactInstanceGeneric : IFreezable
     public void Freeze()
     {
         IsFrozen = true;
+        _dataVersions.Freeze();
     }
 
     private readonly FreezableCollection<ArtifactDataGeneric> _dataVersions = [];
@@ -176,6 +177,7 @@ public class ArtifactInstanceGeneric : IFreezable
     /// </summary>
     public void AddVersionGeneric(ArtifactDataGeneric data)
     {
+        ((IFreezable)this).EnsureNotFrozen();
         _dataVersions.Add(data);
     }
 

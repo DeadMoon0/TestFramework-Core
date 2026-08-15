@@ -24,7 +24,7 @@ public class ArtifactStore : IFreezable
     /// <summary>
     /// Freezes the artifact store.
     /// </summary>
-    public void Freeze() { lock (syncRoot) { IsFrozen = true; } }
+    public void Freeze() { lock (syncRoot) { IsFrozen = true; _artifacts.Freeze(); } }
 
     private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts = [];
     private readonly ScopedLogger logger;
