@@ -5,20 +5,49 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Debugger;
 
-internal class DebuggingRunSession(IRunDebugger debugger)
+internal class DebuggingRunSession
 {
+    /// <summary>
+    /// Bound chosen so a burst of logging never grows without limit, while a producer only ever waits
+    /// once the consumer is thousands of signals behind.
+    /// </summary>
+    private const int SignalQueueCapacity = 8192;
+
     private readonly AsyncLocal<ExecutionContextInfo?> currentExecutionContext = new();
     private readonly AsyncLocal<IterationContextInfo?> currentIterationContext = new();
+
+    /// <summary>
+    /// Every signal goes through this queue and is delivered by a single consumer, in the order it
+    /// was produced. Ordering is load-bearing: OutputRunDebugger correlates log entries against the
+    /// step and iteration that are currently active, and silently drops entries that do not match.
+    /// </summary>
+    private readonly Channel<SignalWorkItem> signalQueue = Channel.CreateBounded<SignalWorkItem>(
+        new BoundedChannelOptions(SignalQueueCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait
+        });
+
+    private readonly object drainStartGate = new();
+    private Task? drainTask;
+    private int writerCompleted;
     private bool sessionInitialized;
 
+    internal DebuggingRunSession(IRunDebugger debugger)
+    {
+        Debugger = debugger;
+    }
+
     internal string SessionId { get; } = Guid.NewGuid().ToString();
-    internal IRunDebugger Debugger { get; } = debugger;
+    internal IRunDebugger Debugger { get; }
 
     /// <summary>
     /// Gets a value indicating whether anything downstream will use the signals this session emits.
@@ -26,33 +55,36 @@ internal class DebuggingRunSession(IRunDebugger debugger)
     /// </summary>
     internal bool IsCapturing => Debugger.IsCapturing;
 
-    internal async Task InitSessionAsync(TimelineRunStructure runStructure)
+    internal Task InitSessionAsync(TimelineRunStructure runStructure)
     {
         // Naming the run walks the whole stack and resolving the project path scans loaded assemblies.
         // Neither is cheap, and neither has a reader when nothing is capturing.
         if (!IsCapturing)
         {
             sessionInitialized = true;
-            return;
+            return Task.CompletedTask;
         }
 
-        await Debugger.SignalInitTimelineRunAsync(SessionId, GetTestName(), GetProjectPath(), runStructure);
+        string testName = GetTestName();
+        string projectPath = GetProjectPath();
         sessionInitialized = true;
+
+        return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, testName, projectPath, runStructure));
     }
 
     internal Task TransitionRunAsync(DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        return Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Run, null, null, state, previousState);
+        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Run, null, null, state, previousState));
     }
 
     internal Task TransitionStageAsync(string stage, DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        return Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Stage, stage, null, state, previousState);
+        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Stage, stage, null, state, previousState));
     }
 
     internal Task TransitionStepAsync(string stage, int stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
     {
-        return Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState);
+        return EnqueueAndAwait(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState));
     }
 
     internal void PublishVariableUpdate(VariableIdentifier identifier, VariableState state)
@@ -60,7 +92,9 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         if (!sessionInitialized)
             return;
 
-        PublishNonBlocking(Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope));
+        string? stage = currentExecutionContext.Value?.Stage;
+        int? stepId = currentExecutionContext.Value?.StepId;
+        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, stage, stepId, state.Envelope));
     }
 
     internal void PublishArtifactUpdate(ArtifactIdentifier identifier, ArtifactState state)
@@ -68,10 +102,16 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         if (!sessionInitialized)
             return;
 
-        PublishNonBlocking(Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, currentExecutionContext.Value?.Stage, currentExecutionContext.Value?.StepId, state.Envelope));
+        string? stage = currentExecutionContext.Value?.Stage;
+        int? stepId = currentExecutionContext.Value?.StepId;
+        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, stage, stepId, state.Envelope));
     }
 
-    internal Task LogAsync(DebugLogEntry entry)
+    /// <summary>
+    /// Queues a log entry for delivery. The caller is not blocked, but the entry keeps its place in
+    /// the stream relative to the step transitions around it.
+    /// </summary>
+    internal void PublishLog(DebugLogEntry entry)
     {
         ExecutionContextInfo? context = currentExecutionContext.Value;
         IterationContextInfo? iteration = currentIterationContext.Value;
@@ -90,12 +130,15 @@ internal class DebuggingRunSession(IRunDebugger debugger)
             AssertionScope = entry.AssertionScope
         };
 
-        return Debugger.SignalLogEntryAsync(SessionId, entryWithContext);
+        Enqueue(() => Debugger.SignalLogEntryAsync(SessionId, entryWithContext));
     }
 
-    internal Task SignalAssertionAsync(DebugAssertionEntry entry)
+    /// <summary>
+    /// Queues an assertion result for delivery, in order with the logs around it.
+    /// </summary>
+    internal void PublishAssertion(DebugAssertionEntry entry)
     {
-        return Debugger.SignalAssertionAsync(SessionId, new DebugAssertionEntry
+        DebugAssertionEntry entryWithTimestamp = new()
         {
             OccurredAtUtc = entry.OccurredAtUtc == default ? DateTimeOffset.UtcNow : entry.OccurredAtUtc,
             TargetKind = entry.TargetKind,
@@ -107,18 +150,108 @@ internal class DebuggingRunSession(IRunDebugger debugger)
             Actual = entry.Actual,
             FailureReason = entry.FailureReason,
             AssertionScope = entry.AssertionScope
-        });
+        };
+
+        Enqueue(() => Debugger.SignalAssertionAsync(SessionId, entryWithTimestamp));
     }
 
-    internal Task FinishSessionAsync()
+    /// <summary>
+    /// Delivers the finish signal and waits until the queue has drained, so everything the run
+    /// produced has reached its debuggers before the test method returns.
+    /// </summary>
+    internal async Task FinishSessionAsync()
     {
-        return Debugger.SignalTimelineRunFinishedAsync(SessionId);
+        Task finished = EnqueueAndAwait(() => Debugger.SignalTimelineRunFinishedAsync(SessionId));
+
+        Interlocked.Exchange(ref writerCompleted, 1);
+        signalQueue.Writer.TryComplete();
+
+        Task? drain = Volatile.Read(ref drainTask);
+        if (drain is not null)
+            await drain.ConfigureAwait(false);
+
+        await finished.ConfigureAwait(false);
     }
 
-    internal async Task WaitWhenBreakpointHit(string stage, int index)
+    internal Task WaitWhenBreakpointHit(string stage, int index)
     {
-        await Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index);
+        return EnqueueAndAwait(() => Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index));
     }
+
+    private void Enqueue(Func<Task> work) => Enqueue(new SignalWorkItem(work, null));
+
+    private Task EnqueueAndAwait(Func<Task> work)
+    {
+        TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(new SignalWorkItem(work, completion));
+        return completion.Task;
+    }
+
+    private void Enqueue(SignalWorkItem item)
+    {
+        bool queued = false;
+
+        try
+        {
+            if (Volatile.Read(ref writerCompleted) == 0)
+            {
+                queued = signalQueue.Writer.TryWrite(item);
+                if (!queued)
+                {
+                    // The queue is full, so the consumer is thousands of signals behind. Blocking the
+                    // producer here is what the bound is for, and it keeps this thread's signals in
+                    // order — an async fallback could let a later signal overtake this one.
+                    signalQueue.Writer.WriteAsync(item).AsTask().GetAwaiter().GetResult();
+                    queued = true;
+                }
+            }
+        }
+        catch (ChannelClosedException)
+        {
+            // The session finished while this signal was in flight; there is nowhere left to send it.
+        }
+
+        if (queued)
+        {
+            EnsureDraining();
+            return;
+        }
+
+        item.Completion?.TrySetResult(true);
+    }
+
+    private void EnsureDraining()
+    {
+        if (Volatile.Read(ref drainTask) is not null)
+            return;
+
+        lock (drainStartGate)
+        {
+            if (drainTask is null)
+                Volatile.Write(ref drainTask, Task.Run(DrainAsync));
+        }
+    }
+
+    private async Task DrainAsync()
+    {
+        await foreach (SignalWorkItem item in signalQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        {
+            try
+            {
+                await item.Work().ConfigureAwait(false);
+                item.Completion?.TrySetResult(true);
+            }
+            catch (Exception exception)
+            {
+                if (item.Completion is null)
+                    Debug.WriteLine(exception);
+                else
+                    item.Completion.TrySetException(exception);
+            }
+        }
+    }
+
+    private sealed record SignalWorkItem(Func<Task> Work, TaskCompletionSource<bool>? Completion);
 
     internal IDisposable BeginStepExecutionContext(string stage, int stepId)
     {
@@ -200,26 +333,6 @@ internal class DebuggingRunSession(IRunDebugger debugger)
     {
         return !string.IsNullOrWhiteSpace(path)
             && Path.GetFileName(path).StartsWith("testhost", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static void PublishNonBlocking(Task task)
-    {
-        if (task.IsCompletedSuccessfully)
-            return;
-
-        _ = ObservePublicationAsync(task);
-    }
-
-    private static async Task ObservePublicationAsync(Task task)
-    {
-        try
-        {
-            await task.ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            Debug.WriteLine(exception);
-        }
     }
 
     private static MethodInfo? ResolveTestMethod(MethodInfo method)

@@ -120,7 +120,9 @@ public class ScopedLogger
 
     internal void SignalAssertion(DebugAssertionTargetKind targetKind, string target, string assertionName, string assertionDisplay, bool succeeded, string expected = "", string actual = "", string failureReason = "")
     {
-        debuggingSession?.SignalAssertionAsync(new DebugAssertionEntry
+        // Queued rather than awaited: blocking the step thread on the whole debugger fan-out — which
+        // includes a named-pipe write — used to cost real time on every single assertion.
+        debuggingSession?.PublishAssertion(new DebugAssertionEntry
         {
             OccurredAtUtc = DateTimeOffset.UtcNow,
             TargetKind = targetKind,
@@ -132,12 +134,12 @@ public class ScopedLogger
             Actual = actual,
             FailureReason = failureReason,
             AssertionScope = CurrentScope?.GetType().Name ?? ""
-        }).ConfigureAwait(false).GetAwaiter().GetResult();
+        });
     }
 
     private void SendEntry(DebugLogEntry entry)
     {
-        debuggingSession?.LogAsync(entry).ConfigureAwait(false).GetAwaiter().GetResult();
+        debuggingSession?.PublishLog(entry);
     }
 
     private DebugLogEntry CreateEntry(LogEvent logEvent, DebugLogLevel level)
