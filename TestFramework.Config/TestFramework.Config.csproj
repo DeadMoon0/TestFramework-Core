@@ -11,7 +11,7 @@
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline;Config</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>An easy to use utility for managing your configs inside the TestFramework timeline.</Description>
-		<Version>0.1.5</Version>
+		<Version>0.1.6</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
