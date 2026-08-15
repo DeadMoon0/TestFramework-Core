@@ -61,7 +61,7 @@ public class ConstVariable<T> : VariableReference<T>
     /// <param name="transform">Transforms the current value to the projected value.</param>
     public override VariableReference<TNew> Transform<TNew>(Func<T?, TNew?> transform) where TNew : default
     {
-        return new ConstVariable<TNew>(transform((T?)Value)!);
+        return new ConstVariable<TNew>(Value, [.. _transforms, VariableTransform.FromTransform(o => transform((T?)o))]);
     }
 
     /// <summary>

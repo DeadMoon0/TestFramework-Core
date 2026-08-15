@@ -59,6 +59,37 @@ public class VariableReferenceTests
     }
 
     [Fact]
+    public void ConstTransform_SingleArgAfterTwoArg_KeepsTheWholeChain()
+    {
+        VariableStore store = CreateStore();
+        store.SetVariable("suffix", "-x");
+
+        VariableReference<string> chained = Var.Const("abc")
+            .Transform((value, resolved) => $"{value}{resolved[0]}", Var.Ref<string>("suffix"))
+            .Transform(value => value?.ToUpperInvariant());
+
+        Assert.Equal("ABC-X", chained.GetValue(store));
+    }
+
+    [Fact]
+    public void ConstTransform_SingleArg_IsEvaluatedLazilyInGetValue()
+    {
+        VariableStore store = CreateStore();
+        int invocations = 0;
+
+        VariableReference<string> transformed = Var.Const("abc")
+            .Transform(value =>
+            {
+                invocations++;
+                return value?.ToUpperInvariant();
+            });
+
+        Assert.Equal(0, invocations);
+        Assert.Equal("ABC", transformed.GetValue(store));
+        Assert.Equal(1, invocations);
+    }
+
+    [Fact]
     public void ResolvableTransform_SingleArgAfterTwoArg_KeepsTheWholeChain()
     {
         VariableStore store = CreateStore();
