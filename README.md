@@ -58,7 +58,7 @@ public class SampleIntegrationTest
 	[Fact]
 	public async Task CanRunTimeline()
 	{
-		var serviceProvider = ConfigInstance
+		using var serviceProvider = ConfigInstance
 			.Create()
 			.OverrideConfig("TestSettings:Environment", "Local")
 			.AddService(services =>

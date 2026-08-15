@@ -18,7 +18,8 @@ dotnet add package TestFramework.Config
 using Microsoft.Extensions.DependencyInjection;
 using TestFramework.Config;
 
-var serviceProvider = ConfigInstance
+// The provider owns every singleton it creates, so you own the provider: dispose it.
+using ServiceProvider serviceProvider = ConfigInstance
 	.FromJsonFile("appsettings.test.json")
 	.OverrideConfig("FeatureFlags:UseMockService", "true")
 	.AddService((services, configuration) =>
@@ -103,7 +104,7 @@ run.EnsureRanToCompletion();
 - `OverrideConfig(...)`: replace/add config values
 - `AddService(...)`: register dependencies
 - `Build()`: materialize a reusable `ConfigInstance`
-- `BuildServiceProvider()`: build `IServiceProvider` for `SetupRun(...)`
+- `BuildServiceProvider()`: build a `ServiceProvider` for `SetupRun(...)`. **The caller owns the returned provider and must dispose it** — it holds every singleton it created. The return type is the concrete `ServiceProvider`, not `IServiceProvider`, so the compiler can point that out.
 
 ## Error Contract
 

@@ -24,7 +24,7 @@ public class ReadmeSamplesTests
                 }
                 """);
 
-            IServiceProvider serviceProvider = ConfigInstance
+            using ServiceProvider serviceProvider = ConfigInstance
                 .FromJsonFile(tempFile)
                 .OverrideConfig("FeatureFlags:UseMockService", "true")
                 .AddService((services, configuration) =>

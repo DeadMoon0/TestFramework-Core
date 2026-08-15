@@ -59,11 +59,16 @@ public class ConfigInstance
     }
 
     /// <summary>
-    /// Builds an <see cref="IServiceProvider"/> from the current configuration and service registrations.
+    /// Builds a <see cref="ServiceProvider"/> from the current configuration and service registrations.
     /// </summary>
-    /// <returns>The resolved service provider.</returns>
+    /// <returns>
+    /// The resolved service provider. <b>The caller owns it and is responsible for disposing it</b> —
+    /// it owns every singleton it created, including any that hold connections or file handles. The
+    /// return type is the concrete <see cref="ServiceProvider"/> rather than
+    /// <see cref="IServiceProvider"/> precisely so that this obligation is visible at the call site.
+    /// </returns>
     /// <exception cref="Exception">Propagates exceptions thrown by service registration delegates.</exception>
-    public IServiceProvider BuildServiceProvider()
+    public ServiceProvider BuildServiceProvider()
     {
         Dictionary<string, string?> config = this._deltaCollection.ApplyConfigDeltas();
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(config).Build();

@@ -32,7 +32,7 @@ internal class ConfigInstanceBuilder : IConfigInstanceBuilder
         return new ConfigInstance(_deltaCollection);
     }
 
-    public IServiceProvider BuildServiceProvider()
+    public ServiceProvider BuildServiceProvider()
     {
         return Build().BuildServiceProvider();
     }

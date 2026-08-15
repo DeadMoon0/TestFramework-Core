@@ -1,4 +1,4 @@
-﻿using System;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace TestFramework.Config.Builder.InstanceBuilder.Actions;
 
@@ -14,8 +14,10 @@ public interface IBuildAction
     public ConfigInstance Build();
 
     /// <summary>
-    /// Builds an <see cref="IServiceProvider"/> directly from the current builder state.
+    /// Builds a <see cref="ServiceProvider"/> directly from the current builder state.
     /// </summary>
-    /// <returns>The resolved service provider.</returns>
-    public IServiceProvider BuildServiceProvider();
+    /// <returns>
+    /// The resolved service provider. The caller owns it and is responsible for disposing it.
+    /// </returns>
+    public ServiceProvider BuildServiceProvider();
 }
