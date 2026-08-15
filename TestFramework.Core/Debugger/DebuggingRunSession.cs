@@ -28,6 +28,14 @@ internal class DebuggingRunSession(IRunDebugger debugger)
 
     internal async Task InitSessionAsync(TimelineRunStructure runStructure)
     {
+        // Naming the run walks the whole stack and resolving the project path scans loaded assemblies.
+        // Neither is cheap, and neither has a reader when nothing is capturing.
+        if (!IsCapturing)
+        {
+            sessionInitialized = true;
+            return;
+        }
+
         await Debugger.SignalInitTimelineRunAsync(SessionId, GetTestName(), GetProjectPath(), runStructure);
         sessionInitialized = true;
     }
@@ -126,9 +134,19 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         return new IterationContextScope(currentIterationContext, previous);
     }
 
+    /// <summary>
+    /// The project path is a property of the process, so it cannot change between runs. Resolving it
+    /// scans every loaded assembly; doing that once per process instead of once per run is free.
+    /// </summary>
+    private static readonly Lazy<string> CachedProjectPath = new(ResolveProjectPath, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static string GetProjectPath() => CachedProjectPath.Value;
+
     private static string GetTestName()
     {
-        MethodInfo? testMethod = new StackTrace().GetFrames()?
+        // Stays per-run: it resolves the test method currently on the stack, which differs per run.
+        // File info is never read, so skip collecting it.
+        MethodInfo? testMethod = new StackTrace(skipFrames: 1, fNeedFileInfo: false).GetFrames()?
             .Select(frame => frame.GetMethod())
             .OfType<MethodInfo>()
             .Select(ResolveTestMethod)
@@ -137,7 +155,7 @@ internal class DebuggingRunSession(IRunDebugger debugger)
         return testMethod?.Name ?? AppDomain.CurrentDomain.FriendlyName;
     }
 
-    private static string GetProjectPath()
+    private static string ResolveProjectPath()
     {
         string? processPath = System.Environment.ProcessPath;
         if (LooksLikeTestHostPath(processPath))
