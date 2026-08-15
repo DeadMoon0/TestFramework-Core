@@ -174,7 +174,6 @@ When in doubt, follow the `Timeline.Create()` path and the runnable showroom exa
 
 - Architecture overview (arc42): [Documentation/Arc42.md](./Documentation/Arc42.md)
 - Core architecture details: [Documentation/CoreArchitecture.md](./Documentation/CoreArchitecture.md)
-- Concept deep dive: [Documentation/Documentation.md](./Documentation/Documentation.md)
 - Core package guide: [TestFramework.Core/README.md](./TestFramework.Core/README.md)
 - Config package guide: [TestFramework.Config/README.md](./TestFramework.Config/README.md)
 - Simple package guide: [TestFramework.Simple/README.md](./TestFramework.Simple/README.md)

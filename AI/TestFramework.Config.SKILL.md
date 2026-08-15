@@ -126,7 +126,6 @@
 <sources>
     TestFramework-Core/TestFramework.Config/README.md
     TestFramework-Core/TestFramework.Config/ConfigInstance.cs
-    TestFramework-Core/Documentation/TestFramework.Config.Documentation.md
 </sources>
 
 <grounding_files>

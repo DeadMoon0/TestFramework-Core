@@ -80,6 +80,25 @@ var providerB = shared
 
 Override precedence is last-write-wins within the active builder. A sub-instance starts with the parent instance's merged values and registrations, then applies its own overrides and additions on top.
 
+What a sub-instance inherits, and what it can change:
+
+```
+Init new ConfigInstance (BaseConfig, BaseServices)
+                         |           \- BaseServices: from another ConfigInstance, or empty
+                         \- BaseConfig:   from JSON, from another ConfigInstance, or empty
+
+Configure the ConfigInstance \
+                             |- Override configs
+                             \- Add services
+
+Create SubConfigInstance (BaseConfig, BaseServices)
+                          |           \- BaseServices: inherited from the parent instance
+                          \- BaseConfig:   inherited from the parent instance
+```
+
+Each `BuildServiceProvider()` on a sub-instance produces an independent provider, which is what keeps
+one test's service state out of another's.
+
 ## Integration With Timeline Runs
 
 ```csharp

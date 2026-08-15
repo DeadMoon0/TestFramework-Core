@@ -2,7 +2,7 @@
 
 > **Scope**: This document covers `TestFramework.Core` — the engine that provides the foundational scaffold.  
 > Domain-specific logic (Azure, LocalIO, etc.) lives in separate extension projects.  
-> For the high-level design rationale see [Documentation.md](Documentation.md).
+> For the architecture-decision view of the same system see [Arc42.md](Arc42.md).
 
 ---
 
@@ -18,6 +18,7 @@
 8. [Events](#8-events)
 9. [Extension Points](#9-extension-points)
 10. [Minimal Example](#10-minimal-example)
+11. [Open Ideas](#11-open-ideas)
 
 ---
 
@@ -50,7 +51,7 @@ flowchart LR
     end
     subgraph Execution
         F --> G["Preprocess\n(Emit Steps)"]
-        G --> H["Validate\n(Variable/Artifact Tracking)"]
+        G --> H["Validate\n(IO contracts + immutability)"]
         H --> I["Execute Main Stage"]
         I --> J["Execute Cleanup Stage"]
         J --> K["Freeze → TimelineRun"]
@@ -1039,3 +1040,24 @@ string? shout = run.VariableStore.GetVariable<string>("shout");
 | Run setup with variables | `.AddVariable("userName", "Alice")` |
 | Result access | `run.VariableStore.GetVariable<string>("shout")` |
 | Completion assertion | `run.EnsureRanToCompletion()` |
+
+---
+
+## 11. Open Ideas
+
+Directions the model leaves room for but that Core does not implement today.
+
+### Defer
+
+A way to register work that runs *after* the Cleanup Stage. Cleanup exists to return artifacts to
+their pre-run state; deferred work is for everything that must outlive that — releasing a lease held
+for the whole run, or reporting a result once nothing else can still change it. The distinction
+matters because the cleanup stage deliberately ignores errors so that later artifacts still get torn
+down, which is the wrong policy for work whose failure the test should hear about.
+
+### Checkpoints
+
+A way for a timeline to declare points it expects to reach, and to report which of them were actually
+hit. Step state already records what ran, but it answers "did this step succeed", not "did the run
+reach the state the test was written to observe". A run that finishes green after skipping half its
+conditional branches is currently indistinguishable from one that took the intended path.
