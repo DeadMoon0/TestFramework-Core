@@ -47,7 +47,10 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="TestFramework.Core" Version="0.1.7" />
+		<!-- Core lives in this solution. A pinned package reference silently built Config against an
+		     older Core than the one shipping alongside it. dotnet pack turns this into a versioned
+		     package dependency, so the produced nuspec is unaffected — do not add PrivateAssets. -->
+		<ProjectReference Include="..\TestFramework.Core\TestFramework.Core.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
