@@ -73,6 +73,31 @@ public class SimpleTrigger
     }
 
     /// <summary>
+    /// Creates a trigger that writes a captioned message to the run log.
+    /// </summary>
+    /// <param name="msg">The variable or constant that supplies the message body.</param>
+    /// <param name="caption">The variable or constant that supplies the caption.</param>
+    /// <returns>A trigger that logs the supplied values.</returns>
+    /// <remarks>
+    /// The platform-neutral counterpart to <see cref="MessageBox(VariableReference{string}, VariableReference{string})"/>:
+    /// same shape, but nothing to dismiss, so it is safe in unattended runs.
+    /// </remarks>
+    public MessageTrigger Message(VariableReference<string> msg, VariableReference<string> caption)
+    {
+        return new MessageTrigger(msg, caption);
+    }
+
+    /// <summary>
+    /// Creates a trigger that writes a message to the run log under the default caption <c>Message</c>.
+    /// </summary>
+    /// <param name="msg">The variable or constant that supplies the message body.</param>
+    /// <returns>A trigger that logs the supplied message.</returns>
+    public MessageTrigger Message(VariableReference<string> msg)
+    {
+        return Message(msg, "Message");
+    }
+
+    /// <summary>
     /// Creates a Windows message box trigger with explicit message and caption variables.
     /// </summary>
     /// <param name="msg">The variable or constant that supplies the message body.</param>

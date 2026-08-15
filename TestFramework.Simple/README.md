@@ -94,13 +94,30 @@ Timeline timeline = Timeline.Create()
     .Build();
 ```
 
+## Announcing Something Mid-Run
+
+`SimpleExt.Trigger.Message(msg, caption)` writes `[caption] msg` to the run log. It works everywhere
+and blocks nothing, so it is the right choice for anything that just needs to be visible in the
+output.
+
+```csharp
+Timeline timeline = Timeline.Create()
+    .Trigger(SimpleExt.Trigger.Message("Waiting for the downstream system", "Progress"))
+    .Build();
+```
+
 ## Windows MessageBox Behavior
 
-`SimpleExt.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`.
+`SimpleExt.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`. It is for a human
+sitting in front of the run.
 
 - Use it only on Windows test machines.
-- Do not rely on it for unattended CI runs.
-- Prefer `Action(...)` when you need a cross-platform inline step.
+- Do not rely on it for unattended CI runs. Set `TESTFRAMEWORK_MESSAGEBOX=off` in CI and the default
+  invoker returns immediately without showing a dialog, so an agent with nobody to click OK does not
+  sit on a modal window until the step times out.
+- Replace `MessageBoxTrigger.Invoker` to route the text somewhere else, or to assert on it in a test.
+- Prefer `Message(...)` — the same shape, logged rather than shown — when you need a cross-platform
+  step, or `Action(...)` for arbitrary inline work.
 
 ## Handling Failures
 
@@ -111,6 +128,7 @@ Timeline timeline = Timeline.Create()
 ## Includes
 
 - `SimpleExt.Trigger.Action(...)` for inline custom actions
+- `SimpleExt.Trigger.Message(...)` for a captioned line in the run log, on any platform
 - `SimpleExt.Trigger.MessageBox(...)` for simple Windows message box flows
 
 ## Target Framework

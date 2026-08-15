@@ -41,6 +41,45 @@ public class MessageBoxTriggerTests
     }
 
     [Fact]
+    [SupportedOSPlatform("windows")]
+    public void DefaultInvoker_ShowsNoDialog_WhenTheEnvironmentSwitchIsOff()
+    {
+        // A CI agent has nobody to click OK, so a real dialog would hold the step until it timed out.
+        // Reaching the P/Invoke here would block this test rather than fail it, which is the point.
+        string? previous = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX");
+
+        try
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX", "off");
+
+            Assert.Equal(0, MessageBoxTrigger.Invoker("Hello", "Greeting"));
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX", previous);
+        }
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void Invoker_AndTheInternalForwarder_AreTheSameSetting()
+    {
+        Func<string, string, int> previous = MessageBoxTrigger.Invoker;
+
+        try
+        {
+            static int Replacement(string text, string caption) => 42;
+            MessageBoxTrigger.Invoker = Replacement;
+
+            Assert.Same((Func<string, string, int>)Replacement, MessageBoxTrigger.MessageBoxInvoker);
+        }
+        finally
+        {
+            MessageBoxTrigger.Invoker = previous;
+        }
+    }
+
+    [Fact]
     public void MessageBoxTrigger_IsMarkedAsWindowsOnly()
     {
         SupportedOSPlatformAttribute? attribute = typeof(MessageBoxTrigger).GetCustomAttributes(typeof(SupportedOSPlatformAttribute), false)

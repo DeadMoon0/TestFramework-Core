@@ -67,7 +67,37 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
-    internal static Func<string, string, int> MessageBoxInvoker { get; set; } = (text, title) => MessageBox(IntPtr.Zero, text, title, (uint)MessageBoxIconWin32.None);
+    /// <summary>
+    /// Gets or sets the delegate that actually presents the message box.
+    /// </summary>
+    /// <remarks>
+    /// The default still shows a real dialog, because that is what a developer running this trigger
+    /// interactively asked for. It makes one exception: when <c>TESTFRAMEWORK_MESSAGEBOX</c> is set
+    /// to <c>off</c> it returns immediately without showing anything, so a CI agent with no one to
+    /// click OK does not sit on a modal dialog until the step times out.
+    /// Replace this to route the message somewhere else, or to assert on it in a test.
+    /// </remarks>
+    public static Func<string, string, int> Invoker { get; set; } = DefaultInvoker;
+
+    internal static Func<string, string, int> MessageBoxInvoker
+    {
+        get => Invoker;
+        set => Invoker = value;
+    }
+
+    private static int DefaultInvoker(string text, string title)
+    {
+        if (IsMessageBoxDisabled())
+            return 0;
+
+        return MessageBox(IntPtr.Zero, text, title, (uint)MessageBoxIconWin32.None);
+    }
+
+    private static bool IsMessageBoxDisabled()
+    {
+        string? value = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX");
+        return value is not null && value.Trim().Equals("off", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Gets the display name shown in the timeline output.
@@ -105,7 +135,7 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <remarks>This trigger requires Windows because it calls <c>user32.dll</c>.</remarks>
     public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
-        MessageBoxInvoker(msg.GetRequiredValue(variableStore), caption.GetRequiredValue(variableStore));
+        Invoker(msg.GetRequiredValue(variableStore), caption.GetRequiredValue(variableStore));
         return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 
