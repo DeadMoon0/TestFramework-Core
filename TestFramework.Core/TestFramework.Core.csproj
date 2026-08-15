@@ -2,15 +2,13 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-		<ImplicitUsings>disable</ImplicitUsings>
-		<Nullable>enable</Nullable>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<Title>TestFramework.Core</Title>
 		<Authors>DeadMoon0</Authors>
 		<Product>TestFramework</Product>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageTags>Test;UnitTest;IntegrationTest,Framework;Fluent;Timeline</PackageTags>
+		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>The core package of the TestFramework ecosystem for building integration-style and end-to-end test workflows. Provides the timeline engine for steps, events, variables, artifacts, retries, timeouts, and assertions, and serves as the foundation for extension packages like Azure, LocalIO, and Simple.</Description>
 		<Version>0.1.9</Version>
@@ -19,14 +17,6 @@
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
 		<PackageReleaseNotes>Multi-target net8.0 and net10.0, and fix artifact teardown skipping the artifacts after an unfound one</PackageReleaseNotes>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
 	</PropertyGroup>
 
 	<ItemGroup>

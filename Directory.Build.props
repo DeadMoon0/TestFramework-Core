@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    One place for the compiler settings every project in this repo shares.
+
+    These used to be repeated per project, and TreatWarningsAsErrors was additionally guarded by
+    'Debug|AnyCPU' / 'Release|AnyCPU' conditions — so any other configuration or platform quietly
+    built with warnings allowed. Setting it unconditionally here is the point.
+  -->
+  <PropertyGroup>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

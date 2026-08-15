@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Events;
 using TestFramework.Core.Exceptions;
@@ -9,7 +14,6 @@ using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 using Xunit.Abstractions;
-using System.Linq;
 
 namespace TestFramework.Core.Tests;
 
