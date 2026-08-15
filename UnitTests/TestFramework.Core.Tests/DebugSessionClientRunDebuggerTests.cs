@@ -43,10 +43,70 @@ public class DebugSessionClientRunDebuggerTests
     [Fact]
     public void CommonDebugger_ProvidesBuiltInPipeDebuggerWithoutReflection()
     {
+        // The negative connect cache is process-wide, so without clearing it this test passes or
+        // fails depending on whether another test already probed the pipe.
+        PipeClient.ResetAvailabilityForTests();
+
         IRunDebugger debugger = CommonDebugger.GetCommon();
 
         PipeRunDebugger pipeDebugger = Assert.IsType<PipeRunDebugger>(debugger);
         Assert.NotNull(pipeDebugger);
+    }
+
+    [Fact]
+    public async Task PipeClient_RemembersAMissedPipeForTheWholeProcess()
+    {
+        // This is the whole point of the negative cache: a fresh client is built for every run, so
+        // an instance-level flag meant every run in the suite paid the same connect probe again.
+        string pipeName = $"testframework-missing-{Guid.NewGuid():N}";
+        Assert.False(PipeClient.IsKnownUnavailable(pipeName));
+
+        using (PipeClient probe = new(pipeName))
+        {
+            await probe.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "probe" });
+        }
+
+        Assert.True(PipeClient.IsKnownUnavailable(pipeName));
+
+        // A different client for the same name inherits the knowledge rather than re-probing.
+        using PipeClient later = new(pipeName);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await later.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "probe-2" });
+        stopwatch.Stop();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(100), $"A second client re-probed the pipe and took {stopwatch.Elapsed}.");
+    }
+
+    [Fact]
+    public void PipeDebuggerEnabled_False_KeepsThePipeDebuggerOutOfTheFanOut()
+    {
+        PipeClient.ResetAvailabilityForTests();
+        PipeDebuggerMode? previous = PipeTransport.ModeOverride;
+        try
+        {
+            TestFrameworkDebugging.PipeDebuggerEnabled = false;
+
+            Assert.False(TestFrameworkDebugging.PipeDebuggerEnabled);
+            Assert.IsType<EmptyRunDebugger>(CommonDebugger.GetCommon());
+        }
+        finally
+        {
+            PipeTransport.ModeOverride = previous;
+            PipeClient.ResetAvailabilityForTests();
+        }
+    }
+
+    [Fact]
+    public async Task PipeClient_ProbesBrieflyInAutoMode()
+    {
+        PipeClient.ResetAvailabilityForTests();
+        using PipeClient client = new($"testframework-missing-{Guid.NewGuid():N}");
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await client.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-1" });
+        stopwatch.Stop();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Auto-mode probe took {stopwatch.Elapsed}; it should give up in roughly 250 ms.");
     }
 
     [Fact]
@@ -85,6 +145,7 @@ public class DebugSessionClientRunDebuggerTests
     [Fact]
     public async Task PipeClient_DoesNotRepeatConnectTimeoutAfterInitialFailure()
     {
+        PipeClient.ResetAvailabilityForTests();
         using PipeClient client = new($"testframework-missing-{Guid.NewGuid():N}");
 
         await client.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-1" });

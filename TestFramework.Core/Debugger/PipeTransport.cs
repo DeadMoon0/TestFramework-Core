@@ -10,13 +10,95 @@ using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Debugger;
 
+/// <summary>
+/// Describes how eagerly the built-in named-pipe debugger transport tries to reach a debugger UI.
+/// </summary>
+internal enum PipeDebuggerMode
+{
+    /// <summary>Never attach the pipe debugger.</summary>
+    Off,
+
+    /// <summary>Probe briefly for a UI; give up cheaply and stay out of the way when there is none.</summary>
+    Auto,
+
+    /// <summary>A UI is expected: wait the full connect timeout and keep retrying between runs.</summary>
+    On
+}
+
 internal static class PipeTransport
 {
     private const string DefaultPipeName = "TestFrameworkDebug_79d7aa2d-da07-4c84-b1f2-0639b0009290";
 
+    /// <summary>Full connect timeout, used only when a UI is known to be expected.</summary>
+    private static readonly TimeSpan AttachedConnectTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Probe timeout for <see cref="PipeDebuggerMode.Auto"/>. Long enough to win the normal
+    /// connect race against a UI that is already listening, short enough that a suite with no UI
+    /// does not pay seconds per run.
+    /// </summary>
+    private static readonly TimeSpan ProbeConnectTimeout = TimeSpan.FromMilliseconds(250);
+
+    private static readonly TimeSpan DefaultWaitTimeout = TimeSpan.FromSeconds(600);
+
+    /// <summary>Bounds the write path so a UI that stops draining cannot stall every signal.</summary>
+    internal static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Set through <see cref="TestFrameworkDebugging.PipeDebuggerEnabled"/>. Takes precedence over
+    /// the environment variable so a test project can opt in or out in code.
+    /// </summary>
+    internal static PipeDebuggerMode? ModeOverride { get; set; }
+
     internal static string GetPipeName()
     {
+        // TESTFRAMEWORK_DEBUG_PIPE_NAME is an isolation override, never an enable switch: the DebugUI's
+        // zero-config flow leaves it unset, so the mode must not be derived from it.
         return System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME") ?? DefaultPipeName;
+    }
+
+    internal static PipeDebuggerMode GetMode()
+    {
+        return ModeOverride ?? ParseMode(System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE"));
+    }
+
+    private static PipeDebuggerMode ParseMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return PipeDebuggerMode.Auto;
+
+        string trimmed = value.Trim();
+
+        if (string.Equals(trimmed, "off", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "0", StringComparison.Ordinal)
+            || string.Equals(trimmed, "false", StringComparison.OrdinalIgnoreCase))
+            return PipeDebuggerMode.Off;
+
+        if (string.Equals(trimmed, "on", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "1", StringComparison.Ordinal)
+            || string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase))
+            return PipeDebuggerMode.On;
+
+        return PipeDebuggerMode.Auto;
+    }
+
+    internal static TimeSpan GetConnectTimeout()
+    {
+        if (GetMode() == PipeDebuggerMode.On)
+            return AttachedConnectTimeout;
+
+        string? configured = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_PROBE_MS");
+        return int.TryParse(configured, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int milliseconds) && milliseconds > 0
+            ? TimeSpan.FromMilliseconds(milliseconds)
+            : ProbeConnectTimeout;
+    }
+
+    internal static TimeSpan GetWaitTimeout()
+    {
+        string? configured = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_WAIT_MS");
+        return int.TryParse(configured, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int milliseconds) && milliseconds > 0
+            ? TimeSpan.FromMilliseconds(milliseconds)
+            : DefaultWaitTimeout;
     }
 }
 
@@ -63,7 +145,11 @@ internal sealed class PipeProtocolStream(PipeStream stream)
             lockAcquired = true;
             string json = JsonConvert.SerializeObject(signal);
             byte[] buffer = [.. BitConverter.GetBytes(WireEncoding.GetByteCount(json)), .. WireEncoding.GetBytes(json)];
-            await stream.WriteAsync(buffer, 0, buffer.Length, CancellationToken.None);
+
+            // A UI that stops reading applies backpressure through the pipe buffer. Without a bound
+            // here every subsequent signal would queue behind this write for the rest of the run.
+            using CancellationTokenSource writeCancellation = new(PipeTransport.WriteTimeout);
+            await stream.WriteAsync(buffer, 0, buffer.Length, writeCancellation.Token);
         }
         catch (Exception e)
         {
@@ -106,12 +192,30 @@ internal sealed class PipeProtocolStream(PipeStream stream)
 
 internal sealed class PipeClient : IDisposable
 {
+    /// <summary>
+    /// Process-wide, because a fresh <see cref="PipeRunDebugger"/> — and therefore a fresh client —
+    /// is created for every run. An instance-level flag learned nothing that outlived the run that
+    /// paid for it, so every run repeated the connect timeout.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> UnavailablePipes = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Reports whether this process has already failed to reach the named pipe, so callers can skip
+    /// the work of setting up a debugger that has nowhere to send its signals.
+    /// </summary>
+    internal static bool IsKnownUnavailable(string pipeName) => UnavailablePipes.ContainsKey(pipeName);
+
+    /// <summary>
+    /// Clears the process-wide negative cache. Tests that assert on connect behaviour need this
+    /// because the cache otherwise makes them depend on the order the suite happens to run in.
+    /// </summary>
+    internal static void ResetAvailabilityForTests() => UnavailablePipes.Clear();
+
     private readonly string pipeName;
     private readonly SemaphoreSlim connectionLock = new(1, 1);
     private readonly object stateLock = new();
     private NamedPipeClientStream? pipeClient;
     private PipeProtocolStream? stream;
-    private bool connectionUnavailable;
     private bool disposed;
 
     internal PipeClient(string pipeName)
@@ -144,7 +248,14 @@ internal sealed class PipeClient : IDisposable
             DisposeConnection(currentStream);
     }
 
-    internal async Task<IPipeSignal?> WaitForAsync(PipeSignalKind kind)
+    /// <summary>
+    /// Waits for one signal of the requested kind, or gives up after <paramref name="timeout"/>.
+    /// </summary>
+    /// <remarks>
+    /// On expiry the connection is disposed rather than reused: the frame is half-read, so the next
+    /// read would start mid-message and desynchronize framing for the rest of the run.
+    /// </remarks>
+    internal async Task<IPipeSignal?> WaitForAsync(PipeSignalKind kind, TimeSpan? timeout = null)
     {
         if (!await EnsureConnectedAsync())
             return null;
@@ -153,7 +264,20 @@ internal sealed class PipeClient : IDisposable
         if (currentStream is null)
             return null;
 
-        IPipeSignal? signal = await currentStream.WaitSignalAsync();
+        IPipeSignal? signal;
+        using (CancellationTokenSource waitCancellation = new(timeout ?? PipeTransport.GetWaitTimeout()))
+        {
+            try
+            {
+                signal = await currentStream.WaitSignalAsync(waitCancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                DisposeConnection(currentStream);
+                return null;
+            }
+        }
+
         if (signal is null)
         {
             DisposeConnection(currentStream);
@@ -184,7 +308,11 @@ internal sealed class PipeClient : IDisposable
         if (disposed)
             return false;
 
-        if (connectionUnavailable)
+        PipeDebuggerMode mode = PipeTransport.GetMode();
+        if (mode == PipeDebuggerMode.Off)
+            return false;
+
+        if (IsKnownUnavailable(pipeName))
             return false;
 
         if (IsConnected)
@@ -196,7 +324,7 @@ internal sealed class PipeClient : IDisposable
             if (disposed)
                 return false;
 
-            if (connectionUnavailable)
+            if (IsKnownUnavailable(pipeName))
                 return false;
 
             if (IsConnected)
@@ -204,17 +332,23 @@ internal sealed class PipeClient : IDisposable
 
             DisposeConnection();
 
-            NamedPipeClientStream candidate = new(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            // CurrentUserOnly validates the server's owner SID, so a hostile pipe squatting on the
+            // well-known name under another account cannot receive this run's debug stream.
+            NamedPipeClientStream candidate = new(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             try
             {
-                using CancellationTokenSource cts = new();
-                cts.CancelAfter(TimeSpan.FromSeconds(2));
+                using CancellationTokenSource cts = new(PipeTransport.GetConnectTimeout());
                 await candidate.ConnectAsync(cts.Token);
             }
             catch
             {
                 candidate.Dispose();
-                connectionUnavailable = true;
+
+                // In On mode a UI is expected and may still be starting, so keep probing. In Auto
+                // mode remember the miss: nothing is listening and the whole suite would pay again.
+                if (mode != PipeDebuggerMode.On)
+                    UnavailablePipes[pipeName] = true;
+
                 return false;
             }
 
@@ -224,7 +358,7 @@ internal sealed class PipeClient : IDisposable
                 stream = new PipeProtocolStream(candidate);
             }
 
-            connectionUnavailable = false;
+            UnavailablePipes.TryRemove(pipeName, out _);
 
             return true;
         }

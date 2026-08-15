@@ -33,6 +33,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
     private readonly DebuggingRunSession _debuggingSession;
 
+    /// <summary>
+    /// The debuggers CommonDebugger constructed for this run. Releasing them at the end of the run
+    /// closes the pipe handle a connected UI would otherwise leak once per run.
+    /// </summary>
+    private readonly IDisposable? _ownedDebuggerResources;
+
     private readonly List<VariableIdentifier> _externalVariables = [];
     private readonly List<ArtifactIdentifier> _externalArtifacts = [];
     private IEnvironmentProvider? _environment;
@@ -49,7 +55,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         _mainStage = mainStage;
         _serviceProvider = serviceProvider;
 
-        _debuggingSession = new DebuggingRunSession(CommonDebugger.GetCommon(_serviceProvider, outputHelper));
+        _debuggingSession = new DebuggingRunSession(CommonDebugger.GetCommon(_serviceProvider, outputHelper, out _ownedDebuggerResources));
         logger = ScopedLogger.CreateWithDebuggerSession(_debuggingSession);
 
         _newArtifactStore = new ArtifactStore(logger, _debuggingSession);
@@ -136,6 +142,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             if (!runTransitionCompleted)
                 await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Error, DebugLifecycleState.Running);
             await _debuggingSession.FinishSessionAsync();
+            _ownedDebuggerResources?.Dispose();
         }
         newRun.Freeze();
         return newRun;
