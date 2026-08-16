@@ -17,7 +17,7 @@ namespace TestFramework.Core.Debugger;
 /// there is no configuration step — installing the tool is what switches on the durability the tool
 /// needs.
 /// </remarks>
-internal static class DebugJournal
+public static class DebugJournal
 {
     private const string RootFolderName = "TestFramework";
     private const string JournalFolderName = "Debug";
@@ -30,7 +30,7 @@ internal static class DebugJournal
     private static bool resolvedEnabled;
 
     /// <summary>The journal root, whether or not it exists.</summary>
-    internal static string Root
+    public static string Root
     {
         get
         {
@@ -40,7 +40,7 @@ internal static class DebugJournal
     }
 
     /// <summary>Whether run journals should be written by this process.</summary>
-    internal static bool IsEnabled
+    public static bool IsEnabled
     {
         get
         {
@@ -49,7 +49,8 @@ internal static class DebugJournal
         }
     }
 
-    internal static string RunsDirectory => Path.Combine(Root, RunsFolderName);
+    /// <summary>The directory holding recorded runs and their metadata sidecars.</summary>
+    public static string RunsDirectory => Path.Combine(Root, RunsFolderName);
 
     /// <summary>Re-reads the environment and the marker. Tests need this; nothing else should.</summary>
     internal static void ResetForTests()
@@ -126,7 +127,7 @@ internal static class DebugJournal
     /// sharing violation. A consumer must allow writers explicitly, which is easy to get wrong and
     /// only shows up against an in-progress run.
     /// </remarks>
-    internal static StreamReader OpenForReading(string path)
+    public static StreamReader OpenForReading(string path)
         => new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
 
     /// <summary>
@@ -179,7 +180,7 @@ internal static class DebugJournal
 /// <summary>
 /// How a run ended, as recorded in its metadata sidecar.
 /// </summary>
-internal enum DebugRunOutcome
+public enum DebugRunOutcome
 {
     /// <summary>Written at start. A journal still saying this was never closed — the host died.</summary>
     Running,
@@ -192,17 +193,27 @@ internal enum DebugRunOutcome
 /// The per-run metadata sidecar. Kept separate from the event log so listing runs never requires
 /// parsing them.
 /// </summary>
-internal sealed record DebugRunMetadata
+public sealed record DebugRunMetadata
 {
+    /// <summary>Gets the protocol version the run was recorded with.</summary>
     public required int ProtocolVersion { get; init; }
+    /// <summary>Gets the run's session identifier.</summary>
     public required string SessionId { get; init; }
+    /// <summary>Gets the run's display name.</summary>
     public required string Name { get; init; }
+    /// <summary>Gets the assembly or host path that produced the run.</summary>
     public required string ProjectPath { get; init; }
+    /// <summary>Gets the machine the run executed on.</summary>
     public required string MachineName { get; init; }
+    /// <summary>Gets when the run started.</summary>
     public required DateTimeOffset StartedAtUtc { get; init; }
+    /// <summary>Gets when the run finished, or null if it never did.</summary>
     public DateTimeOffset? FinishedAtUtc { get; init; }
+    /// <summary>Gets how the run ended.</summary>
     public required DebugRunOutcome Outcome { get; init; }
+    /// <summary>Gets the journal file holding the run's events.</summary>
     public required string JournalFileName { get; init; }
+    /// <summary>Gets how many events the run recorded.</summary>
     public long EventCount { get; init; }
 
     /// <summary>
