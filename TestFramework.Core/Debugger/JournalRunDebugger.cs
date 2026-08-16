@@ -123,10 +123,16 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable
     }
 
     /// <summary>
-    /// Records that a step reached a breakpoint. The journal never pauses a run.
+    /// Does nothing. The journal never pauses a run, and never records that one was asked about.
     /// </summary>
+    /// <remarks>
+    /// Every step asks permission before it runs — the framework cannot know which steps a user
+    /// marked, so it asks about all of them. That makes this a question rather than an event, and
+    /// recording it would put one line per step into the journal describing something that did not
+    /// happen. A run that really was held is held by the UI, which is the only party that knows.
+    /// </remarks>
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
-        => AppendAsync(new PipeBreakpointHitRequestSignal { SessionId = sessionId, Stage = stage, StepId = stepId });
+        => Task.CompletedTask;
 
     /// <summary>
     /// Closes the journal, marking the run finished if it had not already been closed.

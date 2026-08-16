@@ -166,25 +166,69 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         {
             Artifacts = _newArtifactStore.GetAll().ToDictionary(x => x.Identifier, ArtifactStore.GetDebuggingStateFromInstance),
             Variables = _newVariableStore.GetAll().ToDictionary(x => x.Key, x => VariableStore.GetDebuggingStateFromValue(x.Value, x.Key)),
-            Stages = [.. newRun.Stages.Select(x => new DebugStageState
+            Stages = [.. newRun.Stages.Select(stage => BuildStageStructure(stage))]
+        };
+    }
+
+    private DebugStageState BuildStageStructure(StageInstance stage)
+    {
+        IReadOnlyDictionary<int, int> layerByStepIndex = BuildLayerMap(stage);
+
+        return new DebugStageState
+        {
+            Name = stage.Stage.Name,
+            Description = stage.Stage.Description,
+            Steps = [.. stage.Stage.Steps.Select((step, index) => new DebugStepState
             {
-                Name = x.Stage.Name,
-                Description = x.Stage.Description,
-                Steps = [.. x.Stage.Steps.Select(x => new DebugStepState
-                {
-                    Name = x.Name,
-                    Description = x.Description,
-                    DoesReturn = x.DoesReturn,
-                    ErrorHandlingOptions = x.ErrorHandlingOptions,
-                    ExecutionOptions = x.ExecutionOptions,
-                    IOContract = x.IOContract,
-                    Phase = x.Phase,
-                    LabelOptions = x.LabelOptions,
-                    RetryOptions = x.RetryOptions,
-                    TimeOutOptions = x.TimeOutOptions,
-                })]
+                Name = step.Name,
+                Description = step.Description,
+                DoesReturn = step.DoesReturn,
+                ErrorHandlingOptions = step.ErrorHandlingOptions,
+                ExecutionOptions = step.ExecutionOptions,
+                IOContract = step.IOContract,
+                Phase = step.Phase,
+                LabelOptions = step.LabelOptions,
+                RetryOptions = step.RetryOptions,
+                TimeOutOptions = step.TimeOutOptions,
+                LayerIndex = layerByStepIndex.TryGetValue(index, out int layer) ? layer : 0,
             })]
         };
+    }
+
+    /// <summary>
+    /// Runs the planner to find out which steps will execute together.
+    /// </summary>
+    /// <remarks>
+    /// The same planner the runner uses, over the same stage, so the layers reported are the layers
+    /// that run — not a second implementation that could drift from it. Step indices line up because
+    /// <see cref="StageInstance.Steps"/> is built one-to-one from the stage's steps.
+    /// <para>
+    /// A stage whose graph cannot be planned still has to be describable: the run is about to fail
+    /// with that error anyway, and a debugger that throws while preparing to report the failure would
+    /// replace a diagnosable problem with an undiagnosable one.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyDictionary<int, int> BuildLayerMap(StageInstance stage)
+    {
+        Dictionary<int, int> layers = [];
+
+        try
+        {
+            IReadOnlyList<IReadOnlyList<Runner.StageExecutionPlanner.ScheduledStep>> plan =
+                new Runner.StageExecutionPlanner(stage, _newArtifactStore).BuildLayers();
+
+            for (int layerIndex = 0; layerIndex < plan.Count; layerIndex++)
+            {
+                foreach (Runner.StageExecutionPlanner.ScheduledStep scheduled in plan[layerIndex])
+                    layers[scheduled.Index] = layerIndex;
+            }
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(exception);
+        }
+
+        return layers;
     }
 
     private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker trackedVariables)

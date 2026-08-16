@@ -52,4 +52,17 @@ public record DebugStepState
     /// Gets a value indicating whether the step returns a result.
     /// </summary>
     public required bool DoesReturn { get; init; }
+
+    /// <summary>
+    /// Gets the execution layer the planner assigned this step to.
+    /// </summary>
+    /// <remarks>
+    /// Steps sharing a layer run concurrently; a later layer starts only once the one before it has
+    /// finished. Reported rather than left for a consumer to work out, because the real plan depends
+    /// on things the protocol does not carry — parallelization mode, IO access conflicts, artifact
+    /// setup resources shared between steps. A consumer re-deriving it from the IO contract alone
+    /// would draw a plan that disagrees with the one that ran, which is worse than drawing none:
+    /// the whole reason to show layers is to answer "what actually ran at the same time".
+    /// </remarks>
+    public int LayerIndex { get; init; }
 }

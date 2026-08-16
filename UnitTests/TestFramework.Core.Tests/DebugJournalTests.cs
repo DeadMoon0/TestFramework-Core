@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Steps;
+using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Tests;
@@ -120,6 +123,32 @@ public sealed class DebugJournalTests : IDisposable
         Assert.Equal(PipeSignalKind.TimelineRunFinished, kinds[^1]);
         Assert.Contains(PipeSignalKind.EntityTransition, kinds);
         Assert.Contains(PipeSignalKind.ValueUpdate, kinds);
+    }
+
+    [Fact]
+    public async Task AskingWhetherToPauseIsNotRecordedAsSomethingThatHappened()
+    {
+        // Every step asks permission before it runs, so recording the question would put one line
+        // per step into the journal describing a pause that never occurred - doubling the file and
+        // making a replayed run show each step as briefly held. Driven by a real timeline, because
+        // the per-step asking is the framework's behaviour rather than this test's.
+        ArmJournal();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new JournalNoopStep())
+            .Name("first")
+            .Trigger(new JournalNoopStep())
+            .Name("second")
+            .Build();
+
+        await timeline.SetupRun().RunAsync();
+
+        string[] lines = ReadLines(JournalFiles().Single());
+        Assert.NotEmpty(lines);
+
+        Assert.DoesNotContain(
+            lines.Select(DebugEnvelopeCodec.Deserialize),
+            envelope => envelope.Kind == PipeSignalKind.BreakpointHitRequest);
     }
 
     [Fact]
@@ -310,5 +339,19 @@ public sealed class DebugJournalTests : IDisposable
     {
         string runs = Path.Combine(journalRoot, "runs");
         return Directory.Exists(runs) ? Directory.EnumerateFiles(runs, "*.meta.json") : [];
+    }
+
+    private sealed class JournalNoopStep : Step<EmptyStepResultContext>
+    {
+        public override string Name => "noop";
+        public override string Description => "Does nothing.";
+        public override bool DoesReturn => false;
+
+        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, Logging.ScopedLogger logger, System.Threading.CancellationToken cancellationToken)
+            => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
+
+        public override Step<EmptyStepResultContext> Clone() => new JournalNoopStep().WithClonedOptions(this);
+        public override void DeclareIO(StepIOContract contract) { }
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 }
