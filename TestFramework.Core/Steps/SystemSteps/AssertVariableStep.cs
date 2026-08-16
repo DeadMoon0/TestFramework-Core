@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -11,6 +12,15 @@ namespace TestFramework.Core.Steps.SystemSteps;
 
 internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, bool> predicate) : Step<EmptyStepResultContext>
 {
+    /// <summary>
+    /// What the assertion is called where it is reported.
+    /// </summary>
+    /// <remarks>
+    /// The predicate is a compiled delegate, so there is nothing to render of the condition itself.
+    /// The step's own name carries what was checked; this says how.
+    /// </remarks>
+    private const string AssertionName = "MatchesPredicate";
+
     public override bool DoesReturn => false;
 
     public override string Name => "Assert Variable";
@@ -24,9 +34,27 @@ internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, boo
     public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
     {
         T? value = variable.GetValue(variableStore);
-        if (!predicate(value)) throw new AssertVariableException(variable.Identifier, value);
+        bool held = predicate(value);
+
+        // Reported whether it held or not, and reported before the throw. A consumer decides whether
+        // a run proved anything from the assertions it was told about, so an assertion written in the
+        // timeline has to reach the same channel as one written after the run — otherwise a timeline
+        // full of checks looks like a run that checked nothing.
+        logger.SignalAssertion(
+            DebugAssertionTargetKind.Variable,
+            variable.HasIdentifier ? variable.Identifier!.Identifier : "<const>",
+            AssertionName,
+            AssertionName,
+            held,
+            "the predicate holds",
+            Describe(value),
+            held ? "" : $"the predicate rejected {Describe(value)}");
+
+        if (!held) throw new AssertVariableException(variable.Identifier, value);
         return EmptyStepResultContext.Instance;
     }
+
+    private static string Describe(T? value) => value?.ToString() ?? "null";
 
     public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 
