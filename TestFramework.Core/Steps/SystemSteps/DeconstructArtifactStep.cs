@@ -29,6 +29,7 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
         if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(identifier);
         await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
         artifactInstance.State = ArtifactState.Cleaned;
+        artifactStore.PublishArtifactChanged(artifactInstance);
         return EmptyStepResultContext.Instance;
     }
 

@@ -16,12 +16,12 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Performance: the debug pipe is no longer attached unconditionally, removing a ~2s stall from every run (test suites that paid it are roughly an order of magnitude faster). Set TESTFRAMEWORK_DEBUG_PIPE=on to force it, off to disable it.
-Security: the debug pipe client now uses CurrentUserOnly, and both the breakpoint wait and the pipe write are bounded so an unresponsive UI can no longer stall a run.
-Run isolation: an artifact reference is now copied per run, so two runs of one timeline no longer share pinned state. A frozen run is now genuinely immutable.
-Fixes: VariableReference.Transform no longer recurses into a StackOverflow; ConstVariable.Transform no longer drops an existing transform chain; FreezableCollection.Contains no longer throws once frozen; SequentialEvent honours cancellation instead of polling on; OutputRunDebugger is safe under parallel steps; a step timeout no longer leaves the abandoned attempt racing its own retry.
-Usability: reusing a run builder throws TimelineRunBuilderAlreadyUsedException instead of failing obscurely; immutable-variable enforcement is restored; logging no longer blocks the calling step.
-Also adds PersistentEnvironmentContext.CreateAsync as a non-blocking alternative to the constructor, which is now obsolete.</PackageReleaseNotes>
+		<PackageReleaseNotes>Debugger protocol v2 (breaking for debugger consumers): events now travel in a versioned envelope framed as length-prefixed UTF-8 instead of UTF-16, and the signal types are public so a consumer no longer needs InternalsVisibleTo.
+Attaching is cheaper and no longer latched: a listening UI is detected per run with a directory probe instead of a connect timeout, so a UI started midway through a suite is picked up without setting TESTFRAMEWORK_DEBUG_PIPE.
+Runs can be recorded to an NDJSON journal under %APPDATA%\TestFramework\Debug, gated on that directory existing, so a completed run stays inspectable after the test host exits. Nothing is written when the directory is absent.
+A failed step now reports why: exception chain, stack trace, attempt number, and the FriendlyMessage/RecoverySteps/AvailableOptions of framework exceptions.
+Runs report a real test identity (fully qualified name, framework, source location, project file) instead of a bare method name, and can be stopped cooperatively so the timeline unwinds through its Cleanup stage rather than being killed.
+Fixes: artifact version captures and lifecycle changes now reach debuggers; variable change detection no longer drops updates whose values differ only past the 120-character display cut-off.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>

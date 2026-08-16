@@ -29,6 +29,11 @@ internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, Artifac
         if (artifactDataResult.Found && artifactDataResult.Data is null)
             throw new ArtifactResolutionInvariantException(identifier, "artifact version capture", versionIdentifier);
         artifactInstance.AddVersionGeneric(artifactDataResult.Data!);
+
+        // The version lands on the instance the store already holds, so nothing would otherwise
+        // tell a debugger the artifact moved on.
+        artifactStore.PublishArtifactChanged(artifactInstance);
+
         return EmptyStepResultContext.Instance;
     }
 

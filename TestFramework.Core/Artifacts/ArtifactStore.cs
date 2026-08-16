@@ -53,6 +53,25 @@ public class ArtifactStore : IFreezable
         debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
     }
 
+    /// <summary>
+    /// Re-publishes an artifact whose contents changed in place, rather than through
+    /// <see cref="AddArtifact"/>.
+    /// </summary>
+    /// <remarks>
+    /// Capturing a version and changing lifecycle state both mutate the instance the store already
+    /// holds, so neither passes through <see cref="AddArtifact"/>. Without this, a debugger only
+    /// ever saw an artifact's first version and its initial state: the whole point of
+    /// <c>CaptureArtifactVersion</c> — watching a value evolve across a run — was invisible to the
+    /// one consumer built to show it.
+    /// </remarks>
+    internal void PublishArtifactChanged(ArtifactInstanceGeneric instance)
+    {
+        if (!debuggingSession.IsCapturing)
+            return;
+
+        debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
+    }
+
     internal static Debugger.ArtifactState GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)
     {
         ArtifactDataGeneric? currentData = instance.VersionCount != 0 ? instance[instance.VersionCount - 1] : null;
@@ -72,12 +91,28 @@ public class ArtifactStore : IFreezable
                     ["artifactType"] = instance.Artifact.ToString(),
                     ["state"] = instance.State.ToString(),
                     ["versionCount"] = instance.VersionCount,
+                    ["versionIndex"] = instance.VersionCount - 1,
+
+                    // The identifiers of every captured version, oldest first, so a consumer can
+                    // draw the artifact's history from one update instead of stitching together
+                    // the updates it happened to be connected for.
+                    ["versions"] = DescribeVersions(instance),
                     ["reference"] = ToToken(instance.Reference),
                     ["data"] = ToToken(currentData)
                 },
                 Custom = instance.Artifact.CreateDebugValueCustomPayload(instance)
             }
         };
+    }
+
+    private static JArray DescribeVersions(ArtifactInstanceGeneric instance)
+    {
+        JArray versions = [];
+
+        for (int index = 0; index < instance.VersionCount; index++)
+            versions.Add(instance[index].Identifier.ToString());
+
+        return versions;
     }
 
     private static JToken ToToken(object? value)

@@ -29,6 +29,47 @@ internal static class VariableFormatter
                : TrySerialize(value)
     };
 
+    /// <summary>
+    /// Produces a stable fingerprint of a value's full content, for detecting that it changed.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Format"/> is a display helper and truncates at 120 characters, which makes it
+    /// unusable as a change rule: two different values sharing a 117-character prefix format
+    /// identically, so the second write looks like a no-op and never reaches a debugger. That is a
+    /// silent loss on exactly the large payloads — request bodies, result rows — someone is most
+    /// likely to be inspecting.
+    /// <para>
+    /// A hash rather than the text itself, because the untruncated form of a large value can be
+    /// megabytes and one is retained per variable for the life of the run. Comparing the values
+    /// directly is not an option either: a reference type mutated in place is still equal to
+    /// itself, and that change must be reported.
+    /// </para>
+    /// </remarks>
+    internal static string CreateChangeToken(object? value)
+    {
+        string full = FormatFull(value);
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full));
+        return Convert.ToBase64String(hash);
+    }
+
+    private static string FormatFull(object? value)
+    {
+        if (value is null)
+            return "<NULL>";
+
+        try
+        {
+            return JsonConvert.SerializeObject(value, JsonSettings);
+        }
+        catch
+        {
+            // Unserializable values still need a token; fall back to the display form, accepting
+            // that two such values sharing a truncated prefix look alike. Rare, and far narrower
+            // than applying that rule to everything.
+            return Format(value);
+        }
+    }
+
     private static bool HasMeaningfulToString(Type t) =>
         t.GetMethod("ToString", Type.EmptyTypes)!.DeclaringType != typeof(object);
 

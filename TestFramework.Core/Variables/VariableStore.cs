@@ -29,6 +29,12 @@ public class VariableStore : IFreezable
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
+    /// <summary>
+    /// Last published content fingerprint per variable. Only populated while something is capturing.
+    /// </summary>
+    private readonly Dictionary<VariableIdentifier, string> changeTokens = [];
+    private readonly object changeTokenLock = new();
+
     internal VariableStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
     {
         this.logger = logger;
@@ -45,27 +51,30 @@ public class VariableStore : IFreezable
     {
         // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
         // expensive, and it used to happen up to three times per write with the lock held.
-        object? previousValue;
-        bool existed;
-
         lock (syncRoot)
         {
             ((IFreezable)this).EnsureNotFrozen();
-            existed = _variables.TryGetValue(identifier, out previousValue);
             _variables[identifier] = value;
         }
 
         if (!debuggingSession.IsCapturing)
             return;
 
-        string newValue = Logging.VariableFormatter.Format(value);
+        // Content fingerprint, not display text. The display form is truncated, so using it as the
+        // change rule silently dropped updates whose values differed only past the cut-off. The
+        // previous token is kept rather than recomputed, which also removes the second formatting
+        // pass this method used to perform on every write.
+        string changeToken = Logging.VariableFormatter.CreateChangeToken(value);
 
-        // The formatted text is the sole dedupe rule on purpose. Comparing the values themselves
-        // would suppress an update after a reference type was mutated in place.
-        if (existed && Logging.VariableFormatter.Format(previousValue) == newValue)
-            return;
+        lock (changeTokenLock)
+        {
+            if (changeTokens.TryGetValue(identifier, out string? previousToken) && previousToken == changeToken)
+                return;
 
-        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier, newValue));
+            changeTokens[identifier] = changeToken;
+        }
+
+        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier));
     }
 
     internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
