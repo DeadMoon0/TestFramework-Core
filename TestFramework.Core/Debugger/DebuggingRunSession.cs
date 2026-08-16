@@ -49,6 +49,7 @@ internal class DebuggingRunSession
         Debugger = debugger;
         this.sourceFilePath = sourceFilePath;
         this.sourceLineNumber = sourceLineNumber;
+        ValueFiles = new DebugValueFileStore(ResolveRunOutputDirectory);
 
         if (debugger is ISupportsRunCancellation cancellable)
             cancellable.CancellationRequested += OnCancellationRequested;
@@ -121,6 +122,20 @@ internal class DebuggingRunSession
 
     internal string SessionId { get; } = Guid.NewGuid().ToString();
     internal IRunDebugger Debugger { get; }
+
+    /// <summary>
+    /// Where values too big to send are written for this run.
+    /// </summary>
+    /// <remarks>
+    /// The directory is resolved lazily, and only when the first oversized value actually arrives.
+    /// That matters for the name as much as for the cost: by the time anything is written the run's
+    /// identity has been captured, so the folder can be named after the test rather than after a
+    /// GUID nobody can match to a failure.
+    /// </remarks>
+    internal DebugValueFileStore ValueFiles { get; }
+
+    private string ResolveRunOutputDirectory()
+        => Path.Combine(RunOutput.Root, RunOutput.FolderNameFor(Identity?.DisplayName, SessionId));
 
     /// <summary>
     /// Gets a value indicating whether anything downstream will use the signals this session emits.

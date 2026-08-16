@@ -60,26 +60,50 @@ public class VariableStore : IFreezable
         if (!debuggingSession.IsCapturing)
             return;
 
-        // Content fingerprint, not display text. The display form is truncated, so using it as the
-        // change rule silently dropped updates whose values differed only past the cut-off. The
-        // previous token is kept rather than recomputed, which also removes the second formatting
-        // pass this method used to perform on every write.
-        string changeToken = Logging.VariableFormatter.CreateChangeToken(value);
+        // Described and fingerprinted in one pass. Content fingerprint, not display text: the display
+        // form is truncated, so using it as the change rule silently dropped updates whose values
+        // differed only past the cut-off.
+        DescribedValue described = DebugValueDescriber.Describe(value);
 
         lock (changeTokenLock)
         {
-            if (changeTokens.TryGetValue(identifier, out string? previousToken) && previousToken == changeToken)
+            if (changeTokens.TryGetValue(identifier, out string? previousToken) && previousToken == described.ChangeToken)
                 return;
 
-            changeTokens[identifier] = changeToken;
+            changeTokens[identifier] = described.ChangeToken;
         }
 
-        debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(value, identifier));
+        debuggingSession.PublishVariableUpdate(
+            identifier,
+            GetDebuggingStateFromValue(value, identifier, described with { Description = WithBody(described, identifier) }));
+    }
+
+    /// <summary>
+    /// Writes the value out and points the description at it, when the preview could not carry it.
+    /// </summary>
+    /// <remarks>
+    /// The condition is the preview having been cut, rather than a size threshold of its own. Those
+    /// are the same question asked twice, and two answers that can disagree would leave a consumer
+    /// showing a truncated value with no way to reach the rest of it.
+    /// </remarks>
+    private DebugValueDescription WithBody(DescribedValue described, VariableIdentifier identifier)
+    {
+        if (described.Description.Preview?.IsTruncated != true || described.Content is null)
+            return described.Description;
+
+        return described.Description with
+        {
+            Body = debuggingSession.ValueFiles.Write(identifier.Identifier, described.Content)
+        };
     }
 
     internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
+        => GetDebuggingStateFromValue(value, identifier, DebugValueDescriber.Describe(value), displayText);
+
+    private static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, DescribedValue described, string? displayText = null)
     {
         string typeName = value?.GetType().FullName ?? "null";
+
         return new VariableState
         {
             Key = identifier,
@@ -87,8 +111,13 @@ public class VariableStore : IFreezable
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = typeName,
-                DisplayText = displayText ?? Logging.VariableFormatter.Format(value),
-                SchemaKey = $"tf.variable:{typeName}",
+                DisplayText = displayText ?? described.Description.Summary,
+                Description = described.Description,
+
+                // Keyed by shape, not by CLR type. The type is already on the envelope for anyone
+                // who wants it; what it could never be was a key, because registering a renderer
+                // against it means naming every concrete type a run might assign.
+                SchemaKey = DebugValueSchemaKeys.Of(described.Description.Shape),
                 Core = new JObject
                 {
                     ["key"] = identifier.Identifier,

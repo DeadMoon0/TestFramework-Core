@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using TestFramework.Core;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
 
@@ -78,6 +79,23 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     /// Creates an optional artifact-specific JSON payload for debugger value envelopes.
     /// </summary>
     public virtual JToken? CreateDebugValueCustomPayload(ArtifactInstanceGeneric instance) => null;
+
+    /// <summary>
+    /// Describes the artifact as facts a consumer can lay out for itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override to say what this kind of artifact actually is — a row's table and key, a blob's
+    /// container and content type, a file's path and size — instead of leaving a consumer to read it
+    /// out of a serialised reference. The default states what is true of every artifact: its
+    /// reference, its lifecycle state, and how many versions have been captured.
+    /// </para>
+    /// <para>
+    /// This is the presentation contract. <see cref="CreateDebugValueCustomPayload"/> remains the
+    /// place for machine-readable detail that no consumer is expected to render as text.
+    /// </para>
+    /// </remarks>
+    public virtual DebugValueDescription Describe(ArtifactInstanceGeneric instance) => ArtifactDescription.Of(instance);
 
     /// <summary>
     /// Sets up the artifact through the non-generic contract.

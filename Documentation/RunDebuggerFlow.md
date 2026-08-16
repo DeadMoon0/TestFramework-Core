@@ -205,18 +205,47 @@ The envelope contains:
 - `Kind`
 - `TypeName`
 - `DisplayText`
+- `Description`
 - `SchemaKey`
 - optional `Version`
 - `Core`
 - `Custom`
 
+`Description` states what the value is — summary, shape, named fields, badges, a bounded preview, and
+a reference to the whole of it when it did not fit. `DisplayText` is the older single line, kept so
+consumers built against an earlier package keep working, and filled from the description's summary.
 `Core` is the common JSON payload. `Custom` is the artifact- or value-specific extension point.
 
 Current usage:
 
 - variables store their key and JSON value in `Core`
 - artifacts store key, type, state, version, reference, and data in `Core`
-- artifact describers may add `SchemaKey` and `Custom` payloads for richer debug views
+- artifact describers may override `Describe` to say what their kind of thing actually is, and may add
+  `SchemaKey` and `Custom` payloads for richer debug views
+
+## Values too large to send
+
+A preview is bounded, because it rides along with every update. When a value does not fit, it is
+written to the run's own output and the envelope carries a reference — path, relative path, size and
+content hash — instead of the content.
+
+The files land under `<run output>/<test name>-<id>/values/<key>[.v<n>].<ext>`, where `<run output>` is
+`TESTFRAMEWORK_OUTPUT` when set and `./TestFrameworkOutput` otherwise. A build sets that variable to
+its staging directory and publishes the folder; the values show up beside the test results with no
+further integration.
+
+Deliberately not the debug journal: the journal is a recording the DebugUI keeps for itself, gated on
+the UI being installed and pruned behind the user's back, none of which is right for something a build
+is meant to publish. One file therefore serves three readers — a person opening it, a build publishing
+it, and a UI on the same machine reading it directly rather than asking for it back over a transport.
+
+Rules worth knowing:
+
+- a body exists exactly when the preview was truncated, so a consumer showing a cut value can always
+  offer the rest
+- unchanged content is not rewritten; changed content becomes `.v2`, `.v3`, and so on
+- the directory is created on first use, so a run that assigns nothing large leaves nothing behind
+- a failure to write truncates the value rather than failing the run
 
 ## Logging interpretation model
 
@@ -247,8 +276,8 @@ That separation matters because different runtime types can still share one debu
 
 Current usage pattern:
 
-- variables default to `tf.variable:{typeName}` because their schema is usually close to the runtime type
-- artifacts default to `ArtifactDescriber.DebugValueSchemaKey`
+- variables are keyed by shape — `tf.value.scalar`, `.text`, `.binary`, `.collection`, `.dictionary`, `.object`, `.null` — because a variable has no schema beyond its shape; it is whatever a step happened to assign it
+- artifacts default to `ArtifactDescriber.DebugValueSchemaKey`, which each shipped kind overrides with a `tf.artifact.*` key
 - `Core` holds the common JSON fields every consumer can rely on
 - `Custom` holds schema-specific extension data that only the matching renderer needs
 

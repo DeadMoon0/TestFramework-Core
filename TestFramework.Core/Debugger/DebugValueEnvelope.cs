@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace TestFramework.Core.Debugger;
@@ -22,7 +23,33 @@ public record DebugValueEnvelope
     /// <summary>
     /// Gets a short human-readable description of the value.
     /// </summary>
+    /// <remarks>
+    /// Superseded by <see cref="Description"/>, which states the same facts without deciding how
+    /// they are laid out. Kept so a consumer built against an earlier package keeps working, and
+    /// filled from the description's summary.
+    /// </remarks>
     public required string DisplayText { get; init; }
+
+    /// <summary>
+    /// Gets what the value is, stated as facts a consumer can lay out for itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Defaulted rather than required so a journal recorded by an earlier version still replays:
+    /// its values arrive with an empty description and the older <see cref="DisplayText"/> intact.
+    /// </para>
+    /// <para>
+    /// <see cref="ObjectCreationHandling.Replace"/> is load-bearing, not tidiness. The default is
+    /// <see cref="ObjectCreationHandling.Auto"/>, under which a deserializer finding a non-null value
+    /// already on the property <em>populates that instance</em> rather than building a new one — and
+    /// the value already on this property is the shared <see cref="DebugValueDescription.Empty"/>
+    /// singleton. Every value update in the process would write its own facts into the one object
+    /// that is supposed to mean "nothing was described", corrupting it for every other reader and
+    /// making every real description arrive as the same instance.
+    /// </para>
+    /// </remarks>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public DebugValueDescription Description { get; init; } = DebugValueDescription.Empty;
 
     /// <summary>
     /// Gets a stable schema identifier that consumers may use for specialized rendering.

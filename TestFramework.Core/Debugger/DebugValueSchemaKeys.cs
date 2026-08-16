@@ -1,7 +1,7 @@
 namespace TestFramework.Core.Debugger;
 
 /// <summary>
-/// The canonical schema keys for artifacts shipped with the TestFramework packages.
+/// The canonical schema keys: what a value is, in the terms a consumer picks a renderer by.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -9,6 +9,12 @@ namespace TestFramework.Core.Debugger;
 /// type name: different runtime types can share one debug shape, and an artifact's display contract
 /// should survive an implementation type being renamed. Keys are therefore stable identifiers, and
 /// changing one is a breaking change for any consumer that draws that artifact.
+/// </para>
+/// <para>
+/// There are two families. <c>tf.artifact.*</c> names a kind of thing the framework knows how to set
+/// up and tear down, and each shipped artifact declares its own. <c>tf.value.*</c> names a
+/// <see cref="DebugValueShape"/> and is what a plain variable gets, because a variable has no schema
+/// beyond its shape — it is whatever a step happened to assign.
 /// </para>
 /// <para>
 /// Note that <c>SqlRow</c> is shared by two independent implementations — the EF-backed one in
@@ -38,4 +44,41 @@ public static class DebugValueSchemaKeys
 
     /// <summary>A file on the local file system.</summary>
     public const string File = "tf.artifact.file";
+
+    /// <summary>A value whose shape was never determined.</summary>
+    public const string Unknown = "tf.value.unknown";
+
+    /// <summary>The absence of a value.</summary>
+    public const string Null = "tf.value.null";
+
+    /// <summary>A single indivisible value.</summary>
+    public const string Scalar = "tf.value.scalar";
+
+    /// <summary>Text.</summary>
+    public const string Text = "tf.value.text";
+
+    /// <summary>Bytes.</summary>
+    public const string Binary = "tf.value.binary";
+
+    /// <summary>An ordered sequence of items.</summary>
+    public const string Collection = "tf.value.collection";
+
+    /// <summary>Keyed entries.</summary>
+    public const string Dictionary = "tf.value.dictionary";
+
+    /// <summary>A composite value with named members.</summary>
+    public const string Object = "tf.value.object";
+
+    /// <summary>Gets the schema key a value of the given shape is published under.</summary>
+    public static string Of(DebugValueShape shape) => shape switch
+    {
+        DebugValueShape.Null => Null,
+        DebugValueShape.Scalar => Scalar,
+        DebugValueShape.Text => Text,
+        DebugValueShape.Binary => Binary,
+        DebugValueShape.Collection => Collection,
+        DebugValueShape.Dictionary => Dictionary,
+        DebugValueShape.Object => Object,
+        _ => Unknown
+    };
 }

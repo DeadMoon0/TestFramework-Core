@@ -50,7 +50,7 @@ public class ArtifactStore : IFreezable
         if (!debuggingSession.IsCapturing)
             return;
 
-        debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
+        debuggingSession.PublishArtifactUpdate(instance.Identifier, WithBody(GetDebuggingStateFromInstance(instance), instance));
     }
 
     /// <summary>
@@ -69,12 +69,44 @@ public class ArtifactStore : IFreezable
         if (!debuggingSession.IsCapturing)
             return;
 
-        debuggingSession.PublishArtifactUpdate(instance.Identifier, GetDebuggingStateFromInstance(instance));
+        debuggingSession.PublishArtifactUpdate(instance.Identifier, WithBody(GetDebuggingStateFromInstance(instance), instance));
+    }
+
+    /// <summary>
+    /// Writes the artifact's data out and points the description at it, when it did not fit.
+    /// </summary>
+    /// <remarks>
+    /// Keyed by identifier and versioned by content, so an artifact captured three times leaves three
+    /// files — which is the whole point of capturing versions, and was previously visible only as
+    /// three truncated previews.
+    /// </remarks>
+    private Debugger.ArtifactState WithBody(Debugger.ArtifactState state, ArtifactInstanceGeneric instance)
+    {
+        if (state.Envelope.Description.Preview?.IsTruncated != true || instance.VersionCount == 0)
+            return state;
+
+        DebugValueContent? content = DebugValueDescriber.FullContentOf(instance.Last);
+
+        if (content is null)
+            return state;
+
+        DebugValueDescription described = state.Envelope.Description with
+        {
+            Body = debuggingSession.ValueFiles.Write(instance.Identifier.Identifier, content)
+        };
+
+        return state with { Envelope = state.Envelope with { Description = described } };
     }
 
     internal static Debugger.ArtifactState GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)
     {
         ArtifactDataGeneric? currentData = instance.VersionCount != 0 ? instance[instance.VersionCount - 1] : null;
+
+        // Asked of the artifact kind rather than assembled here, so an artifact that knows what it
+        // is — a row, a blob, a file — can say so instead of being described by its serialised
+        // reference.
+        DebugValueDescription description = instance.Artifact.Describe(instance);
+
         return new Debugger.ArtifactState
         {
             Key = instance.Identifier,
@@ -82,7 +114,8 @@ public class ArtifactStore : IFreezable
             {
                 Kind = DebugValueKind.Artifact,
                 TypeName = instance.Artifact.GetType().FullName ?? instance.Artifact.ToString(),
-                DisplayText = DescribeArtifact(instance),
+                DisplayText = description.Summary,
+                Description = description,
                 SchemaKey = instance.Artifact.DebugValueSchemaKey,
                 Version = currentData?.Identifier.ToString(),
                 Core = new JObject
@@ -178,13 +211,4 @@ public class ArtifactStore : IFreezable
         }
     }
 
-    private static string DescribeArtifact(ArtifactInstanceGeneric instance)
-    {
-        string reference = Logging.VariableFormatter.Format(instance.Reference);
-        string lastVersion = instance.VersionCount == 0
-            ? "<no data>"
-            : Logging.VariableFormatter.Format(instance.Last);
-
-        return $"ref={reference}; state={instance.State}; versions={instance.VersionCount}; latest={lastVersion}";
-    }
 }

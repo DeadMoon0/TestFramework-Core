@@ -162,8 +162,23 @@ internal sealed class OutputRunDebugger : IRunDebugger
         if (stepRun is null)
             return;
 
-        stepRun.ValueUpdates.Add(new ValueUpdateRenderState(name, valueKind, value.DisplayText));
+        stepRun.ValueUpdates.Add(new ValueUpdateRenderState(name, valueKind, Render(value)));
     }
+
+    /// <summary>
+    /// One line for a value: what it is, and where the rest of it went when it did not fit.
+    /// </summary>
+    /// <remarks>
+    /// The path rather than the content. A run that printed a large response body inline buried the
+    /// step flow the output exists to show, and the file is readable by anything — including the
+    /// build that publishes it as an artifact.
+    /// </remarks>
+    private static string Render(DebugValueEnvelope envelope)
+        => envelope.Description.Body is { } body
+            ? $"{envelope.DisplayText}  -> {body.RelativePath}"
+            : envelope.DisplayText;
+
+    private static string? RenderOrNull(DebugValueEnvelope? envelope) => envelope is null ? null : Render(envelope);
 
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
     {
@@ -457,8 +472,8 @@ internal sealed class OutputRunDebugger : IRunDebugger
         string requirement = entry.Required ? "required" : "optional";
         string kindLabel = entry.Kind == StepIOKind.Variable ? "Variable" : "Artifact";
         string? value = entry.Kind == StepIOKind.Variable
-            ? variablesByKey.GetValueOrDefault(entry.Key)?.Envelope.DisplayText
-            : artifactsByKey.GetValueOrDefault(entry.Key)?.Envelope.DisplayText;
+            ? RenderOrNull(variablesByKey.GetValueOrDefault(entry.Key)?.Envelope)
+            : RenderOrNull(artifactsByKey.GetValueOrDefault(entry.Key)?.Envelope);
 
         return value is null
             ? $"{kindLabel} {entry.Key}  [{requirement}]  <not available>"
@@ -1020,8 +1035,8 @@ internal sealed class OutputRunDebugger : IRunDebugger
             {
                 string? displayText = input.Kind switch
                 {
-                    StepIOKind.Variable => variablesByKey.GetValueOrDefault(input.Key)?.Envelope.DisplayText,
-                    StepIOKind.Artifact => artifactsByKey.GetValueOrDefault(input.Key)?.Envelope.DisplayText,
+                    StepIOKind.Variable => RenderOrNull(variablesByKey.GetValueOrDefault(input.Key)?.Envelope),
+                    StepIOKind.Artifact => RenderOrNull(artifactsByKey.GetValueOrDefault(input.Key)?.Envelope),
                     _ => null
                 };
 
