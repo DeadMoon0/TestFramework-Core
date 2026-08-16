@@ -52,31 +52,56 @@ public class Timeline : IFreezable
     /// <summary>
     /// Creates a run builder for this timeline using default services and no test output helper.
     /// </summary>
-    public ITimelineRunBuilder SetupRun() => SetupRun(null, null);
+    public ITimelineRunBuilder SetupRun(
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
+        => SetupRun(null, null, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline using the provided service provider.
     /// </summary>
     /// <param name="serviceProvider">The service provider available to steps and environment setup.</param>
-    public ITimelineRunBuilder SetupRun(IServiceProvider? serviceProvider) => SetupRun(serviceProvider, null);
+    /// <param name="sourceFilePath">Filled in by the compiler; identifies the calling test's file.</param>
+    /// <param name="sourceLineNumber">Filled in by the compiler; identifies the calling line.</param>
+    public ITimelineRunBuilder SetupRun(
+        IServiceProvider? serviceProvider,
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
+        => SetupRun(serviceProvider, null, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline using the provided xUnit output helper.
     /// </summary>
     /// <param name="outputHelper">The output helper that receives timeline log output.</param>
-    public ITimelineRunBuilder SetupRun(ITestOutputHelper? outputHelper) => SetupRun(null, outputHelper);
+    /// <param name="sourceFilePath">Filled in by the compiler; identifies the calling test's file.</param>
+    /// <param name="sourceLineNumber">Filled in by the compiler; identifies the calling line.</param>
+    public ITimelineRunBuilder SetupRun(
+        ITestOutputHelper? outputHelper,
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
+        => SetupRun(null, outputHelper, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline.
     /// </summary>
     /// <param name="serviceProvider">The service provider available to steps and environment setup.</param>
     /// <param name="outputHelper">The output helper that receives timeline log output.</param>
+    /// <param name="sourceFilePath">Filled in by the compiler; identifies the calling test's file.</param>
+    /// <param name="sourceLineNumber">Filled in by the compiler; identifies the calling line.</param>
     /// <returns>A run builder that can be configured and executed.</returns>
     /// <exception cref="FrameworkStateException">Thrown when the timeline has not been built completely yet.</exception>
-    public ITimelineRunBuilder SetupRun(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper)
+    public ITimelineRunBuilder SetupRun(
+        IServiceProvider? serviceProvider,
+        ITestOutputHelper? outputHelper,
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
     {
         if (!ReadyToRun) throw new FrameworkStateException("The timeline cannot create a run before Build() has completed.");
         serviceProvider ??= new EmptyServiceProvider();
-        return new TimelineRunBuilder(serviceProvider, outputHelper, this, MainStage);
+
+        // The caller attributes cost nothing at run time — the compiler bakes them in at each call
+        // site — and give an exact source location, which a stack walk can only approximate and
+        // only by collecting file info it would otherwise skip.
+        return new TimelineRunBuilder(serviceProvider, outputHelper, this, MainStage, sourceFilePath, sourceLineNumber);
     }
 }

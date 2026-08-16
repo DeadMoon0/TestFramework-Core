@@ -41,9 +41,82 @@ internal class DebuggingRunSession
     private int writerCompleted;
     private bool sessionInitialized;
 
-    internal DebuggingRunSession(IRunDebugger debugger)
+    private readonly string? sourceFilePath;
+    private readonly int sourceLineNumber;
+
+    internal DebuggingRunSession(IRunDebugger debugger, string? sourceFilePath = null, int sourceLineNumber = 0)
     {
         Debugger = debugger;
+        this.sourceFilePath = sourceFilePath;
+        this.sourceLineNumber = sourceLineNumber;
+
+        if (debugger is ISupportsRunCancellation cancellable)
+            cancellable.CancellationRequested += OnCancellationRequested;
+    }
+
+    /// <summary>
+    /// The test that started this run. Resolved once, only when something is capturing.
+    /// </summary>
+    internal TestIdentity? Identity { get; private set; }
+
+    private readonly CancellationTokenSource runCancellation = new();
+
+    /// <summary>
+    /// Trips when a consumer asks the run to stop. Steps observe it, so an in-flight step unwinds
+    /// rather than being abandoned.
+    /// </summary>
+    internal CancellationToken RunCancellationToken => runCancellation.Token;
+
+    /// <summary>Gets a value indicating whether a consumer has asked this run to stop.</summary>
+    internal bool IsCancellationRequested => runCancellation.IsCancellationRequested;
+
+    /// <summary>Gets the reason given for cancellation, when one was supplied.</summary>
+    internal string? CancellationReason { get; private set; }
+
+    /// <summary>
+    /// Asks the run to stop. Idempotent, and safe to call from the transport's receive loop.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole point of cooperative cancellation: the timeline unwinds through its Cleanup
+    /// stage, so artifacts are deconstructed and environment components torn down. Killing the test
+    /// host would skip all of that and leave containers, temp files and database rows behind.
+    /// </remarks>
+    private void OnCancellationRequested(string? reason) => RequestCancellation(reason);
+
+    internal void RequestCancellation(string? reason)
+    {
+        if (runCancellation.IsCancellationRequested)
+            return;
+
+        CancellationReason = reason;
+
+        try
+        {
+            runCancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The run finished while the request was in flight; nothing left to stop.
+        }
+    }
+
+    /// <summary>
+    /// Resolves the identity of the test on the current stack.
+    /// </summary>
+    /// <remarks>
+    /// Called while the caller is still on the stack — that is, synchronously from
+    /// <c>SetupRun</c> — and never later. Resolving at first signal instead looks equivalent and is
+    /// not: a single <c>await</c> between building the run and starting it is enough for the test
+    /// method's frame to be gone, and the run would then report an unknown framework. It also keeps
+    /// the resolved method consistent with the compile-time source location, which describes the
+    /// <c>SetupRun</c> call site rather than wherever the first signal happens to be raised.
+    /// </remarks>
+    internal void CaptureIdentity(string? sourceFilePath, int sourceLineNumber)
+    {
+        if (!IsCapturing || Identity is not null)
+            return;
+
+        Identity = TestIdentityResolver.Resolve(GetProjectPath(), sourceFilePath, sourceLineNumber);
     }
 
     internal string SessionId { get; } = Guid.NewGuid().ToString();
@@ -65,11 +138,14 @@ internal class DebuggingRunSession
             return Task.CompletedTask;
         }
 
-        string testName = GetTestName();
-        string projectPath = GetProjectPath();
+        // Normally captured back at SetupRun, while the caller was still on the stack. Resolving
+        // here is the fallback for a session constructed directly, which only tests do.
+        CaptureIdentity(sourceFilePath, sourceLineNumber);
+
+        TestIdentity identity = Identity!;
         sessionInitialized = true;
 
-        return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, testName, projectPath, runStructure));
+        return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, identity.DisplayName, identity.AssemblyPath, runStructure, identity));
     }
 
     // Transitions are queued, not awaited. The queue is FIFO with a single reader, so ordering
@@ -91,9 +167,9 @@ internal class DebuggingRunSession
         return Task.CompletedTask;
     }
 
-    internal Task TransitionStepAsync(string stage, int stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
+    internal Task TransitionStepAsync(string stage, int stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
     {
-        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState, failure));
         return Task.CompletedTask;
     }
 

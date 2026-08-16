@@ -11,7 +11,7 @@
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>The core package of the TestFramework ecosystem for building integration-style and end-to-end test workflows. Provides the timeline engine for steps, events, variables, artifacts, retries, timeouts, and assertions, and serves as the foundation for extension packages like Azure, LocalIO, and Simple.</Description>
-		<Version>0.1.10</Version>
+		<Version>0.2.0</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -40,18 +40,6 @@ Also adds PersistentEnvironmentContext.CreateAsync as a non-blocking alternative
 		</AssemblyAttribute>
 		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
 			<_Parameter1>TestFramework.Simple.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.DebugUI</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.DebugUI.Data</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.DebugUI.PipeAdapter</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.DebugUI.Tests</_Parameter1>
 		</AssemblyAttribute>
 	</ItemGroup>
 

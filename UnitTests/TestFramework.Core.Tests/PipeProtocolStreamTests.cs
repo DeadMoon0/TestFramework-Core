@@ -31,6 +31,73 @@ public sealed class PipeProtocolStreamTests
     }
 
     [Fact]
+    public void RunStructure_RoundTrips_NonEmptyIOContract_FieldByField()
+    {
+        // The other round-trip test compares two serializations, so any loss that is symmetric
+        // passes unnoticed — and it only ever exercises empty contracts and default options. This
+        // one asserts the values a consumer actually reads.
+        StepIOContract contract = new();
+        contract.Inputs.Add(new StepIOEntry("orderId", StepIOKind.Variable, true, typeof(int)));
+        contract.Outputs.Add(new StepIOEntry("receipt", StepIOKind.Artifact, false, typeof(string)));
+
+        PipeInitTimelineRunSignal signal = new()
+        {
+            SessionId = "session-1",
+            Name = "Contract Run",
+            ProjectPath = "project.csproj",
+            RunStructure = CreateRunStructure(contract)
+        };
+
+        PipeInitTimelineRunSignal restored = Assert.IsType<PipeInitTimelineRunSignal>(
+            PipeSignalFactory.DeserializeSignal(JsonConvert.SerializeObject(signal)));
+
+        StepIOContract restoredContract = restored.RunStructure.Stages[0].Steps[0].IOContract;
+
+        StepIOEntry input = Assert.Single(restoredContract.Inputs);
+        Assert.Equal("orderId", input.Key);
+        Assert.Equal(StepIOKind.Variable, input.Kind);
+        Assert.True(input.Required);
+
+        StepIOEntry output = Assert.Single(restoredContract.Outputs);
+        Assert.Equal("receipt", output.Key);
+        Assert.Equal(StepIOKind.Artifact, output.Kind);
+        Assert.False(output.Required);
+
+        Assert.Equal(typeof(int), input.DeclaredType);
+        Assert.Equal(typeof(string), output.DeclaredType);
+    }
+
+    [Fact]
+    public void RunStructure_LosesTheRetryCountValue_WhenItIsALiteral()
+    {
+        // DOCUMENTS A KNOWN LOSS. RetryOptions.MaxRetryCount is a VariableReference<int> whose
+        // literal value lives in an internal field, so it does not serialize: the UI receives the
+        // reference shell and cannot show "retries: 3". StepIOEntry.DeclaredType, by contrast, does
+        // survive — Newtonsoft writes System.Type as its assembly-qualified name.
+        //
+        // Fixing this means projecting the options into explicit debug DTOs, which belongs with the
+        // wider structure work rather than here. The test exists so the loss is visible and the fix
+        // has something to flip.
+        RetryOptions retryOptions = new() { MaxRetryCount = 3 };
+
+        PipeInitTimelineRunSignal signal = new()
+        {
+            SessionId = "session-1",
+            Name = "Retry Run",
+            ProjectPath = "project.csproj",
+            RunStructure = CreateRunStructure(retryOptions: retryOptions)
+        };
+
+        PipeInitTimelineRunSignal restored = Assert.IsType<PipeInitTimelineRunSignal>(
+            PipeSignalFactory.DeserializeSignal(JsonConvert.SerializeObject(signal)));
+
+        RetryOptions restoredOptions = restored.RunStructure.Stages[0].Steps[0].RetryOptions;
+
+        Assert.Equal(3, retryOptions.MaxRetryCount.GetValue(null!));
+        Assert.NotEqual(3, restoredOptions.MaxRetryCount.GetValue(null!));
+    }
+
+    [Fact]
     public Task PipeSignalFactory_RejectsUnsupportedSignalKind()
     {
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -123,7 +190,7 @@ public sealed class PipeProtocolStreamTests
         ];
     }
 
-    private static TimelineRunStructure CreateRunStructure()
+    private static TimelineRunStructure CreateRunStructure(StepIOContract? ioContract = null, RetryOptions? retryOptions = null)
     {
         return new TimelineRunStructure
         {
@@ -172,10 +239,10 @@ public sealed class PipeProtocolStreamTests
                             DoesReturn = true,
                             ErrorHandlingOptions = new ErrorHandlingOptions(),
                             ExecutionOptions = new ExecutionOptions(),
-                            IOContract = new StepIOContract(),
+                            IOContract = ioContract ?? new StepIOContract(),
                             Phase = StepExecutionPhase.Act,
                             LabelOptions = new LabelOptions(),
-                            RetryOptions = new RetryOptions(),
+                            RetryOptions = retryOptions ?? new RetryOptions(),
                             TimeOutOptions = new TimeOutOptions()
                         }
                     ]

@@ -8,6 +8,7 @@ using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Tests;
 
+[Collection("DebuggerEnvironment")]
 public class DebugSessionClientRunDebuggerTests
 {
     [Fact]
@@ -43,40 +44,78 @@ public class DebugSessionClientRunDebuggerTests
     }
 
     [Fact]
-    public void CommonDebugger_ProvidesBuiltInPipeDebuggerWithoutReflection()
+    [Trait("Category", "WindowsOnly")]
+    public void CommonDebugger_ProvidesBuiltInPipeDebugger_WhenAUiIsListening()
     {
-        // The negative connect cache is process-wide, so without clearing it this test passes or
-        // fails depending on whether another test already probed the pipe.
-        PipeClient.ResetAvailabilityForTests();
+        string pipeName = $"testframework-listening-{Guid.NewGuid():N}";
+        string? previousName = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME");
+        try
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME", pipeName);
+            using System.IO.Pipes.NamedPipeServerStream server = new(
+                pipeName,
+                System.IO.Pipes.PipeDirection.InOut,
+                1,
+                System.IO.Pipes.PipeTransmissionMode.Byte,
+                System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
 
-        IRunDebugger debugger = CommonDebugger.GetCommon();
+            PipeClient.ResetAvailabilityForTests();
 
-        PipeRunDebugger pipeDebugger = Assert.IsType<PipeRunDebugger>(debugger);
-        Assert.NotNull(pipeDebugger);
+            Assert.IsType<PipeRunDebugger>(CommonDebugger.GetCommon());
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME", previousName);
+            PipeClient.ResetAvailabilityForTests();
+        }
     }
 
     [Fact]
-    public async Task PipeClient_RemembersAMissedPipeForTheWholeProcess()
+    [Trait("Category", "WindowsOnly")]
+    public void CommonDebugger_SkipsThePipeDebugger_WhenNothingIsListening()
     {
-        // This is the whole point of the negative cache: a fresh client is built for every run, so
-        // an instance-level flag meant every run in the suite paid the same connect probe again.
+        string? previousName = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME");
+        try
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME", $"testframework-absent-{Guid.NewGuid():N}");
+            PipeClient.ResetAvailabilityForTests();
+
+            // Nothing downstream wants the signals, so the run should not carry a transport at all.
+            Assert.IsType<EmptyRunDebugger>(CommonDebugger.GetCommon());
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_DEBUG_PIPE_NAME", previousName);
+            PipeClient.ResetAvailabilityForTests();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "WindowsOnly")]
+    public async Task PipeClient_ReEvaluatesAvailability_InsteadOfLatchingAMiss()
+    {
+        // Replaces the old process-wide negative cache. Latching a miss made the suite cheap but
+        // made attaching a UI mid-run impossible without an environment variable set up front. The
+        // availability probe is cheap enough to repeat, so a miss must not be permanent.
         string pipeName = $"testframework-missing-{Guid.NewGuid():N}";
-        Assert.False(PipeClient.IsKnownUnavailable(pipeName));
+        PipeClient.ResetAvailabilityForTests();
+
+        Assert.True(PipeClient.IsKnownUnavailable(pipeName));
 
         using (PipeClient probe = new(pipeName))
         {
             await probe.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "probe" });
         }
 
-        Assert.True(PipeClient.IsKnownUnavailable(pipeName));
+        using System.IO.Pipes.NamedPipeServerStream server = new(
+            pipeName,
+            System.IO.Pipes.PipeDirection.InOut,
+            1,
+            System.IO.Pipes.PipeTransmissionMode.Byte,
+            System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
+        PipeClient.ResetAvailabilityForTests();
 
-        // A different client for the same name inherits the knowledge rather than re-probing.
-        using PipeClient later = new(pipeName);
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        await later.SignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "probe-2" });
-        stopwatch.Stop();
-
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(100), $"A second client re-probed the pipe and took {stopwatch.Elapsed}.");
+        Assert.False(PipeClient.IsKnownUnavailable(pipeName));
     }
 
     [Fact]
@@ -213,14 +252,14 @@ public class DebugSessionClientRunDebuggerTests
         public string InitializedRunName { get; private set; } = string.Empty;
         public string InitializedProjectPath { get; private set; } = string.Empty;
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)
+        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
         {
             InitializedRunName = name;
             InitializedProjectPath = projectPath;
             return Task.CompletedTask;
         }
 
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
             => Task.CompletedTask;
 
         public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)

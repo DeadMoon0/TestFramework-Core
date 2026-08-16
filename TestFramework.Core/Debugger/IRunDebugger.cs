@@ -22,11 +22,11 @@ public interface IRunDebugger
     /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure);
+    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null);
     /// <summary>
     /// Signals that a runtime entity has transitioned to a new lifecycle state.
     /// </summary>
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null);
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null);
     /// <summary>
     /// Signals that a debugger-visible value has changed.
     /// </summary>

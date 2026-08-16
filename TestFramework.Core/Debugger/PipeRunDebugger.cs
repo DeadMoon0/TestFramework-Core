@@ -8,9 +8,18 @@ namespace TestFramework.Core.Debugger;
 /// Sends timeline debug signals over the built-in named-pipe transport to an attached debugger UI.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class PipeRunDebugger : IRunDebugger, IDisposable
+public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation
 {
     private readonly PipeClient client = new(PipeTransport.GetPipeName());
+
+    /// <summary>
+    /// Raised when the attached UI asks this run to stop.
+    /// </summary>
+    public event Action<string?>? CancellationRequested
+    {
+        add => client.CancellationRequested += value;
+        remove => client.CancellationRequested -= value;
+    }
 
     /// <summary>
     /// Gets a value indicating whether a debugger UI is attached, or might still be.
@@ -24,21 +33,22 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable
     /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)
+    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
     {
         return client.SignalAsync(new PipeInitTimelineRunSignal
         {
             SessionId = sessionId,
             Name = name,
             ProjectPath = projectPath,
-            RunStructure = runStructure
+            RunStructure = runStructure,
+            Identity = identity
         });
     }
 
     /// <summary>
     /// Signals that a runtime entity changed lifecycle state.
     /// </summary>
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
     {
         return client.SignalAsync(new PipeEntityTransitionSignal
         {
@@ -48,7 +58,8 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable
             StepId = stepId,
             PreviousState = previousState,
             OutcomeState = outcomeState,
-            State = state
+            State = state,
+            Failure = failure
         });
     }
 

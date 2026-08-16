@@ -51,8 +51,9 @@ internal static class CommonDebugger
         if (outputHelper is not null)
             debuggers.Add(new OutputRunDebugger(outputHelper));
 
-        // Skip the pipe debugger entirely once this process has established that nothing is
-        // listening: constructing one costs a connect probe per run and buys nothing.
+        // Skip the pipe debugger when nothing is listening: it would only carry signals to a
+        // consumer that is not there. The check is a cheap per-run probe rather than a latch, so a
+        // UI started midway through a suite is picked up by the next run.
         if (PipeTransport.GetMode() != PipeDebuggerMode.Off
             && !PipeClient.IsKnownUnavailable(PipeTransport.GetPipeName())
             && !ContainsSameType(debuggers, typeof(PipeRunDebugger)))
@@ -60,6 +61,17 @@ internal static class CommonDebugger
             PipeRunDebugger builtInPipeDebugger = new();
             debuggers.Add(builtInPipeDebugger);
             owned.Add(builtInPipeDebugger);
+        }
+
+        // The journal is independent of the pipe: a run with no UI attached still records itself so
+        // it can be opened later, and a run with a UI attached records itself so it survives the
+        // test host exiting. Gated on the marker directory, so a machine without the UI installed
+        // never writes anything.
+        if (DebugJournal.IsEnabled && !ContainsSameType(debuggers, typeof(JournalRunDebugger)))
+        {
+            JournalRunDebugger journalDebugger = new();
+            debuggers.Add(journalDebugger);
+            owned.Add(journalDebugger);
         }
 
         ownedResources = owned.Count == 0 ? null : new OwnedDebuggerResources(owned);

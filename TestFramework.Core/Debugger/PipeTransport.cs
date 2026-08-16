@@ -102,14 +102,104 @@ internal static class PipeTransport
     }
 }
 
-internal static class PipeSignalFactory
+/// <summary>
+/// Answers "is a debugger UI listening right now?" cheaply enough to ask on every run.
+/// </summary>
+/// <remarks>
+/// A connect attempt is the expensive way to find out — it costs its full timeout when nothing is
+/// there, which is why the transport used to latch the miss for the whole process and never notice
+/// a UI that started later. On Windows a named pipe is visible in the object namespace, so testing
+/// for the path answers the same question for the price of a file check and no latch is needed.
+/// The result is cached briefly because <c>IsCapturing</c> is consulted on every variable write.
+/// </remarks>
+internal static class PipeAvailability
 {
-    internal static IPipeSignal DeserializeSignal(string json)
+    /// <summary>
+    /// Long enough that a burst of value updates costs one probe, short enough that attaching a UI
+    /// mid-run is picked up immediately in human terms.
+    /// </summary>
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMilliseconds(500);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.Ordinal);
+
+    private readonly record struct CacheEntry(long Timestamp, bool Listening);
+
+    internal static bool IsListening(string pipeName)
+    {
+        if (Cache.TryGetValue(pipeName, out CacheEntry entry)
+            && Stopwatch.GetElapsedTime(entry.Timestamp) < CacheDuration)
+            return entry.Listening;
+
+        bool listening = Probe(pipeName);
+        Cache[pipeName] = new CacheEntry(Stopwatch.GetTimestamp(), listening);
+        return listening;
+    }
+
+    /// <summary>Drops the cached answers so a test can observe a pipe appearing or disappearing.</summary>
+    internal static void ResetForTests() => Cache.Clear();
+
+    private static bool Probe(string pipeName)
+    {
+        // Only Windows exposes pipes as paths. Elsewhere there is nothing cheap to test, so report
+        // "possibly listening" and let the ordinary connect attempt settle it under its own timeout.
+        if (!OperatingSystem.IsWindows())
+            return true;
+
+        try
+        {
+            // Enumerate the pipe directory rather than testing the pipe path directly.
+            // File.Exists(@"\\.\pipe\name") looks like the obvious check and is actively harmful:
+            // opening a pipe path *connects* to it, which completes the UI's pending
+            // WaitForConnectionAsync with a phantom client that immediately vanishes. The UI would
+            // see a connect/disconnect for every probe, and while it held a single server instance
+            // the real run could not get in at all. Directory enumeration only lists names.
+            foreach (string path in Directory.EnumerateFiles(@"\\.\pipe\"))
+            {
+                if (string.Equals(Path.GetFileName(path), pipeName, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+        catch (Exception e)
+        {
+            // An inaccessible object namespace is not proof of absence; fall back to connecting.
+            Debug.WriteLine(e);
+            return true;
+        }
+    }
+}
+
+/// <summary>
+/// Rebuilds protocol messages from their serialized form.
+/// </summary>
+public static class PipeSignalFactory
+{
+    /// <summary>
+    /// Rebuilds a signal from an envelope payload.
+    /// </summary>
+    /// <remarks>
+    /// The discriminator stays an explicit switch on <see cref="PipeSignalKind"/> rather than
+    /// reflection-driven polymorphism: this deserializes data arriving over a local socket, and
+    /// letting the payload name its own CLR type would be a deserialization hole.
+    /// </remarks>
+    public static IPipeSignal DeserializePayload(PipeSignalKind kind, Newtonsoft.Json.Linq.JObject payload)
+        => DeserializeSignal(kind, payload.ToString(Formatting.None));
+
+    /// <summary>
+    /// Rebuilds a signal from its serialized form, reading the discriminator out of the JSON.
+    /// </summary>
+    public static IPipeSignal DeserializeSignal(string json)
     {
         PipeSignalKind signalKind = (JsonConvert.DeserializeAnonymousType(json, new { Kind = (PipeSignalKind)0 })
             ?? throw new FrameworkStateException("Could not deserialize pipe signal."))
             .Kind;
 
+        return DeserializeSignal(signalKind, json);
+    }
+
+    private static IPipeSignal DeserializeSignal(PipeSignalKind signalKind, string json)
+    {
         return signalKind switch
         {
             PipeSignalKind.InitTimelineRun => JsonConvert.DeserializeObject<PipeInitTimelineRunSignal>(json) ?? throw new FrameworkStateException("Could not deserialize init signal."),
@@ -120,6 +210,7 @@ internal static class PipeSignalFactory
             PipeSignalKind.BreakpointHitRequest => JsonConvert.DeserializeObject<PipeBreakpointHitRequestSignal>(json) ?? throw new FrameworkStateException("Could not deserialize breakpoint request signal."),
             PipeSignalKind.BreakpointHitContinue => JsonConvert.DeserializeObject<PipeBreakpointHitContinueSignal>(json) ?? throw new FrameworkStateException("Could not deserialize breakpoint continue signal."),
             PipeSignalKind.TimelineRunFinished => JsonConvert.DeserializeObject<PipeTimelineRunFinishedSignal>(json) ?? throw new FrameworkStateException("Could not deserialize timeline-finished signal."),
+            PipeSignalKind.CancelRun => JsonConvert.DeserializeObject<PipeCancelRunSignal>(json) ?? throw new FrameworkStateException("Could not deserialize cancel-run signal."),
             _ => throw new ArgumentOutOfRangeException(nameof(signalKind), signalKind, "Unsupported pipe signal kind.")
         };
     }
@@ -127,9 +218,13 @@ internal static class PipeSignalFactory
 
 internal sealed class PipeProtocolStream(PipeStream stream)
 {
-    private static readonly Encoding WireEncoding = Encoding.Unicode;
-    private const int MaxMessageBytes = 4 * 1024 * 1024;
     private readonly SemaphoreSlim sendLock = new(1, 1);
+
+    /// <summary>
+    /// One connection carries one run, so a per-connection counter is also per-session. Sent with
+    /// every frame so a consumer can spot gaps and drop duplicates when replaying.
+    /// </summary>
+    private long sequence;
 
     internal bool PipeIsDead { get; private set; }
 
@@ -143,8 +238,9 @@ internal sealed class PipeProtocolStream(PipeStream stream)
         {
             await sendLock.WaitAsync();
             lockAcquired = true;
-            string json = JsonConvert.SerializeObject(signal);
-            byte[] buffer = [.. BitConverter.GetBytes(WireEncoding.GetByteCount(json)), .. WireEncoding.GetBytes(json)];
+
+            byte[] buffer = DebugEnvelopeCodec.EncodeFrame(
+                DebugEnvelopeCodec.Wrap(signal, Interlocked.Increment(ref sequence)));
 
             // A UI that stops reading applies backpressure through the pipe buffer. Without a bound
             // here every subsequent signal would queue behind this write for the rest of the run.
@@ -165,17 +261,35 @@ internal sealed class PipeProtocolStream(PipeStream stream)
 
     internal async Task<IPipeSignal?> WaitSignalAsync(CancellationToken cancellationToken = default)
     {
+        DebugEnvelope? envelope = await WaitEnvelopeAsync(cancellationToken);
+        if (envelope is null)
+            return null;
+
+        try
+        {
+            return DebugEnvelopeCodec.Unwrap(envelope);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            PipeIsDead = true;
+            return null;
+        }
+    }
+
+    internal async Task<DebugEnvelope?> WaitEnvelopeAsync(CancellationToken cancellationToken = default)
+    {
         try
         {
             byte[] lenBuf = new byte[sizeof(int)];
             await stream.ReadExactlyAsync(lenBuf, 0, lenBuf.Length, cancellationToken);
             int messageLength = BitConverter.ToInt32(lenBuf);
-            if (messageLength <= 0 || messageLength > MaxMessageBytes)
+            if (messageLength <= 0 || messageLength > DebugEnvelopeCodec.MaxMessageBytes)
                 throw new InvalidDataException($"Invalid pipe frame length: {messageLength}");
 
             byte[] jsonBuf = new byte[messageLength];
             await stream.ReadExactlyAsync(jsonBuf, 0, jsonBuf.Length, cancellationToken);
-            return PipeSignalFactory.DeserializeSignal(WireEncoding.GetString(jsonBuf));
+            return DebugEnvelopeCodec.Deserialize(DebugEnvelopeCodec.WireEncoding.GetString(jsonBuf));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -193,23 +307,14 @@ internal sealed class PipeProtocolStream(PipeStream stream)
 internal sealed class PipeClient : IDisposable
 {
     /// <summary>
-    /// Process-wide, because a fresh <see cref="PipeRunDebugger"/> — and therefore a fresh client —
-    /// is created for every run. An instance-level flag learned nothing that outlived the run that
-    /// paid for it, so every run repeated the connect timeout.
+    /// Reports whether a UI is listening on the named pipe, cheaply enough to ask per run, so
+    /// callers can skip setting up a debugger that has nowhere to send its signals.
     /// </summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> UnavailablePipes = new(StringComparer.Ordinal);
+    internal static bool IsKnownUnavailable(string pipeName)
+        => PipeTransport.GetMode() != PipeDebuggerMode.On && !PipeAvailability.IsListening(pipeName);
 
-    /// <summary>
-    /// Reports whether this process has already failed to reach the named pipe, so callers can skip
-    /// the work of setting up a debugger that has nowhere to send its signals.
-    /// </summary>
-    internal static bool IsKnownUnavailable(string pipeName) => UnavailablePipes.ContainsKey(pipeName);
-
-    /// <summary>
-    /// Clears the process-wide negative cache. Tests that assert on connect behaviour need this
-    /// because the cache otherwise makes them depend on the order the suite happens to run in.
-    /// </summary>
-    internal static void ResetAvailabilityForTests() => UnavailablePipes.Clear();
+    /// <summary>Drops cached availability so a test can observe a pipe appearing or disappearing.</summary>
+    internal static void ResetAvailabilityForTests() => PipeAvailability.ResetForTests();
 
     private readonly string pipeName;
     private readonly SemaphoreSlim connectionLock = new(1, 1);
@@ -217,6 +322,21 @@ internal sealed class PipeClient : IDisposable
     private NamedPipeClientStream? pipeClient;
     private PipeProtocolStream? stream;
     private bool disposed;
+
+    /// <summary>
+    /// One reader owns the stream. Targeted reads register here instead of reading directly, which
+    /// is what lets unsolicited messages — cancellation — arrive at any time rather than only while
+    /// something happens to be waiting.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<PipeSignalKind, TaskCompletionSource<IPipeSignal>> waiters = new();
+
+    private CancellationTokenSource? receiveCancellation;
+    private Task? receiveLoop;
+
+    /// <summary>
+    /// Raised when the consumer asks this run to stop. Delivered on the receive loop.
+    /// </summary>
+    internal event Action<string?>? CancellationRequested;
 
     internal PipeClient(string pipeName)
     {
@@ -278,37 +398,78 @@ internal sealed class PipeClient : IDisposable
         if (!await EnsureConnectedAsync())
             return null;
 
-        PipeProtocolStream? currentStream = GetConnectedStream();
-        if (currentStream is null)
+        TaskCompletionSource<IPipeSignal> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!waiters.TryAdd(kind, completion))
             return null;
 
-        IPipeSignal? signal;
-        using (CancellationTokenSource waitCancellation = new(timeout ?? PipeTransport.GetWaitTimeout()))
+        try
         {
-            try
+            Task finished = await Task.WhenAny(completion.Task, Task.Delay(timeout ?? PipeTransport.GetWaitTimeout()));
+
+            // On expiry the connection is left intact. The receive loop owns framing, so an
+            // unanswered wait no longer implies a half-read frame the way a direct read did.
+            return ReferenceEquals(finished, completion.Task) ? await completion.Task : null;
+        }
+        finally
+        {
+            waiters.TryRemove(kind, out _);
+        }
+    }
+
+    /// <summary>
+    /// Reads continuously so unsolicited messages arrive whenever they are sent.
+    /// </summary>
+    /// <remarks>
+    /// Reads used to happen only inside <see cref="WaitForAsync"/>, which meant the producer could
+    /// hear from the consumer solely while parked on a breakpoint. Cancelling a running timeline was
+    /// therefore impossible to deliver.
+    /// </remarks>
+    private async Task ReceiveLoopAsync(PipeProtocolStream ownedStream, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
             {
-                signal = await currentStream.WaitSignalAsync(waitCancellation.Token);
+                IPipeSignal? signal = await ownedStream.WaitSignalAsync(cancellationToken);
+                if (signal is null)
+                    break;
+
+                Dispatch(signal);
             }
-            catch (OperationCanceledException)
-            {
-                DisposeConnection(currentStream);
-                return null;
-            }
         }
-
-        if (signal is null)
+        catch (OperationCanceledException)
         {
-            DisposeConnection(currentStream);
-            return null;
+            // Shutting down.
         }
-
-        if (signal.Kind != kind)
+        catch (Exception e)
         {
-            DisposeConnection(currentStream);
-            return null;
+            Debug.WriteLine(e);
+        }
+        finally
+        {
+            FailPendingWaiters();
+        }
+    }
+
+    private void Dispatch(IPipeSignal signal)
+    {
+        if (signal.Kind == PipeSignalKind.CancelRun)
+        {
+            CancellationRequested?.Invoke((signal as PipeCancelRunSignal)?.Reason);
+            return;
         }
 
-        return signal;
+        if (waiters.TryRemove(signal.Kind, out TaskCompletionSource<IPipeSignal>? completion))
+            completion.TrySetResult(signal);
+    }
+
+    private void FailPendingWaiters()
+    {
+        foreach (PipeSignalKind kind in waiters.Keys)
+        {
+            if (waiters.TryRemove(kind, out TaskCompletionSource<IPipeSignal>? completion))
+                completion.TrySetCanceled();
+        }
     }
 
     public void Dispose()
@@ -377,21 +538,22 @@ internal sealed class PipeClient : IDisposable
             {
                 candidate.Dispose();
 
-                // In On mode a UI is expected and may still be starting, so keep probing. In Auto
-                // mode remember the miss: nothing is listening and the whole suite would pay again.
-                if (mode != PipeDebuggerMode.On)
-                    UnavailablePipes[pipeName] = true;
-
+                // No latch. The availability probe is cheap enough to repeat, so a UI that starts
+                // later is picked up on the next run instead of being locked out for the process.
                 return false;
             }
+
+            PipeProtocolStream connectedStream = new(candidate);
+            CancellationTokenSource loopCancellation = new();
 
             lock (stateLock)
             {
                 pipeClient = candidate;
-                stream = new PipeProtocolStream(candidate);
+                stream = connectedStream;
+                receiveCancellation = loopCancellation;
             }
 
-            UnavailablePipes.TryRemove(pipeName, out _);
+            receiveLoop = Task.Run(() => ReceiveLoopAsync(connectedStream, loopCancellation.Token), CancellationToken.None);
 
             return true;
         }
@@ -425,6 +587,7 @@ internal sealed class PipeClient : IDisposable
     private void DisposeConnection(PipeProtocolStream? expectedStream = null)
     {
         NamedPipeClientStream? clientToDispose;
+        CancellationTokenSource? loopToCancel;
 
         lock (stateLock)
         {
@@ -434,8 +597,21 @@ internal sealed class PipeClient : IDisposable
             stream = null;
             clientToDispose = pipeClient;
             pipeClient = null;
+            loopToCancel = receiveCancellation;
+            receiveCancellation = null;
         }
 
+        try
+        {
+            loopToCancel?.Cancel();
+            loopToCancel?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already torn down.
+        }
+
+        FailPendingWaiters();
         clientToDispose?.Dispose();
     }
 }

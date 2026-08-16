@@ -42,7 +42,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
         useAsciiOutput = IsUnicodeOutputDisabled();
     }
 
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure)
+    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
     {
         lock (renderGate)
         {
@@ -72,7 +72,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
             artifactsByKey[artifact.Key] = artifact;
     }
 
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
     {
         lock (renderGate)
         {

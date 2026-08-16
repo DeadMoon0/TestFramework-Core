@@ -39,4 +39,13 @@ public class Stage : IFreezable
     /// Gets the steps contained in the stage.
     /// </summary>
     public IFreezableCollection<StepGeneric> Steps { get; } = new FreezableCollection<StepGeneric>();
+
+    /// <summary>
+    /// Marks the stage that tears the run down.
+    /// </summary>
+    /// <remarks>
+    /// Cancellation skips ordinary stages but must always reach this one, or stopping a run would
+    /// strand everything it created.
+    /// </remarks>
+    internal bool IsCleanupStage { get; init; }
 }

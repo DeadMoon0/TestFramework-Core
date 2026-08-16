@@ -49,13 +49,21 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     /// </summary>
     private bool _hasRun;
 
-    internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage)
+    internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage, string? sourceFilePath = null, int sourceLineNumber = 0)
     {
         _timeline = timeline;
         _mainStage = mainStage;
         _serviceProvider = serviceProvider;
 
-        _debuggingSession = new DebuggingRunSession(CommonDebugger.GetCommon(_serviceProvider, outputHelper, out _ownedDebuggerResources));
+        _debuggingSession = new DebuggingRunSession(
+            CommonDebugger.GetCommon(_serviceProvider, outputHelper, out _ownedDebuggerResources),
+            sourceFilePath,
+            sourceLineNumber);
+
+        // Resolved here rather than at the first signal: this constructor still runs on the
+        // caller's stack, and by the time signalling starts a single await may have removed the
+        // test method from it.
+        _debuggingSession.CaptureIdentity(sourceFilePath, sourceLineNumber);
         logger = ScopedLogger.CreateWithDebuggerSession(_debuggingSession);
 
         _newArtifactStore = new ArtifactStore(logger, _debuggingSession);
@@ -98,6 +106,15 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 mainStageSteps));
             foreach (var stage in newRun.Stages)
             {
+                // A cancelled run skips the work it has not started but always reaches teardown:
+                // deconstructing artifacts and tearing down environment components is precisely what
+                // killing the process would have skipped.
+                if (_debuggingSession.IsCancellationRequested && !stage.Stage.IsCleanupStage)
+                {
+                    await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
+                    continue;
+                }
+
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Running, DebugLifecycleState.Initialized);
                 logger.Log(new EnterStageLogEvent(stage));
 
@@ -186,6 +203,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         {
             Name = "Cleanup Stage",
             Description = "The Stage where all Cleanup Steps are Executed.",
+            IsCleanupStage = true,
         };
 
         var artifactTracker = new ArtifactTracker();

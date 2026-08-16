@@ -24,7 +24,7 @@ internal class CoreRunner
 
         foreach (var layer in executionPlanner.BuildLayers())
         {
-            await ExecuteLayerAsync(instance.Stage.Name, layer, serviceProvider, logger, variableStore, artifactStore, debuggingSession);
+            await ExecuteLayerAsync(instance.Stage.Name, layer, serviceProvider, logger, variableStore, artifactStore, debuggingSession, instance.Stage.IsCleanupStage);
 
             if (LayerFailed(layer))
             {
@@ -36,9 +36,9 @@ internal class CoreRunner
         instance.Result.State = StageState.Complete;
     }
 
-    private static Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
+    private static Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
     {
-        return Task.WhenAll(layer.Select(x => ExecuteStepAsync(stageName, x.Index, x.Step, serviceProvider, logger, variableStore, artifactStore, debuggingSession)));
+        return Task.WhenAll(layer.Select(x => ExecuteStepAsync(stageName, x.Index, x.Step, serviceProvider, logger, variableStore, artifactStore, debuggingSession, isCleanupStage)));
     }
 
     private static bool LayerFailed(IEnumerable<StageExecutionPlanner.ScheduledStep> layer)
@@ -46,9 +46,26 @@ internal class CoreRunner
         return layer.Any(x => x.Step.State != StepState.Complete);
     }
 
-    private static async Task ExecuteStepAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
+    private static async Task ExecuteStepAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
     {
         using var _ = debuggingSession.BeginStepExecutionContext(stageName, stepIndex);
+
+        // Checked per step, not only per stage: a run cancelled midway through a stage must not keep
+        // working through the rest of that stage's steps.
+        // Teardown is exempt: skipping cleanup steps because the run was cancelled would strand
+        // exactly the resources cancellation exists to release.
+        if (debuggingSession.IsCancellationRequested && !isCleanupStage)
+        {
+            // A skipped step still records an outcome. StepInstance.State reads the last retry
+            // result, so returning without one turns "this step did not run" into an exception when
+            // anything later inspects the run.
+            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped });
+            step.Freeze();
+
+            await debuggingSession.TransitionStepAsync(stageName, stepIndex, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
+            return;
+        }
+
         await debuggingSession.WaitWhenBreakpointHit(stageName, stepIndex);
 
         int iteration = 0;
@@ -65,7 +82,7 @@ internal class CoreRunner
             if (iteration > 1)
                 await DelayForRetryAsync(step, iteration, variableStore);
 
-            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore);
+            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, debuggingSession.RunCancellationToken);
             step.RetryResults.Add(stepResult);
 
             willRetry = ShouldRetry(step, variableStore, iteration, stepResult);
@@ -78,12 +95,24 @@ internal class CoreRunner
                 willRetry,
                 step.Step.ResultOptions.ResultBindings));
             DebugLifecycleState outcomeState = MapLifecycleState(stepResult.State);
+
+            // The exception is only in scope here. Anywhere downstream it exists solely as rendered
+            // log text, which is why a debugger could previously say a step went red but not why.
+            // A result that carries an exception yet is not in an error state was absorbed by
+            // ErrorHandlingOptions.IgnoreExceptionTypes.
+            DebugFailureDetail? failure = DebugFailureDetail.Capture(
+                stepResult.Exception,
+                iteration,
+                willRetry,
+                wasSuppressed: stepResult.Exception is not null && stepResult.State is not (StepState.Error or StepState.Timeout));
+
             await debuggingSession.TransitionStepAsync(
                 stageName,
                 stepIndex,
                 willRetry ? DebugLifecycleState.WaitingForRetry : outcomeState,
                 DebugLifecycleState.Running,
-                outcomeState);
+                outcomeState,
+                failure);
         }
         while (willRetry);
 
@@ -95,7 +124,7 @@ internal class CoreRunner
         await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
     }
 
-    private static async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore)
+    private static async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, CancellationToken runCancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
         StepResultGeneric stepResult = new StepResultGeneric();
@@ -105,7 +134,8 @@ internal class CoreRunner
         // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
         // was never told to stop, its exception went unobserved, and the retry started immediately
         // alongside the attempt it was supposedly replacing.
-        CancellationTokenSource cancellationTokenSource = new(timeout);
+        CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(runCancellationToken);
+        cancellationTokenSource.CancelAfter(timeout);
         bool ownsCancellationTokenSource = true;
         Task<object?>? executionTask = null;
 
