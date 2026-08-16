@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Collections.Generic;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Variables;
@@ -18,9 +18,9 @@ public record TimelineRunStructure
     /// <summary>
     /// Gets the variables visible in the run.
     /// </summary>
-    public required IReadOnlyDictionary<VariableIdentifier, VariableState> Variables { get; init; }
+    public required IReadOnlyDictionary<VariableIdentifier, DebugValue> Variables { get; init; }
     /// <summary>
     /// Gets the artifacts visible in the run.
     /// </summary>
-    public required IReadOnlyDictionary<ArtifactIdentifier, ArtifactState> Artifacts { get; init; }
+    public required IReadOnlyDictionary<ArtifactIdentifier, DebugValue> Artifacts { get; init; }
 }

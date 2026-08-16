@@ -60,7 +60,7 @@ public class CoreRuntimeTests
     [Fact]
     public void VariableStore_DebuggingState_UsesCommonEnvelope()
     {
-        VariableState state = VariableStore.GetDebuggingStateFromValue("Grace", new VariableIdentifier("user"));
+        DebugValue state = VariableStore.GetDebuggingStateFromValue("Grace", new VariableIdentifier("user"));
 
         Assert.Equal("user", state.Key);
         Assert.Equal(DebugValueKind.Variable, state.Envelope.Kind);
@@ -71,7 +71,7 @@ public class CoreRuntimeTests
     [Fact]
     public void ArtifactStore_DebuggingState_UsesCommonEnvelopeAndCustomPayload()
     {
-        Debugger.ArtifactState state = ArtifactStore.GetDebuggingStateFromInstance(new ArtifactInstance<TestArtifactDescriber, TestArtifactData, TestArtifactReference>(
+        DebugValue state = ArtifactStore.GetDebuggingStateFromInstance(new ArtifactInstance<TestArtifactDescriber, TestArtifactData, TestArtifactReference>(
             new TestArtifactDescriber(),
             new ArtifactIdentifier("artifact"),
             new TestArtifactReference(),
@@ -81,6 +81,33 @@ public class CoreRuntimeTests
         Assert.Equal(DebugValueKind.Artifact, state.Envelope.Kind);
         Assert.Equal("test-artifact-schema", state.Envelope.SchemaKey);
         Assert.Equal("debug", state.Envelope.Custom!["mode"]!.Value<string>());
+    }
+
+    [Fact]
+    public void ArtifactStore_DebuggingState_StatesItsLifecycleRatherThanBuryingItInJson()
+    {
+        // A consumer needs the state and the history to draw an artifact at all, and reading them out
+        // of an untyped payload means knowing the property names and coping with them being absent.
+        DebugValue state = ArtifactStore.GetDebuggingStateFromInstance(new ArtifactInstance<TestArtifactDescriber, TestArtifactData, TestArtifactReference>(
+            new TestArtifactDescriber(),
+            new ArtifactIdentifier("artifact"),
+            new TestArtifactReference(),
+            new TestArtifactData()));
+
+        Assert.NotNull(state.Envelope.Lifecycle);
+        Assert.Equal(nameof(TestFramework.Core.Artifacts.ArtifactState.NotSetup), state.Envelope.Lifecycle!.State);
+        Assert.Single(state.Envelope.Lifecycle.Versions);
+        Assert.Equal(state.Envelope.Version, state.Envelope.Lifecycle.CurrentVersion);
+    }
+
+    [Fact]
+    public void VariableStore_DebuggingState_HasNoLifecycleBecauseAVariableHasNone()
+    {
+        // The absence is the statement: a variable is its current value and nothing else, so a
+        // consumer has nothing to draw a history from and should not be invited to try.
+        DebugValue state = VariableStore.GetDebuggingStateFromValue("Grace", new VariableIdentifier("user"));
+
+        Assert.Null(state.Envelope.Lifecycle);
     }
 
     private sealed class RuntimeContext

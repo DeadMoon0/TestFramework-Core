@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -188,7 +188,7 @@ internal class DebuggingRunSession
         return Task.CompletedTask;
     }
 
-    internal void PublishVariableUpdate(VariableIdentifier identifier, VariableState state)
+    internal void PublishVariableUpdate(VariableIdentifier identifier, DebugValue state)
     {
         if (!sessionInitialized)
             return;
@@ -198,7 +198,7 @@ internal class DebuggingRunSession
         Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, stage, stepId, state.Envelope));
     }
 
-    internal void PublishArtifactUpdate(ArtifactIdentifier identifier, ArtifactState state)
+    internal void PublishArtifactUpdate(ArtifactIdentifier identifier, DebugValue state)
     {
         if (!sessionInitialized)
             return;

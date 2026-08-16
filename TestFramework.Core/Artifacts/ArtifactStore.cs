@@ -80,7 +80,7 @@ public class ArtifactStore : IFreezable
     /// files — which is the whole point of capturing versions, and was previously visible only as
     /// three truncated previews.
     /// </remarks>
-    private Debugger.ArtifactState WithBody(Debugger.ArtifactState state, ArtifactInstanceGeneric instance)
+    private DebugValue WithBody(DebugValue state, ArtifactInstanceGeneric instance)
     {
         if (state.Envelope.Description.Preview?.IsTruncated != true || instance.VersionCount == 0)
             return state;
@@ -98,7 +98,7 @@ public class ArtifactStore : IFreezable
         return state with { Envelope = state.Envelope with { Description = described } };
     }
 
-    internal static Debugger.ArtifactState GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)
+    internal static DebugValue GetDebuggingStateFromInstance(ArtifactInstanceGeneric instance)
     {
         ArtifactDataGeneric? currentData = instance.VersionCount != 0 ? instance[instance.VersionCount - 1] : null;
 
@@ -107,7 +107,7 @@ public class ArtifactStore : IFreezable
         // reference.
         DebugValueDescription description = instance.Artifact.Describe(instance);
 
-        return new Debugger.ArtifactState
+        return new DebugValue
         {
             Key = instance.Identifier,
             Envelope = new DebugValueEnvelope
@@ -118,6 +118,15 @@ public class ArtifactStore : IFreezable
                 Description = description,
                 SchemaKey = instance.Artifact.DebugValueSchemaKey,
                 Version = currentData?.Identifier.ToString(),
+
+                // Stated rather than left for a consumer to dig out of the Core payload below, which
+                // is where these two facts lived and where nothing could rely on finding them.
+                Lifecycle = new DebugValueLifecycle
+                {
+                    State = instance.State.ToString(),
+                    Versions = [.. VersionsOf(instance)],
+                    CurrentVersion = currentData?.Identifier.ToString()
+                },
                 Core = new JObject
                 {
                     ["key"] = instance.Identifier.Identifier,
@@ -142,10 +151,16 @@ public class ArtifactStore : IFreezable
     {
         JArray versions = [];
 
-        for (int index = 0; index < instance.VersionCount; index++)
-            versions.Add(instance[index].Identifier.ToString());
+        foreach (string version in VersionsOf(instance))
+            versions.Add(version);
 
         return versions;
+    }
+
+    private static IEnumerable<string> VersionsOf(ArtifactInstanceGeneric instance)
+    {
+        for (int index = 0; index < instance.VersionCount; index++)
+            yield return instance[index].Identifier.ToString();
     }
 
     private static JToken ToToken(object? value)

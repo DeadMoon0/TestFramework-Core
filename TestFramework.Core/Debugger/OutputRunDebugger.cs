@@ -29,8 +29,8 @@ internal sealed class OutputRunDebugger : IRunDebugger
     private readonly Dictionary<string, int> stepIterations = [];
     private readonly List<StageRenderState> orderedStages = [];
     private readonly Dictionary<string, StageRenderState> stagesByName = new(System.StringComparer.Ordinal);
-    private readonly Dictionary<string, VariableState> variablesByKey = new(System.StringComparer.Ordinal);
-    private readonly Dictionary<string, ArtifactState> artifactsByKey = new(System.StringComparer.Ordinal);
+    private readonly Dictionary<string, DebugValue> variablesByKey = new(System.StringComparer.Ordinal);
+    private readonly Dictionary<string, DebugValue> artifactsByKey = new(System.StringComparer.Ordinal);
     private readonly List<string> runLogLines = [];
     private readonly List<string> assertionLines = [];
     private string? runName;
@@ -65,10 +65,10 @@ internal sealed class OutputRunDebugger : IRunDebugger
         runLogLines.Clear();
         assertionLines.Clear();
 
-        foreach (VariableState variable in runStructure.Variables.Values)
+        foreach (DebugValue variable in runStructure.Variables.Values)
             variablesByKey[variable.Key] = variable;
 
-        foreach (ArtifactState artifact in runStructure.Artifacts.Values)
+        foreach (DebugValue artifact in runStructure.Artifacts.Values)
             artifactsByKey[artifact.Key] = artifact;
     }
 
@@ -148,10 +148,10 @@ internal sealed class OutputRunDebugger : IRunDebugger
         switch (valueKind)
         {
             case DebugValueKind.Variable:
-                variablesByKey[name] = new VariableState { Key = name, Envelope = value };
+                variablesByKey[name] = new DebugValue { Key = name, Envelope = value };
                 break;
             case DebugValueKind.Artifact:
-                artifactsByKey[name] = new ArtifactState { Key = name, Envelope = value };
+                artifactsByKey[name] = new DebugValue { Key = name, Envelope = value };
                 break;
         }
 
@@ -166,17 +166,48 @@ internal sealed class OutputRunDebugger : IRunDebugger
     }
 
     /// <summary>
-    /// One line for a value: what it is, and where the rest of it went when it did not fit.
+    /// One line for a value: what it is, and where it went when it did not fit.
     /// </summary>
     /// <remarks>
-    /// The path rather than the content. A run that printed a large response body inline buried the
-    /// step flow the output exists to show, and the file is readable by anything — including the
-    /// build that publishes it as an artifact.
+    /// <para>
+    /// When the value is in a file the line says what it <em>is</em> — its type and its size — and
+    /// where to find it. It deliberately does not recite the first hundred characters of it: an
+    /// excerpt of a large response body is the part least likely to contain what a reader is looking
+    /// for, and it buries the step flow the output exists to show. The file is readable by anything,
+    /// including the build that publishes it.
+    /// </para>
+    /// <para>
+    /// When the value fits, the summary is the value, and there is nothing to point at.
+    /// </para>
     /// </remarks>
     private static string Render(DebugValueEnvelope envelope)
-        => envelope.Description.Body is { } body
-            ? $"{envelope.DisplayText}  -> {body.RelativePath}"
-            : envelope.DisplayText;
+    {
+        if (envelope.Description.Body is not { } body)
+            return envelope.DisplayText;
+
+        return $"{Facts(envelope)}  -> {body.RelativePath} ({Size(body.SizeInBytes)})";
+    }
+
+    /// <summary>What the value is, from the facts it was described with.</summary>
+    /// <remarks>
+    /// Falls back to the display text for a value replayed from a recording made before values
+    /// described themselves, which has facts to state but none stated.
+    /// </remarks>
+    private static string Facts(DebugValueEnvelope envelope)
+    {
+        DebugValueField[] fields = envelope.Description.Fields;
+
+        return fields.Length == 0
+            ? envelope.DisplayText
+            : string.Join(", ", fields.Select(field => $"{field.Name} {field.Value}"));
+    }
+
+    private static string Size(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024d:0.#} KB",
+        _ => $"{bytes / (1024d * 1024d):0.#} MB"
+    };
 
     private static string? RenderOrNull(DebugValueEnvelope? envelope) => envelope is null ? null : Render(envelope);
 
@@ -261,6 +292,33 @@ internal sealed class OutputRunDebugger : IRunDebugger
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Lists every value the run wrote out, once, at the end.
+    /// </summary>
+    /// <remarks>
+    /// Scattered through the step panels, a run's files are found only by whoever reads all of them.
+    /// Collected here they are a manifest: what this run produced, how big, and where — which is what
+    /// someone reads a failed build's log for, and what tells them which artifact to open.
+    /// </remarks>
+    private List<string> ValueFileLines() =>
+    [
+        .. variablesByKey.Values
+            .Concat(artifactsByKey.Values)
+            .Where(value => value.Envelope.Description.Body is not null)
+            .OrderBy(value => value.Key, System.StringComparer.Ordinal)
+            .Select(value => $"{value.Key}  {Size(value.Envelope.Description.Body!.SizeInBytes)}  {value.Envelope.Description.Body!.RelativePath}")
+    ];
+
+    private void RenderValueFiles(List<string> lines)
+    {
+        if (lines.Count == 0)
+            return;
+
+        BoxPrefix prefix = CreateBoxPrefix(string.Empty, assertionLines.Count > 0);
+        WriteGapLine(prefix.Gap);
+        RenderSection("Value Files", lines, prefix);
+    }
+
     private void RenderRunSummary()
     {
         BoxPrefix runPrefix = CreateRootBoxPrefix();
@@ -270,20 +328,27 @@ internal sealed class OutputRunDebugger : IRunDebugger
             WriteWrappedContent($"Project: {projectPath}", runPrefix, false);
         WriteBottomBorder('=', runPrefix);
 
+        // Worked out up front because the box drawing needs to know whether anything follows: a
+        // section that decides for itself whether to appear leaves the one before it drawn as last.
+        List<string> valueFileLines = ValueFileLines();
+        bool tail = valueFileLines.Count > 0 || assertionLines.Count > 0;
+
         if (runLogLines.Count > 0)
         {
-            BoxPrefix runLogPrefix = CreateBoxPrefix(string.Empty, orderedStages.Count > 0 || assertionLines.Count > 0);
+            BoxPrefix runLogPrefix = CreateBoxPrefix(string.Empty, orderedStages.Count > 0 || tail);
             WriteGapLine(runLogPrefix.Gap);
             RenderSection("Run Log", runLogLines, runLogPrefix);
         }
 
         for (int stageIndex = 0; stageIndex < orderedStages.Count; stageIndex++)
         {
-            bool hasFollowingSibling = stageIndex < orderedStages.Count - 1 || assertionLines.Count > 0;
+            bool hasFollowingSibling = stageIndex < orderedStages.Count - 1 || tail;
             BoxPrefix stagePrefix = CreateBoxPrefix(string.Empty, hasFollowingSibling);
             WriteGapLine(stagePrefix.Gap);
             RenderStage(orderedStages[stageIndex], stagePrefix);
         }
+
+        RenderValueFiles(valueFileLines);
 
         if (assertionLines.Count > 0)
         {
@@ -698,10 +763,10 @@ internal sealed class OutputRunDebugger : IRunDebugger
         private readonly Dictionary<int, int> layerIndexByStepId = new();
         private readonly Dictionary<int, PhaseRunInfo> phaseRunByLayerIndex = new();
 
-        private readonly IReadOnlyDictionary<string, VariableState> variablesByKey;
-        private readonly IReadOnlyDictionary<string, ArtifactState> artifactsByKey;
+        private readonly IReadOnlyDictionary<string, DebugValue> variablesByKey;
+        private readonly IReadOnlyDictionary<string, DebugValue> artifactsByKey;
 
-        public StageRenderState(string name, DebugStageState? stageDefinition, IReadOnlyDictionary<string, VariableState> variablesByKey, IReadOnlyDictionary<string, ArtifactState> artifactsByKey)
+        public StageRenderState(string name, DebugStageState? stageDefinition, IReadOnlyDictionary<string, DebugValue> variablesByKey, IReadOnlyDictionary<string, DebugValue> artifactsByKey)
         {
             Name = name;
             StageDefinition = stageDefinition;
@@ -1024,7 +1089,7 @@ internal sealed class OutputRunDebugger : IRunDebugger
         public List<string> LogLines { get; } = [];
         public List<ValueUpdateRenderState> ValueUpdates { get; } = [];
 
-        public void CaptureInputs(IReadOnlyDictionary<string, VariableState> variablesByKey, IReadOnlyDictionary<string, ArtifactState> artifactsByKey)
+        public void CaptureInputs(IReadOnlyDictionary<string, DebugValue> variablesByKey, IReadOnlyDictionary<string, DebugValue> artifactsByKey)
         {
             InputSnapshots.Clear();
 

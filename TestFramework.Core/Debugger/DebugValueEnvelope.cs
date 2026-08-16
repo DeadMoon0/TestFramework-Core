@@ -59,7 +59,21 @@ public record DebugValueEnvelope
     /// <summary>
     /// Gets an optional version identifier for versioned values.
     /// </summary>
+    /// <remarks>
+    /// Superseded by <see cref="DebugValueLifecycle.CurrentVersion"/>, which states it alongside the
+    /// history it belongs to. Kept for consumers built against an earlier package.
+    /// </remarks>
     public string? Version { get; init; }
+
+    /// <summary>
+    /// Gets the value's lifecycle and version history, for a value that has one.
+    /// </summary>
+    /// <remarks>
+    /// Null for a plain variable, which is its current value and nothing more. Replaced rather than
+    /// populated on deserialization for the same reason as <see cref="Description"/>.
+    /// </remarks>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public DebugValueLifecycle? Lifecycle { get; init; }
 
     /// <summary>
     /// Gets the stable shared JSON payload for the value.

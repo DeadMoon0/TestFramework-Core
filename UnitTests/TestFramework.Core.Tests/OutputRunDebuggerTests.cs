@@ -40,8 +40,8 @@ public class OutputRunDebuggerTests
                         ]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
@@ -149,8 +149,8 @@ public class OutputRunDebuggerTests
                         ]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
@@ -200,8 +200,8 @@ public class OutputRunDebuggerTests
                         ]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
@@ -252,8 +252,8 @@ public class OutputRunDebuggerTests
                         ]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Retries", null, DebugLifecycleState.Running);
@@ -304,8 +304,8 @@ public class OutputRunDebuggerTests
                         ]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
@@ -339,8 +339,8 @@ public class OutputRunDebuggerTests
                         Steps = [CreateStep("FetchUsers")]
                     }
                 ],
-                Variables = new Dictionary<VariableIdentifier, TestFramework.Core.Debugger.VariableState>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>()
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
             });
 
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);

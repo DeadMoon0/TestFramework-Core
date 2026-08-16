@@ -156,8 +156,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         {
             return new TimelineRunStructure
             {
-                Artifacts = new Dictionary<ArtifactIdentifier, Debugger.ArtifactState>(),
-                Variables = new Dictionary<VariableIdentifier, VariableState>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>(),
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
                 Stages = []
             };
         }

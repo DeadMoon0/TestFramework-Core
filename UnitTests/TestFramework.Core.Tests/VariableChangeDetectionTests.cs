@@ -142,8 +142,8 @@ public sealed class VariableChangeDetectionTests
 
     private static TimelineRunStructure EmptyStructure() => new()
     {
-        Variables = new Dictionary<VariableIdentifier, VariableState>(),
-        Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>(),
+        Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+        Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>(),
         Stages = []
     };
 

@@ -211,6 +211,14 @@ The envelope contains:
 - `Core`
 - `Custom`
 
+A variable and an artifact are both a `DebugValue`: a key and an envelope. They are not separate types,
+because nothing downstream can act on a difference the envelope's `Kind` already states. `VariableState`
+and `ArtifactState` remain as obsolete aliases so existing consumers keep compiling.
+
+`Lifecycle` is present on an artifact and absent on a variable, and carries the state and the whole
+version history as fields. A variable is its current value and nothing else, so it has no lifecycle to
+report — the absence is the statement.
+
 `Description` states what the value is — summary, shape, named fields, badges, a bounded preview, and
 a reference to the whole of it when it did not fit. `DisplayText` is the older single line, kept so
 consumers built against an earlier package keep working, and filled from the description's summary.

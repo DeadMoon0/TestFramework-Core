@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
@@ -97,14 +97,14 @@ public class VariableStore : IFreezable
         };
     }
 
-    internal static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
+    internal static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
         => GetDebuggingStateFromValue(value, identifier, DebugValueDescriber.Describe(value), displayText);
 
-    private static VariableState GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, DescribedValue described, string? displayText = null)
+    private static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, DescribedValue described, string? displayText = null)
     {
         string typeName = value?.GetType().FullName ?? "null";
 
-        return new VariableState
+        return new DebugValue
         {
             Key = identifier,
             Envelope = new DebugValueEnvelope

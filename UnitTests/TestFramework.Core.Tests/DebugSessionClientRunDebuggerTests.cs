@@ -18,8 +18,8 @@ public class DebugSessionClientRunDebuggerTests
 
         await debugger.SignalInitTimelineRunAsync("session-1", "Run", "project.csproj", new TimelineRunStructure
         {
-            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, VariableState>(),
-            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, ArtifactState>(),
+            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, DebugValue>(),
+            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, DebugValue>(),
             Stages = []
         });
         await debugger.SignalEntityTransitionAsync("session-1", DebugEntityKind.Run, null, null, DebugLifecycleState.Running);
@@ -163,8 +163,8 @@ public class DebugSessionClientRunDebuggerTests
 
         await session.InitSessionAsync(new TimelineRunStructure
         {
-            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, VariableState>(),
-            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, ArtifactState>(),
+            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, DebugValue>(),
+            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, DebugValue>(),
             Stages = []
         });
 
@@ -179,8 +179,8 @@ public class DebugSessionClientRunDebuggerTests
 
         await session.InitSessionAsync(new TimelineRunStructure
         {
-            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, VariableState>(),
-            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, ArtifactState>(),
+            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, DebugValue>(),
+            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, DebugValue>(),
             Stages = []
         });
 

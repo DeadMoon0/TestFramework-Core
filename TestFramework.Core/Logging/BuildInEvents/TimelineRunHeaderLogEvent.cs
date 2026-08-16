@@ -43,12 +43,11 @@ internal class TimelineRunHeaderLogEvent(
             int pad = artifacts.Max(a => a.Id.Identifier.Length);
             foreach (var (id, instance) in artifacts)
             {
-                string reference = VariableFormatter.Format(instance.Reference);
-                string latest = instance.VersionCount == 0
-                    ? "<no data>"
-                    : VariableFormatter.Format(instance.Last);
-
-                writer.WriteLine(P($"    {id.Identifier.PadRight(pad)}  [{instance.State}] v{instance.VersionCount}  ref={reference}  latest={latest}"));
+                // Asked of the artifact kind, the same way every other surface asks. This line used
+                // to be assembled here as ref=…  latest=…, which meant an artifact that knew what it
+                // was — a row, a blob, a file — was described instead by its serialised reference,
+                // and said it differently here than everywhere else.
+                writer.WriteLine(P($"    {id.Identifier.PadRight(pad)}  {instance.Artifact.Describe(instance).Summary}"));
             }
             writer.WriteLine(P(""));
         }

@@ -194,9 +194,9 @@ public sealed class PipeProtocolStreamTests
     {
         return new TimelineRunStructure
         {
-            Variables = new Dictionary<VariableIdentifier, VariableState>
+            Variables = new Dictionary<VariableIdentifier, DebugValue>
             {
-                [new VariableIdentifier("input")] = new VariableState
+                [new VariableIdentifier("input")] = new DebugValue
                 {
                     Key = "input",
                     Envelope = new DebugValueEnvelope
@@ -209,9 +209,9 @@ public sealed class PipeProtocolStreamTests
                     }
                 }
             },
-            Artifacts = new Dictionary<ArtifactIdentifier, TestFramework.Core.Debugger.ArtifactState>
+            Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>
             {
-                [new ArtifactIdentifier("artifact")] = new TestFramework.Core.Debugger.ArtifactState
+                [new ArtifactIdentifier("artifact")] = new DebugValue
                 {
                     Key = "artifact",
                     Envelope = new DebugValueEnvelope
