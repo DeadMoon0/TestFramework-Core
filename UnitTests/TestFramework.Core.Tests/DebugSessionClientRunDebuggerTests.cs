@@ -61,6 +61,8 @@ public class DebugSessionClientRunDebuggerTests
 
             PipeClient.ResetAvailabilityForTests();
 
+            using JournalScope journal = JournalScope.Disarmed();
+
             Assert.IsType<PipeRunDebugger>(CommonDebugger.GetCommon());
         }
         finally
@@ -81,6 +83,8 @@ public class DebugSessionClientRunDebuggerTests
             PipeClient.ResetAvailabilityForTests();
 
             // Nothing downstream wants the signals, so the run should not carry a transport at all.
+            using JournalScope journal = JournalScope.Disarmed();
+
             Assert.IsType<EmptyRunDebugger>(CommonDebugger.GetCommon());
         }
         finally
@@ -128,6 +132,8 @@ public class DebugSessionClientRunDebuggerTests
             TestFrameworkDebugging.PipeDebuggerEnabled = false;
 
             Assert.False(TestFrameworkDebugging.PipeDebuggerEnabled);
+            using JournalScope journal = JournalScope.Disarmed();
+
             Assert.IsType<EmptyRunDebugger>(CommonDebugger.GetCommon());
         }
         finally

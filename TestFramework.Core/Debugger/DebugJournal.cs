@@ -11,11 +11,17 @@ namespace TestFramework.Core.Debugger;
 /// Resolves where run journals live and whether writing them is switched on at all.
 /// </summary>
 /// <remarks>
-/// The gate is the existence of the journal root, which the DebugUI creates when it is installed.
-/// That keeps the promise that a missing UI costs a run nothing: a machine that has never had the
-/// UI performs one directory check per process and never touches the disk again. It also means
-/// there is no configuration step — installing the tool is what switches on the durability the tool
-/// needs.
+/// <para>
+/// The gate is the existence of the journal root, which the launcher creates before it starts the
+/// UI. That keeps the promise that a missing UI costs a run nothing: a machine that has never had
+/// the tool performs one directory check per process and never touches the disk again, and there is
+/// no configuration step — installing the tool is what switches on the durability the tool needs.
+/// </para>
+/// <para>
+/// Local application data, not roaming. Run journals are large, are about what happened on this
+/// machine, and sit beside the launcher's cached application versions; roaming them would push all
+/// of that across a domain profile for no benefit to anyone.
+/// </para>
 /// </remarks>
 public static class DebugJournal
 {
@@ -87,7 +93,7 @@ public static class DebugJournal
             return configured;
 
         return Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
             RootFolderName,
             JournalFolderName);
     }
