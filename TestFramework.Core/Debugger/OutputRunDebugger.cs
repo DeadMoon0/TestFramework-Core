@@ -46,16 +46,22 @@ internal sealed class OutputRunDebugger : IRunDebugger
     {
         lock (renderGate)
         {
-            HandleInitTimelineRun(name, projectPath, runStructure);
+            HandleInitTimelineRun(name, projectPath, runStructure, identity);
         }
 
         return Task.CompletedTask;
     }
 
-    private void HandleInitTimelineRun(string name, string projectPath, TimelineRunStructure runStructure)
+    private void HandleInitTimelineRun(string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity)
     {
         runName = name;
-        this.projectPath = projectPath;
+
+        // The identity's answer first. The announced path is the host process under a test runner,
+        // so taking it at face value put "testhost.exe" on the first line every reader sees.
+        //
+        // The name rather than the path: a full path wraps over three lines of the panel and buries
+        // the one word that identifies the run among directories every line of the log shares.
+        this.projectPath = TestIdentity.ShortNameOf(identity?.ProjectDisplayName ?? projectPath);
         this.runStructure = runStructure;
         stepIterations.Clear();
         orderedStages.Clear();

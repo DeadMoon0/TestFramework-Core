@@ -70,6 +70,50 @@ public sealed record TestIdentity
     public string? ProjectFilePath { get; init; }
 
     /// <summary>
+    /// Gets what to call the project this run belongs to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test's own project or assembly first, and <see cref="AssemblyPath"/> only as a last
+    /// resort: under a test runner that path is the host process, so every run in a suite reports
+    /// <c>testhost.exe</c> — which names the runner rather than the run, and is the same for all of
+    /// them.
+    /// </para>
+    /// <para>
+    /// One rule, stated once, because a consumer grouping runs by project and a log line naming the
+    /// project have to agree. Two copies of this drifting apart would file a run under one name and
+    /// print another.
+    /// </para>
+    /// </remarks>
+    public string ProjectDisplayName => ProjectFilePath ?? AssemblyName ?? AssemblyPath;
+
+    /// <summary>Gets the project's name on its own, without the directory or the extension.</summary>
+    public string ProjectName => ShortNameOf(ProjectDisplayName);
+
+    /// <summary>
+    /// Reduces a project path to the name a person would call it.
+    /// </summary>
+    /// <remarks>
+    /// Only a real project or assembly extension is trimmed. A bare assembly name is dotted too, and
+    /// trimming its last segment would turn <c>Acme.Billing.Tests</c> into <c>Acme.Billing</c> — a
+    /// project that does not exist, sitting beside the one that does.
+    /// </remarks>
+    public static string ShortNameOf(string project)
+    {
+        if (string.IsNullOrWhiteSpace(project))
+            return project;
+
+        string file = project[(project.LastIndexOfAny(['/', '\\']) + 1)..];
+
+        if (file.Length == 0)
+            return project;
+
+        string suffix = Path.GetExtension(file);
+
+        return suffix is ".csproj" or ".dll" or ".exe" ? file[..^suffix.Length] : file;
+    }
+
+    /// <summary>
     /// Gets a value indicating whether this identity is complete enough to re-run the test.
     /// </summary>
     /// <remarks>

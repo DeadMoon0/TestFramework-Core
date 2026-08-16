@@ -68,7 +68,71 @@ public sealed class OutputValueFileTests
         Assert.Contains("small enough to send", output, StringComparison.Ordinal);
     }
 
-    private static async Task<string> Render(DebugValueBody? body)
+    [Fact]
+    public async Task TheHeaderNamesTheProjectRatherThanTheProcessThatHostedIt()
+    {
+        // The announced path is the host under a test runner, so taking it at face value put
+        // "testhost.exe" on the first line every reader of a CI log sees — the same line for every
+        // run in the suite.
+        string output = await Render(body: null, Identity());
+
+        Assert.Contains("Acme.Billing.Tests", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("testhost", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheHeaderNamesTheProjectRatherThanPrintingItsWholePath()
+    {
+        // A full path wraps over three lines of the panel and buries the one word that identifies
+        // the run among directories every other line of the log shares.
+        string output = await Render(body: null, Identity());
+
+        Assert.DoesNotContain(@"C:\agent", output, StringComparison.Ordinal);
+        Assert.DoesNotContain(".csproj", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARunWithNoIdentityStillNamesWhateverItWasGiven()
+    {
+        // Nothing resolved the identity, so the announced path is all there is. Showing nothing
+        // would be worse than showing the host.
+        string output = await Render(body: null, identity: null);
+
+        Assert.Contains("project", output, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(@"C:\src\Acme.Billing.Tests\Acme.Billing.Tests.csproj", "Acme.Billing.Tests")]
+    [InlineData(@"C:\agent\_work\1\s\bin\testhost.exe", "testhost")]
+    [InlineData("/home/build/src/Acme.Web.Tests.dll", "Acme.Web.Tests")]
+    [InlineData("Acme.Billing.Tests", "Acme.Billing.Tests")]
+    public void AProjectIsNamedByItsLastSegmentWithoutItsExtension(string project, string expected)
+    {
+        // The last case is the one that bites: a bare assembly name is dotted too, and trimming its
+        // last segment would turn Acme.Billing.Tests into Acme.Billing — a project that does not
+        // exist, sitting in the list beside the one that does.
+        Assert.Equal(expected, TestIdentity.ShortNameOf(project));
+    }
+
+    [Fact]
+    public void AProjectWithNoNameToShortenIsLeftAlone()
+    {
+        Assert.Equal(string.Empty, TestIdentity.ShortNameOf(string.Empty));
+        Assert.Equal(@"C:\src\", TestIdentity.ShortNameOf(@"C:\src\"));
+    }
+
+    private static TestIdentity Identity() => new()
+    {
+        DisplayName = "LargeValues",
+        Framework = TestFrameworkKind.XUnit,
+        AssemblyPath = @"C:\agent\_work\1\s\bin\testhost.exe",
+        AssemblyName = "Acme.Billing.Tests",
+        ProjectFilePath = "Acme.Billing.Tests.csproj"
+    };
+
+    private static async Task<string> Render(DebugValueBody? body) => await Render(body, identity: null);
+
+    private static async Task<string> Render(DebugValueBody? body, TestIdentity? identity)
     {
         RecordingOutput output = new();
         OutputRunDebugger debugger = new(output);
@@ -94,7 +158,7 @@ public sealed class OutputValueFileTests
             Stages = [new DebugStageState { Name = "Main", Description = string.Empty, Steps = [step] }],
             Variables = new Dictionary<VariableIdentifier, DebugValue>(),
             Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
-        });
+        }, identity);
 
         await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
         await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
