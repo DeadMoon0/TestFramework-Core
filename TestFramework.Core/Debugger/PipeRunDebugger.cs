@@ -117,15 +117,19 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCan
     /// <summary>
     /// Signals a breakpoint hit and waits until execution may continue.
     /// </summary>
-    public async Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
+    public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
     {
-        await client.SignalAsync(new PipeBreakpointHitRequestSignal
-        {
-            SessionId = sessionId,
-            Stage = stage,
-            StepId = stepId
-        });
-        await client.WaitForAsync(PipeSignalKind.BreakpointHitContinue);
+        // One call, so the answer cannot arrive before anything is listening for it. Sending and then
+        // waiting are the same operation here, and splitting them is what made a step that was never
+        // meant to pause wait out the whole timeout.
+        return client.ExchangeAsync(
+            new PipeBreakpointHitRequestSignal
+            {
+                SessionId = sessionId,
+                Stage = stage,
+                StepId = stepId
+            },
+            PipeSignalKind.BreakpointHitContinue);
     }
 
     /// <summary>

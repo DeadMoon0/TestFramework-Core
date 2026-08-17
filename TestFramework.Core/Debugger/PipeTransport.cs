@@ -387,32 +387,41 @@ internal sealed class PipeClient : IDisposable
     }
 
     /// <summary>
-    /// Waits for one signal of the requested kind, or gives up after <paramref name="timeout"/>.
+    /// Sends a signal and waits for the reply it expects, or gives up after <paramref name="timeout"/>.
     /// </summary>
     /// <remarks>
-    /// On expiry the connection is disposed rather than reused: the frame is half-read, so the next
-    /// read would start mid-message and desynchronize framing for the rest of the run.
+    /// <para>
+    /// The waiter is registered <em>before</em> the request goes out, and that ordering is the whole
+    /// point of this method existing. Reads happen on their own loop, so a consumer answering over a
+    /// local pipe can reply before the sending continuation resumes; an answer that arrives with no
+    /// waiter registered is dropped, and the caller then waits out the full timeout for a reply that
+    /// already came and went. Sending first made every step a race, and losing it cost ten minutes.
+    /// </para>
+    /// <para>
+    /// On expiry the connection is left intact. The receive loop owns framing, so an unanswered wait
+    /// no longer implies a half-read frame the way a direct read did.
+    /// </para>
     /// </remarks>
-    internal async Task<IPipeSignal?> WaitForAsync(PipeSignalKind kind, TimeSpan? timeout = null)
+    internal async Task<IPipeSignal?> ExchangeAsync(IPipeSignal request, PipeSignalKind reply, TimeSpan? timeout = null)
     {
         if (!await EnsureConnectedAsync())
             return null;
 
         TaskCompletionSource<IPipeSignal> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!waiters.TryAdd(kind, completion))
+        if (!waiters.TryAdd(reply, completion))
             return null;
 
         try
         {
+            await SignalAsync(request);
+
             Task finished = await Task.WhenAny(completion.Task, Task.Delay(timeout ?? PipeTransport.GetWaitTimeout()));
 
-            // On expiry the connection is left intact. The receive loop owns framing, so an
-            // unanswered wait no longer implies a half-read frame the way a direct read did.
             return ReferenceEquals(finished, completion.Task) ? await completion.Task : null;
         }
         finally
         {
-            waiters.TryRemove(kind, out _);
+            waiters.TryRemove(reply, out _);
         }
     }
 
@@ -420,7 +429,7 @@ internal sealed class PipeClient : IDisposable
     /// Reads continuously so unsolicited messages arrive whenever they are sent.
     /// </summary>
     /// <remarks>
-    /// Reads used to happen only inside <see cref="WaitForAsync"/>, which meant the producer could
+    /// Reads used to happen only inside <see cref="ExchangeAsync"/>, which meant the producer could
     /// hear from the consumer solely while parked on a breakpoint. Cancelling a running timeline was
     /// therefore impossible to deliver.
     /// </remarks>
