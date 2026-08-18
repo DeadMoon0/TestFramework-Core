@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -209,29 +209,65 @@ internal class DebuggingRunSession
     }
 
     /// <summary>
-    /// Queues a log entry for delivery. The caller is not blocked, but the entry keeps its place in
-    /// the stream relative to the step transitions around it.
+    /// Queues a log event for delivery. The caller is not blocked, but the event keeps its place in the
+    /// stream relative to the step transitions around it.
     /// </summary>
-    internal void PublishLog(DebugLogEntry entry)
+    /// <remarks>
+    /// <para>
+    /// Two consumers, wanting two different things from the same event. A display wants the lines the event
+    /// renders to; a transport wants the facts behind them. Both are settled here, in one queued unit of work,
+    /// so a rendered line and the entry describing it can never arrive out of order with respect to the
+    /// transitions around them.
+    /// </para>
+    /// <para>
+    /// An event that renders but describes nothing is the framework narrating the console, and stops here. The
+    /// transport already carries what it was narrating: the transitions, their timing, and the run's plan.
+    /// </para>
+    /// </remarks>
+    internal void PublishLog(Logging.LogEvent source, DebugLogLevel level, int indentLevel, string? assertionScope)
     {
+        ArgumentNullException.ThrowIfNull(source);
+
         ExecutionContextInfo? context = currentExecutionContext.Value;
         IterationContextInfo? iteration = currentIterationContext.Value;
 
-        DebugLogEntry entryWithContext = new()
-        {
-            OccurredAtUtc = entry.OccurredAtUtc == default ? DateTimeOffset.UtcNow : entry.OccurredAtUtc,
-            Level = entry.Level,
-            EventName = entry.EventName,
-            Message = entry.Message,
-            Lines = entry.Lines,
-            IndentLevel = entry.IndentLevel,
-            Stage = entry.Stage ?? context?.Stage,
-            StepId = entry.StepId ?? context?.StepId,
-            Iteration = entry.Iteration ?? iteration?.Iteration,
-            AssertionScope = entry.AssertionScope
-        };
+        string? stage = context?.Stage;
+        int? stepId = context?.StepId;
+        int? attempt = iteration?.Iteration;
 
-        Enqueue(() => Debugger.SignalLogEntryAsync(SessionId, entryWithContext));
+        // Formatted only when something is going to show it. Every event used to be rendered on the way out
+        // whether or not a console existed to print it.
+        string[] lines = Debugger is ISupportsRenderedLog
+            ? Logging.LogRendering.ToLines(source, indentLevel)
+            : [];
+
+        DebugLogFacts? facts = source.Describe();
+
+        DebugLogEntry? entry = facts is null
+            ? null
+            : new DebugLogEntry
+            {
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                Level = level,
+                EventName = source.GetType().Name,
+                Template = facts.Template,
+                Fields = facts.Fields,
+                Stage = stage,
+                StepId = stepId,
+                Iteration = attempt,
+                AssertionScope = assertionScope
+            };
+
+        if (lines.Length == 0 && entry is null)
+            return;
+
+        Enqueue(() =>
+        {
+            if (lines.Length != 0 && Debugger is ISupportsRenderedLog display)
+                display.WriteRenderedLog(lines, new LogPlacement(stage, stepId, attempt, indentLevel));
+
+            return entry is null ? Task.CompletedTask : Debugger.SignalLogEntryAsync(SessionId, entry);
+        });
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ public class ScopedLogger
     /// <param name="logEvent">The event to format and write.</param>
     public void Log(LogEvent logEvent)
     {
-        SendEntry(CreateEntry(logEvent, InferLevel(logEvent)));
+        Publish(logEvent, InferLevel(logEvent));
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogInformation(string log)
     {
-        SendEntry(CreateEntry(new InformationLogEvent(log, []), DebugLogLevel.Information));
+        Publish(new InformationLogEvent(log, []), DebugLogLevel.Information);
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogInformation(string format, params object[] args)
     {
-        SendEntry(CreateEntry(new InformationLogEvent(format, args), DebugLogLevel.Information));
+        Publish(new InformationLogEvent(format, args), DebugLogLevel.Information);
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogWarning(string log)
     {
-        SendEntry(CreateEntry(new WarningLogEvent(log, []), DebugLogLevel.Warning));
+        Publish(new WarningLogEvent(log, []), DebugLogLevel.Warning);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogWarning(string format, params object[] args)
     {
-        SendEntry(CreateEntry(new WarningLogEvent(format, args), DebugLogLevel.Warning));
+        Publish(new WarningLogEvent(format, args), DebugLogLevel.Warning);
     }
 
     /// <summary>
@@ -105,7 +105,7 @@ public class ScopedLogger
     /// <param name="log">The message to log.</param>
     public void LogError(string log)
     {
-        SendEntry(CreateEntry(new ErrorLogEvent(log, []), DebugLogLevel.Error));
+        Publish(new ErrorLogEvent(log, []), DebugLogLevel.Error);
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public class ScopedLogger
     /// <param name="args">The format arguments.</param>
     public void LogError(string format, params object[] args)
     {
-        SendEntry(CreateEntry(new ErrorLogEvent(format, args), DebugLogLevel.Error));
+        Publish(new ErrorLogEvent(format, args), DebugLogLevel.Error);
     }
 
     internal void SignalAssertion(DebugAssertionTargetKind targetKind, string target, string assertionName, string assertionDisplay, bool succeeded, string expected = "", string actual = "", string failureReason = "")
@@ -137,28 +137,17 @@ public class ScopedLogger
         });
     }
 
-    private void SendEntry(DebugLogEntry entry)
+    /// <summary>
+    /// Hands an event to the session, which decides who wants what.
+    /// </summary>
+    /// <remarks>
+    /// The event goes over whole rather than being rendered here. Rendering it at this point is what put the
+    /// console's output onto every transport: whoever is displaying wants lines, whoever is recording wants the
+    /// facts behind them, and only the session knows which of the two are attached.
+    /// </remarks>
+    private void Publish(LogEvent logEvent, DebugLogLevel level)
     {
-        debuggingSession?.PublishLog(entry);
-    }
-
-    private DebugLogEntry CreateEntry(LogEvent logEvent, DebugLogLevel level)
-    {
-        CollectingOutputHelper collector = new();
-        LogLineWriter writer = new(collector, "\t");
-        logEvent.CurrentIndentLevel = indentLevel.Value;
-        logEvent.FormatLogEvent(writer);
-
-        return new DebugLogEntry
-        {
-            OccurredAtUtc = DateTimeOffset.UtcNow,
-            Level = level,
-            EventName = logEvent.GetType().Name,
-            Message = string.Join(System.Environment.NewLine, collector.Lines),
-            Lines = [.. collector.Lines],
-            IndentLevel = indentLevel.Value,
-            AssertionScope = CurrentScope?.GetType().Name
-        };
+        debuggingSession?.PublishLog(logEvent, level, indentLevel.Value, CurrentScope?.GetType().Name);
     }
 
     private static DebugLogLevel InferLevel(LogEvent logEvent)
@@ -171,18 +160,4 @@ public class ScopedLogger
         };
     }
 
-    private sealed class CollectingOutputHelper : ITestOutputHelper
-    {
-        internal List<string> Lines { get; } = [];
-
-        public void WriteLine(string message)
-        {
-            Lines.Add(message);
-        }
-
-        public void WriteLine(string format, params object[] args)
-        {
-            Lines.Add(string.Format(format, args));
-        }
-    }
 }

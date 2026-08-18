@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
@@ -26,6 +27,11 @@ internal class StepResultLogEvent(string stepName, string? label, StepResultGene
         if (s.Length <= max) return s;
         return s[..max] + $"… [+{s.Length - max} chars]";
     }
+
+    /// <summary>
+    /// Nothing. This event narrates the console: the step's outcome, its failure detail and its timing are all signalled.
+    /// </summary>
+    public override DebugLogFacts? Describe() => null;
 
     public override void FormatLogEvent(LogLineWriter writer)
     {

@@ -1,7 +1,18 @@
-﻿namespace TestFramework.Core.Logging.BuildInEvents;
+﻿using TestFramework.Core.Debugger;
+
+namespace TestFramework.Core.Logging.BuildInEvents;
 
 internal class ErrorLogEvent(string format, object[] args) : LogEvent
 {
+    /// <summary>
+    /// The format string and its arguments, unformatted.
+    /// </summary>
+    /// <remarks>
+    /// Something that went wrong and was worth saying so. The arguments travel as values, so a consumer can read the number a test
+    /// logged rather than find it inside a sentence.
+    /// </remarks>
+    public override DebugLogFacts? Describe() => DebugLogFacts.Positional(format, args);
+
     public override void FormatLogEvent(LogLineWriter writer)
     {
         string s = args.Length == 0 ? format : string.Format(format, args);

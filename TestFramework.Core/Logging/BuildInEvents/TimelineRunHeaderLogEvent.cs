@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Artifacts;
@@ -6,6 +6,7 @@ using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
@@ -17,6 +18,11 @@ internal class TimelineRunHeaderLogEvent(
     IReadOnlyList<StepGeneric> mainStageSteps) : LogEvent
 {
     private const string Border = "══════════════════════════════════════════════════";
+
+    /// <summary>
+    /// Nothing. This event narrates the console: the run's name, plan and starting values arrive as the run-started signal.
+    /// </summary>
+    public override DebugLogFacts? Describe() => null;
 
     public override void FormatLogEvent(LogLineWriter writer)
     {

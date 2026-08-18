@@ -1,6 +1,7 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Tests;
@@ -27,13 +28,12 @@ public sealed class PipeValueDescriptionTests
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = "System.Int32[]",
-                DisplayText = "[412 items]",
                 SchemaKey = DebugValueSchemaKeys.Collection,
                 Description = new DebugValueDescription
                 {
                     Summary = "[412 items]",
                     Shape = DebugValueShape.Collection,
-                    Fields = [new DebugValueField { Name = "items", Value = "412" }],
+                    Fields = [new DebugValueField { Name = "items", Value = new JValue(412) }],
                     Badges = ["large"],
                     Preview = new DebugValuePreview { Form = DebugPreviewForm.Json, Text = "[1,2", IsTruncated = true, SizeInBytes = 90_000 },
                     Body = new DebugValueBody
@@ -73,15 +73,15 @@ public sealed class PipeValueDescriptionTests
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = "System.Int32",
-                DisplayText = "42",
+                Description = new DebugValueDescription { Summary = "42", Shape = DebugValueShape.Scalar },
                 SchemaKey = DebugValueSchemaKeys.Scalar
             }
         };
 
         PipeValueUpdateSignal received = RoundTrip(sent);
 
-        Assert.Equal("42", received.Envelope.DisplayText);
-        Assert.Equal(DebugValueShape.Unknown, received.Envelope.Description.Shape);
+        Assert.Equal("42", received.Envelope.Description.Summary);
+        Assert.Equal(DebugValueShape.Scalar, received.Envelope.Description.Shape);
     }
 
     [Fact]
@@ -125,7 +125,6 @@ public sealed class PipeValueDescriptionTests
         {
             Kind = DebugValueKind.Variable,
             TypeName = "System.Object",
-            DisplayText = description.Summary,
             SchemaKey = DebugValueSchemaKeys.Of(description.Shape),
             Description = description
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -293,7 +293,7 @@ public sealed class DebugJournalTests : IDisposable
         {
             Kind = DebugValueKind.Variable,
             TypeName = "System.Int32",
-            DisplayText = "42",
+            Description = new DebugValueDescription { Summary = "42", Shape = DebugValueShape.Scalar },
             SchemaKey = "tf.variable:System.Int32"
         });
         await debugger.SignalEntityTransitionAsync(sessionId, DebugEntityKind.Run, null, null, DebugLifecycleState.Complete);

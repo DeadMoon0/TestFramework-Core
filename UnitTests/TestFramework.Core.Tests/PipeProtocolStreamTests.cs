@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -140,9 +140,9 @@ public sealed class PipeProtocolStreamTests
                 {
                     Kind = DebugValueKind.Variable,
                     TypeName = "System.String",
-                    DisplayText = "Ada",
+
                     SchemaKey = "schema:string",
-                    Core = new JObject { ["value"] = "Ada" }
+
                 },
                 ObservedAtUtc = DateTimeOffset.Parse("2026-05-26T12:00:01Z")
             },
@@ -154,8 +154,8 @@ public sealed class PipeProtocolStreamTests
                     OccurredAtUtc = DateTimeOffset.Parse("2026-05-26T12:00:02Z"),
                     Level = DebugLogLevel.Information,
                     EventName = "ProtocolLog",
-                    Message = "Hello protocol",
-                    Lines = ["Hello protocol"],
+                    Template = "Hello {0} at attempt {1}",
+                    Fields = [DebugLogField.Of("0", "protocol"), DebugLogField.Of("1", 1)],
                     Stage = "Main",
                     StepId = 0,
                     Iteration = 1
@@ -203,9 +203,9 @@ public sealed class PipeProtocolStreamTests
                     {
                         Kind = DebugValueKind.Variable,
                         TypeName = "System.String",
-                        DisplayText = "seed",
+
                         SchemaKey = "schema:string",
-                        Core = new JObject { ["value"] = "seed" }
+
                     }
                 }
             },
@@ -218,9 +218,9 @@ public sealed class PipeProtocolStreamTests
                     {
                         Kind = DebugValueKind.Artifact,
                         TypeName = "Artifact",
-                        DisplayText = "artifact.json",
+
                         SchemaKey = "schema:artifact",
-                        Core = new JObject { ["reference"] = "artifact://artifact.json" }
+
                     }
                 }
             },

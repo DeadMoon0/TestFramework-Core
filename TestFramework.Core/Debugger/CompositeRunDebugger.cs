@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation
+internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog
 {
     /// <summary>One interested consumer is enough to make producing the signals worthwhile.</summary>
     public bool IsCapturing => debuggers.Any(debugger => debugger.IsCapturing);
@@ -63,6 +63,22 @@ internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellat
 
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
         => SignalAllAsync(debugger => debugger.SignalLogEntryAsync(sessionId, entry));
+
+    /// <summary>
+    /// Passes rendered lines to the children that display them, and to no others.
+    /// </summary>
+    /// <remarks>
+    /// The same shape as the cancellation channel above: the capability is asked for rather than required, so a
+    /// debugger that only serialises never sees a line of console output.
+    /// </remarks>
+    public void WriteRenderedLog(string[] lines, LogPlacement placement)
+    {
+        foreach (IRunDebugger debugger in debuggers)
+        {
+            if (debugger is ISupportsRenderedLog display)
+                display.WriteRenderedLog(lines, placement);
+        }
+    }
 
     public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
         => SignalAllAsync(debugger => debugger.SignalAssertionAsync(sessionId, entry));

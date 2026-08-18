@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -42,7 +42,7 @@ public sealed class ArtifactVersionPublicationTests
         // Registration plus two captures, and each capture must be visible as its own update.
         Assert.True(updates.Count >= 3, $"Expected at least three artifact updates, saw {updates.Count}.");
 
-        int[] versionCounts = [.. updates.Select(u => (int)u.Core!["versionCount"]!)];
+        int[] versionCounts = [.. updates.Select(u => u.Lifecycle!.Versions.Length)];
         Assert.Contains(2, versionCounts);
         Assert.Contains(3, versionCounts);
     }
@@ -63,15 +63,15 @@ public sealed class ArtifactVersionPublicationTests
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
 
         DebugValueEnvelope latest = debugger.ArtifactUpdatesFor("tracked")
-            .OrderByDescending(u => (int)u.Core!["versionCount"]!)
+            .OrderByDescending(u => u.Lifecycle!.Versions.Length)
             .First();
 
-        string[] versions = [.. ((JArray)latest.Core!["versions"]!).Select(v => (string)v!)];
+        string[] versions = latest.Lifecycle!.Versions;
 
         Assert.Equal(3, versions.Length);
         Assert.Equal("v2", versions[1]);
         Assert.Equal("v3", versions[2]);
-        Assert.Equal(2, (int)latest.Core["versionIndex"]!);
+        Assert.Equal(versions[^1], latest.Lifecycle.CurrentVersion);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class ArtifactVersionPublicationTests
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
 
-        string[] states = [.. debugger.ArtifactUpdatesFor("tracked").Select(u => (string)u.Core!["state"]!)];
+        string[] states = [.. debugger.ArtifactUpdatesFor("tracked").Select(u => u.Lifecycle!.State)];
 
         Assert.Contains(nameof(TestFramework.Core.Artifacts.ArtifactState.Setup), states);
         Assert.Contains(nameof(TestFramework.Core.Artifacts.ArtifactState.Cleaned), states);

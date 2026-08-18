@@ -1,11 +1,17 @@
-using System.Linq;
+﻿using System.Linq;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
 internal class FailedStepsRecapLogEvent(IFreezableCollection<StageInstance> stages) : LogEvent
 {
+    /// <summary>
+    /// Nothing. This event narrates the console: every failure in it was signalled when it happened, with its detail attached.
+    /// </summary>
+    public override DebugLogFacts? Describe() => null;
+
     public override void FormatLogEvent(LogLineWriter writer)
     {
         string P(string line) => PrefixLineWithIndentLevel(writer, line);

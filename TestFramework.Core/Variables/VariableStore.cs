@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
@@ -111,18 +111,17 @@ public class VariableStore : IFreezable
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = typeName,
-                DisplayText = displayText ?? described.Description.Summary,
                 Description = described.Description,
 
                 // Keyed by shape, not by CLR type. The type is already on the envelope for anyone
                 // who wants it; what it could never be was a key, because registering a renderer
                 // against it means naming every concrete type a run might assign.
                 SchemaKey = DebugValueSchemaKeys.Of(described.Description.Shape),
-                Core = new JObject
-                {
-                    ["key"] = identifier.Identifier,
-                    ["value"] = ToToken(value)
-                }
+
+                // No second copy of the value here. This used to carry the whole thing serialised as JSON,
+                // beside a preview of it and a one-line rendering of it - three passes over the same object
+                // on every write, of which consumers read one. The description states what it is, its preview
+                // carries it when it fits, and a value too big for a preview is written to a file.
             }
         };
     }

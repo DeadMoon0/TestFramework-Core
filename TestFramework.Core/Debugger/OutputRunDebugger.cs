@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +10,7 @@ using Xunit.Abstractions;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class OutputRunDebugger : IRunDebugger
+internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
 {
     private const string DisableUnicodeOutEnvironmentVariable = "TestFramework_Disable_Unicode_Out";
     private const int PanelWidth = 95;
@@ -189,23 +189,23 @@ internal sealed class OutputRunDebugger : IRunDebugger
     private static string Render(DebugValueEnvelope envelope)
     {
         if (envelope.Description.Body is not { } body)
-            return envelope.DisplayText;
+            return envelope.Description.Summary;
 
         return $"{Facts(envelope)}  -> {body.RelativePath} ({Size(body.SizeInBytes)})";
     }
 
     /// <summary>What the value is, from the facts it was described with.</summary>
     /// <remarks>
-    /// Falls back to the display text for a value replayed from a recording made before values
-    /// described themselves, which has facts to state but none stated.
+    /// The summary when there are no facts: a value can be described in one line and nothing else — a null, a
+    /// number — and printing an empty list of facts for it would say less than the line does.
     /// </remarks>
     private static string Facts(DebugValueEnvelope envelope)
     {
         DebugValueField[] fields = envelope.Description.Fields;
 
         return fields.Length == 0
-            ? envelope.DisplayText
-            : string.Join(", ", fields.Select(field => $"{field.Name} {field.Value}"));
+            ? envelope.Description.Summary
+            : string.Join(", ", fields.Select(field => $"{field.Name} {field.Text}"));
     }
 
     private static string Size(long bytes) => bytes switch
@@ -217,49 +217,58 @@ internal sealed class OutputRunDebugger : IRunDebugger
 
     private static string? RenderOrNull(DebugValueEnvelope? envelope) => envelope is null ? null : Render(envelope);
 
-    public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
+    /// <summary>
+    /// Ignored.
+    /// </summary>
+    /// <remarks>
+    /// This class is the console, and the console renders from the events themselves — see
+    /// <see cref="WriteRenderedLog"/>. A transported entry carries the facts for a consumer that has to build
+    /// its own display; printing it here as well would print everything twice, in a worse form.
+    /// </remarks>
+    public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Task.CompletedTask;
+
+    /// <summary>
+    /// Files a rendered event under the run, a stage, or one attempt at a step.
+    /// </summary>
+    /// <remarks>
+    /// Lines against a step whose attempt is no longer the active one are dropped: they belong to an attempt
+    /// this renderer has already closed, and appending them to the current one would report them against the
+    /// wrong try.
+    /// </remarks>
+    public void WriteRenderedLog(string[] lines, LogPlacement placement)
     {
+        ArgumentNullException.ThrowIfNull(lines);
+
         lock (renderGate)
         {
-            HandleLogEntry(entry);
-        }
+            if (placement.Stage is null)
+            {
+                Collect(runLogLines, lines);
+                return;
+            }
 
-        return Task.CompletedTask;
+            if (placement.StepId is null || placement.Iteration is null)
+            {
+                Collect(EnsureStage(placement.Stage).LogLines, lines);
+                return;
+            }
+
+            string stepKey = GetStepKey(placement.Stage, placement.StepId.Value);
+
+            if (!stepIterations.TryGetValue(stepKey, out int activeIteration) || activeIteration != placement.Iteration.Value)
+                return;
+
+            StepRenderState? stepRun = FindActiveStep(placement.Stage, placement.StepId.Value, placement.Iteration.Value);
+
+            if (stepRun is not null)
+                Collect(stepRun.LogLines, lines);
+        }
     }
 
-    private void HandleLogEntry(DebugLogEntry entry)
+    private static void Collect(List<string> destination, string[] lines)
     {
-        string[] lines = entry.Lines.Length == 0
-            ? (entry.Message.Length == 0 ? [] : entry.Message.Split(["\r\n", "\r", "\n", "\n\r"], System.StringSplitOptions.None))
-            : entry.Lines;
-
-        if (entry.Stage is null)
-        {
-            foreach (string line in lines)
-                runLogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
-
-            return;
-        }
-
-        if (entry.StepId is null || entry.Iteration is null)
-        {
-            StageRenderState stage = EnsureStage(entry.Stage);
-            foreach (string line in lines)
-                stage.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
-
-            return;
-        }
-
-        string stepKey = GetStepKey(entry.Stage, entry.StepId.Value);
-        if (!stepIterations.TryGetValue(stepKey, out int activeIteration) || activeIteration != entry.Iteration.Value)
-            return;
-
-        StepRenderState? stepRun = FindActiveStep(entry.Stage, entry.StepId.Value, entry.Iteration.Value);
-        if (stepRun is null)
-            return;
-
         foreach (string line in lines)
-            stepRun.LogLines.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
+            destination.Add(string.IsNullOrWhiteSpace(line) ? string.Empty : line);
     }
 
     public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)

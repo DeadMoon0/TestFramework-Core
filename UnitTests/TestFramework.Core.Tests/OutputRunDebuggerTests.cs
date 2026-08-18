@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -47,18 +47,14 @@ public class OutputRunDebuggerTests
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
-            await debugger.SignalLogEntryAsync("session", new DebugLogEntry
-            {
-                Stage = "Main",
-                StepId = 0,
-                Iteration = 1,
-                Message = "starting fetch"
-            });
+            // The console renders from the event, not from what the transport carries, so this is the channel
+            // a log reaches it on. A transported entry is for a consumer that builds its own display.
+            debugger.WriteRenderedLog(["starting fetch"], new LogPlacement("Main", 0, 1, 0));
             await debugger.SignalValueUpdateAsync("session", "count", DebugValueKind.Variable, "Main", 1, new DebugValueEnvelope
             {
                 Kind = DebugValueKind.Variable,
                 TypeName = "System.Int32",
-                DisplayText = "2",
+                Description = new DebugValueDescription { Summary = "2", Shape = DebugValueShape.Scalar },
                 SchemaKey = "int32"
             });
             await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
@@ -394,7 +390,7 @@ public class OutputRunDebuggerTests
         {
             Kind = DebugValueKind.Variable,
             TypeName = typeof(string).FullName!,
-            DisplayText = value,
+            Description = new DebugValueDescription { Summary = value, Shape = DebugValueShape.Text },
             SchemaKey = "tf.variable:System.String"
         };
     }

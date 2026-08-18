@@ -114,34 +114,23 @@ public class ArtifactStore : IFreezable
             {
                 Kind = DebugValueKind.Artifact,
                 TypeName = instance.Artifact.GetType().FullName ?? instance.Artifact.ToString(),
-                DisplayText = description.Summary,
                 Description = description,
                 SchemaKey = instance.Artifact.DebugValueSchemaKey,
-                Version = currentData?.Identifier.ToString(),
 
-                // Stated rather than left for a consumer to dig out of the Core payload below, which
-                // is where these two facts lived and where nothing could rely on finding them.
+                // The state and the whole version history, every time, so a consumer that attached late - or
+                // replayed a journal missing the earlier events - still sees v1 -> v2 -> v3 rather than only
+                // what it happened to witness. These were once buried in a loose JSON payload beside this
+                // one, where nothing could rely on finding them.
                 Lifecycle = new DebugValueLifecycle
                 {
                     State = instance.State.ToString(),
                     Versions = [.. VersionsOf(instance)],
                     CurrentVersion = currentData?.Identifier.ToString()
                 },
-                Core = new JObject
-                {
-                    ["key"] = instance.Identifier.Identifier,
-                    ["artifactType"] = instance.Artifact.ToString(),
-                    ["state"] = instance.State.ToString(),
-                    ["versionCount"] = instance.VersionCount,
-                    ["versionIndex"] = instance.VersionCount - 1,
 
-                    // The identifiers of every captured version, oldest first, so a consumer can
-                    // draw the artifact's history from one update instead of stitching together
-                    // the updates it happened to be connected for.
-                    ["versions"] = DescribeVersions(instance),
-                    ["reference"] = ToToken(instance.Reference),
-                    ["data"] = ToToken(currentData)
-                },
+                // What this kind of artifact wants to say about itself, and the only free-form payload left.
+                // The reference and the current data are described as facts by the artifact's own describer,
+                // which is the thing that knows which of them are worth stating.
                 Custom = instance.Artifact.CreateDebugValueCustomPayload(instance)
             }
         };

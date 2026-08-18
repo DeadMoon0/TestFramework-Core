@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace TestFramework.Core.Debugger;
 
@@ -143,7 +144,7 @@ internal static class DebugValueDescriber
         if (value is null)
             yield break;
 
-        yield return new DebugValueField { Name = "type", Value = TypeNameOf(value.GetType()) };
+        yield return Fact("type", TypeNameOf(value.GetType()));
 
         switch (value)
         {
@@ -152,7 +153,9 @@ internal static class DebugValueDescriber
                 break;
 
             case byte[] bytes:
-                yield return Fact("size", $"{bytes.Length} bytes");
+                // Named for its unit and carried as a number. "4096 bytes" was a fact and its unit
+                // welded together, which a consumer could neither sum nor sort.
+                yield return Fact("bytes", bytes.Length);
                 break;
 
             case IDictionary dictionary:
@@ -258,10 +261,10 @@ internal static class DebugValueDescriber
         => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(serialised)));
 
     private static DebugValueField Fact(string name, int count)
-        => Fact(name, count.ToString(CultureInfo.InvariantCulture));
+        => new() { Name = name, Value = new JValue(count) };
 
     private static DebugValueField Fact(string name, string value)
-        => new() { Name = name, Value = value };
+        => new() { Name = name, Value = new JValue(value) };
 
     private static (string Text, bool WasCut) Cut(string value, int budget)
         => value.Length <= budget ? (value, false) : (value[..budget], true);

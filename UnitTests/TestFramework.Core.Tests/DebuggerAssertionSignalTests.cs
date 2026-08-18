@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -46,7 +46,7 @@ public class DebuggerAssertionSignalTests
         await session.FinishSessionAsync();
 
         DebugLogEntry entry = Assert.Single(debugger.LogEntries);
-        Assert.Equal("outside iteration", entry.Message);
+        Assert.Equal("outside iteration", DebugLogTemplate.Render(entry));
         Assert.Null(entry.Stage);
         Assert.Null(entry.StepId);
         Assert.Null(entry.Iteration);
@@ -98,7 +98,7 @@ public class DebuggerAssertionSignalTests
 
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
         {
-            Events.Add($"log:{entry.Message}");
+            Events.Add($"log:{DebugLogTemplate.Render(entry)}");
             return Task.CompletedTask;
         }
 

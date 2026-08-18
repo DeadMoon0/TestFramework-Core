@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Debugger;
@@ -197,7 +197,7 @@ public sealed class DebugValueDescriptionTests
     private static DebugValueDescription Describe(object? value) => DebugValueDescriber.Describe(value).Description;
 
     private static string? Fact(DebugValueDescription described, string name)
-        => described.Fields.FirstOrDefault(field => field.Name == name)?.Value;
+        => described.Fields.FirstOrDefault(field => field.Name == name)?.Text;
 
     /// <summary>A value whose serialisation throws, which is a thing that happens in real runs.</summary>
     private sealed class Awkward(string tag)

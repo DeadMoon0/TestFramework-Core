@@ -1,13 +1,19 @@
-using System;
+﻿using System;
 using System.Linq;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
 internal class TimelineRunSummaryLogEvent(IFreezableCollection<StageInstance> stages, TimeSpan elapsed) : LogEvent
 {
+    /// <summary>
+    /// Nothing. This event narrates the console: the transitions behind it are all on the transport.
+    /// </summary>
+    public override DebugLogFacts? Describe() => null;
+
     public override void FormatLogEvent(LogLineWriter writer)
     {
         int complete = 0, error = 0, timeout = 0, skipped = 0;

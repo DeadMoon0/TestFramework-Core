@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -167,7 +167,6 @@ public sealed class OutputValueFileTests
         {
             Kind = DebugValueKind.Variable,
             TypeName = "System.String",
-            DisplayText = body is null ? "\"small enough to send\"" : "\"order 1 accepted order 2 accepted\"",
             SchemaKey = DebugValueSchemaKeys.Text,
             Description = new DebugValueDescription
             {
@@ -176,7 +175,7 @@ public sealed class OutputValueFileTests
                 Fields =
                 [
                     new DebugValueField { Name = "type", Value = "String" },
-                    new DebugValueField { Name = "length", Value = body is null ? "20" : "82891" }
+                    new DebugValueField { Name = "length", Value = body is null ? 20 : 82891 }
                 ],
                 Body = body
             }

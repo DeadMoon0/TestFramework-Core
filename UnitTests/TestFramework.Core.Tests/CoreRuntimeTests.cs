@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -64,8 +64,10 @@ public class CoreRuntimeTests
 
         Assert.Equal("user", state.Key);
         Assert.Equal(DebugValueKind.Variable, state.Envelope.Kind);
-        Assert.Equal(VariableFormatter.Format("Grace"), state.Envelope.DisplayText);
-        Assert.Equal("Grace", state.Envelope.Core!["value"]!.Value<string>());
+        // The description is the whole account of the value now. It used to sit beside a one-line rendering
+        // of it and a full JSON copy of it, and a consumer had to pick which of the three to believe.
+        Assert.Contains("Grace", state.Envelope.Description.Summary, StringComparison.Ordinal);
+        Assert.Equal("String", Assert.Single(state.Envelope.Description.Fields, field => field.Name == "type").Text);
     }
 
     [Fact]
@@ -97,7 +99,7 @@ public class CoreRuntimeTests
         Assert.NotNull(state.Envelope.Lifecycle);
         Assert.Equal(nameof(TestFramework.Core.Artifacts.ArtifactState.NotSetup), state.Envelope.Lifecycle!.State);
         Assert.Single(state.Envelope.Lifecycle.Versions);
-        Assert.Equal(state.Envelope.Version, state.Envelope.Lifecycle.CurrentVersion);
+        Assert.Equal(Assert.Single(state.Envelope.Lifecycle.Versions), state.Envelope.Lifecycle.CurrentVersion);
     }
 
     [Fact]

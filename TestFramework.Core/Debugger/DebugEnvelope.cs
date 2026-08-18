@@ -15,7 +15,7 @@ public static class DebugProtocol
     /// Wire format version. Bump when the envelope or a payload shape changes in a way a consumer
     /// built against the previous version could misread.
     /// </summary>
-    public const int Version = 2;
+    public const int Version = 3;
 }
 
 /// <summary>

@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.ComponentModel;
+using Newtonsoft.Json.Linq;
 
 namespace TestFramework.Core.Debugger;
 
@@ -115,8 +116,17 @@ public sealed record DebugValueField
     /// <summary>Gets the fact's name, such as <c>reference</c> or <c>length</c>.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Gets the fact, rendered as text.</summary>
-    public required string Value { get; init; }
+    /// <summary>
+    /// Gets the fact, typed as it stands.
+    /// </summary>
+    /// <remarks>
+    /// A count arrives as a number and a name as a string, so a consumer can align a column of counts or
+    /// compare one against another run. Rendered text cannot be turned back into either.
+    /// </remarks>
+    public required JToken Value { get; init; }
+
+    /// <summary>Gets the fact as text, for a consumer that only wants to print it.</summary>
+    public string Text => DebugJson.Text(Value);
 
     /// <summary>
     /// Gets a value indicating whether the text was cut to fit.

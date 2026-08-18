@@ -1,6 +1,7 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 using TestFramework.Core.Debugger;
+using Newtonsoft.Json.Linq;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -28,13 +29,13 @@ public static class ArtifactDescription
 
         List<DebugValueField> fields =
         [
-            new() { Name = "kind", Value = instance.Artifact.ToString() },
-            new() { Name = "reference", Value = DebugValueDescriber.Line(instance.Reference) },
-            new() { Name = "versions", Value = instance.VersionCount.ToString(CultureInfo.InvariantCulture) }
+            new() { Name = "kind", Value = new JValue(instance.Artifact.ToString()) },
+            new() { Name = "reference", Value = new JValue(DebugValueDescriber.Line(instance.Reference)) },
+            new() { Name = "versions", Value = new JValue(instance.VersionCount) }
         ];
 
         if (hasData)
-            fields.Add(new DebugValueField { Name = "latest", Value = latest.Summary });
+            fields.Add(new DebugValueField { Name = "latest", Value = new JValue(latest.Summary) });
 
         return new DebugValueDescription
         {

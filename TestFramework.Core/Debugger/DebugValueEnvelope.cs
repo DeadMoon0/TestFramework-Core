@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -21,22 +21,13 @@ public record DebugValueEnvelope
     public required string TypeName { get; init; }
 
     /// <summary>
-    /// Gets a short human-readable description of the value.
-    /// </summary>
-    /// <remarks>
-    /// Superseded by <see cref="Description"/>, which states the same facts without deciding how
-    /// they are laid out. Kept so a consumer built against an earlier package keeps working, and
-    /// filled from the description's summary.
-    /// </remarks>
-    public required string DisplayText { get; init; }
-
-    /// <summary>
     /// Gets what the value is, stated as facts a consumer can lay out for itself.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Defaulted rather than required so a journal recorded by an earlier version still replays:
-    /// its values arrive with an empty description and the older <see cref="DisplayText"/> intact.
+    /// The only account of the value on the envelope. It used to sit beside a pre-rendered one-line
+    /// display text and a full JSON copy of the value, so every write serialised the same thing three
+    /// times and a consumer had to guess which of the three to trust.
     /// </para>
     /// <para>
     /// <see cref="ObjectCreationHandling.Replace"/> is load-bearing, not tidiness. The default is
@@ -57,15 +48,6 @@ public record DebugValueEnvelope
     public required string SchemaKey { get; init; }
 
     /// <summary>
-    /// Gets an optional version identifier for versioned values.
-    /// </summary>
-    /// <remarks>
-    /// Superseded by <see cref="DebugValueLifecycle.CurrentVersion"/>, which states it alongside the
-    /// history it belongs to. Kept for consumers built against an earlier package.
-    /// </remarks>
-    public string? Version { get; init; }
-
-    /// <summary>
     /// Gets the value's lifecycle and version history, for a value that has one.
     /// </summary>
     /// <remarks>
@@ -74,11 +56,6 @@ public record DebugValueEnvelope
     /// </remarks>
     [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public DebugValueLifecycle? Lifecycle { get; init; }
-
-    /// <summary>
-    /// Gets the stable shared JSON payload for the value.
-    /// </summary>
-    public JToken? Core { get; init; }
 
     /// <summary>
     /// Gets an optional artifact-specific or value-specific JSON payload.
