@@ -106,6 +106,21 @@ public class ProtocolReadabilityTests
     }
 
     [Fact]
+    public void ARenderingOfAFactNeverTravelsBesideTheFact()
+    {
+        // Both records offer a text form of their value for a consumer that only wants to print one. Offering it
+        // is fine; shipping it is the habit this protocol was cleaned up to break, and a public getter is
+        // serialized by default.
+        string field = JsonConvert.SerializeObject(DebugLogField.Of("count", 4000), DebugJson.Settings);
+        string fact = JsonConvert.SerializeObject(
+            new DebugValueField { Name = "length", Value = new JValue(5) },
+            DebugJson.Settings);
+
+        Assert.Equal("{\"Name\":\"count\",\"Value\":4000}", field);
+        Assert.DoesNotContain("Text", fact, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnInnerExceptionChainKeepsItsTypesApartFromItsMessages()
     {
         DebugFailureDetail failure = DebugFailureDetail.Capture(

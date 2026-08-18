@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -44,6 +44,7 @@ public sealed record DebugLogField
     /// For rendering: a composite format string applied to the underlying <see cref="DateTimeOffset"/> or
     /// <see cref="double"/> honours its format specifiers, which it cannot do against a token.
     /// </remarks>
+    [JsonIgnore]
     public object? Simple => Value is JValue single ? single.Value : null;
 
     /// <summary>Names a value, typing it as it stands.</summary>

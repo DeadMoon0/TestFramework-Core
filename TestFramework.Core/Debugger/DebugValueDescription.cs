@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace TestFramework.Core.Debugger;
 
@@ -125,7 +126,14 @@ public sealed record DebugValueField
     /// </remarks>
     public required JToken Value { get; init; }
 
-    /// <summary>Gets the fact as text, for a consumer that only wants to print it.</summary>
+    /// <summary>
+    /// Gets the fact as text, for a consumer that only wants to print it.
+    /// </summary>
+    /// <remarks>
+    /// Not serialized. It is a rendering of the value beside it, and a rendering that travels is the whole
+    /// thing this protocol was cleaned up to stop doing.
+    /// </remarks>
+    [JsonIgnore]
     public string Text => DebugJson.Text(Value);
 
     /// <summary>
