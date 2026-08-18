@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -15,7 +15,7 @@ public static class DebugProtocol
     /// Wire format version. Bump when the envelope or a payload shape changes in a way a consumer
     /// built against the previous version could misread.
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
 }
 
 /// <summary>
@@ -75,17 +75,17 @@ public static class DebugEnvelopeCodec
             Seq = sequence,
             AtUtc = DateTimeOffset.UtcNow,
             Kind = signal.Kind,
-            Payload = JObject.FromObject(signal)
+            Payload = JObject.FromObject(signal, DebugJson.Serializer)
         };
     }
 
     /// <summary>Serializes an envelope. This is also the journal's line format.</summary>
-    public static string Serialize(DebugEnvelope envelope) => JsonConvert.SerializeObject(envelope);
+    public static string Serialize(DebugEnvelope envelope) => JsonConvert.SerializeObject(envelope, DebugJson.Settings);
 
     /// <summary>Reads an envelope, rejecting a protocol version this build cannot read.</summary>
     public static DebugEnvelope Deserialize(string json)
     {
-        DebugEnvelope envelope = JsonConvert.DeserializeObject<DebugEnvelope>(json)
+        DebugEnvelope envelope = JsonConvert.DeserializeObject<DebugEnvelope>(json, DebugJson.Settings)
             ?? throw new FrameworkStateException("Could not deserialize debug envelope.");
 
         if (envelope.V != DebugProtocol.Version)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -178,22 +178,60 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         {
             Name = stage.Stage.Name,
             Description = stage.Stage.Description,
-            Steps = [.. stage.Stage.Steps.Select((step, index) => new DebugStepState
-            {
-                Name = step.Name,
-                Description = step.Description,
-                DoesReturn = step.DoesReturn,
-                ErrorHandlingOptions = step.ErrorHandlingOptions,
-                ExecutionOptions = step.ExecutionOptions,
-                IOContract = step.IOContract,
-                Phase = step.Phase,
-                LabelOptions = step.LabelOptions,
-                RetryOptions = step.RetryOptions,
-                TimeOutOptions = step.TimeOutOptions,
-                LayerIndex = layerByStepIndex.TryGetValue(index, out int layer) ? layer : 0,
-            })]
+            Steps = [.. stage.Stage.Steps.Select((step, index) => Describe(step, layerByStepIndex.TryGetValue(index, out int layer) ? layer : 0))]
         };
     }
+
+    /// <summary>
+    /// States a step's declaration as facts.
+    /// </summary>
+    /// <remarks>
+    /// The policies are resolved here, where the run is being planned, rather than shipped as the builder
+    /// objects holding them. A policy fixed at build time becomes its value; one a test pinned to a variable
+    /// becomes that variable's name, because the value does not exist yet and claiming a number for it would be
+    /// a guess.
+    /// </remarks>
+    private static DebugStepState Describe(StepGeneric step, int layerIndex)
+    {
+        return new DebugStepState
+        {
+            Name = step.Name,
+            Description = step.Description,
+            Label = step.LabelOptions.Label,
+            Phase = step.Phase,
+            DoesReturn = step.DoesReturn,
+            LayerIndex = layerIndex,
+            Parallelization = step.ExecutionOptions.ParallelizationMode,
+            MaxRetries = Fixed(step.RetryOptions.MaxRetryCount),
+            MaxRetriesVariable = PinnedTo(step.RetryOptions.MaxRetryCount),
+            TimeOut = Fixed(step.TimeOutOptions.TimeOut),
+            TimeOutVariable = PinnedTo(step.TimeOutOptions.TimeOut),
+            IgnoredExceptions = [.. step.ErrorHandlingOptions.IgnoreExceptionTypes.Select(type => type.Name)],
+            Inputs = [.. step.IOContract.Inputs.Select(Describe)],
+            Outputs = [.. step.IOContract.Outputs.Select(Describe)]
+        };
+    }
+
+    private static DebugStepIo Describe(StepIOEntry entry) => new()
+    {
+        Key = entry.Key,
+        Kind = entry.Kind,
+        Required = entry.Required,
+        DeclaredType = entry.DeclaredType?.Name
+    };
+
+    /// <summary>
+    /// The value behind a reference, when it is a constant.
+    /// </summary>
+    /// <remarks>
+    /// Constants are read without touching the store, which is what makes this safe to call while the run is
+    /// still being planned. A reference to a variable is deliberately not read: the variable may be written by
+    /// an earlier step, and reading it now would either throw or report a default as if it were the policy.
+    /// </remarks>
+    private static T? Fixed<T>(VariableReference<T> reference)
+        => reference.HasIdentifier ? default : reference.GetValue(null!);
+
+    private static string? PinnedTo<T>(VariableReference<T> reference) => reference.Identifier?.Identifier;
 
     /// <summary>
     /// Runs the planner to find out which steps will execute together.

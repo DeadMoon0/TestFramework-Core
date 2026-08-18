@@ -28,10 +28,15 @@ public class DebuggerAssertionSignalTests
         Assert.Equal(DebugAssertionTargetKind.Value, assertion.TargetKind);
         Assert.Equal("user", assertion.Target);
         Assert.Equal("Be", assertion.AssertionName);
-        Assert.Equal("Ada", assertion.Expected);
-        Assert.Equal("Grace", assertion.Actual);
+
+        // The check and its argument, which is the expectation stated rather than rendered into a sentence.
+        DebugLogField argument = Assert.Single(assertion.Arguments);
+        Assert.Equal("expected", argument.Name);
+        Assert.Equal("Ada", (string?)argument.Value);
+
+        // And the value as it actually was, described rather than stringified.
+        Assert.Contains("Grace", assertion.Actual.Summary, StringComparison.Ordinal);
         Assert.False(assertion.Succeeded);
-        Assert.Equal("expected \"Ada\", was \"Grace\"", assertion.FailureReason);
     }
 
     [Fact]

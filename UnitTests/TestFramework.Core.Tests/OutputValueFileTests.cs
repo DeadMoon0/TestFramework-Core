@@ -141,17 +141,11 @@ public sealed class OutputValueFileTests
         {
             Name = "Transform",
             Description = string.Empty,
-            RetryOptions = new RetryOptions(),
-            ErrorHandlingOptions = new ErrorHandlingOptions(),
-            TimeOutOptions = new TimeOutOptions(),
-            LabelOptions = new LabelOptions(),
-            ExecutionOptions = new ExecutionOptions(),
-            IOContract = new StepIOContract(),
             Phase = StepExecutionPhase.Act,
-            DoesReturn = false
+            DoesReturn = false,
+            Parallelization = StepParallelizationMode.Parallelizable,
+            Outputs = [new DebugStepIo { Key = "report", Kind = StepIOKind.Variable, DeclaredType = nameof(String) }]
         };
-
-        step.IOContract.Outputs.Add(new StepIOEntry("report", StepIOKind.Variable, true, typeof(string)));
 
         await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
         {

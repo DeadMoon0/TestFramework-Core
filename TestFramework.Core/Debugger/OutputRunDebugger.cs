@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
@@ -283,13 +284,40 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
 
     private void HandleAssertion(DebugAssertionEntry entry)
     {
-        assertionLines.Add(entry.Succeeded
-            ? $"[PASS] {entry.Target}  {entry.AssertionDisplay}"
-            : $"[FAIL] {entry.Target}  {entry.AssertionDisplay}");
+        // Rendered here, from the check's name and arguments. The transport carries those; the sentence a
+        // console prints about them is the console's own business.
+        assertionLines.Add($"{(entry.Succeeded ? "[PASS]" : "[FAIL]")} {entry.Target}  {Call(entry)}");
 
-        if (!entry.Succeeded && !string.IsNullOrWhiteSpace(entry.FailureReason))
-            assertionLines.Add($"       {entry.FailureReason}");
+        if (!entry.Succeeded)
+            assertionLines.Add($"       {Comparison(entry)}");
     }
+
+    /// <summary>
+    /// The check as it would be written in a test.
+    /// </summary>
+    /// <remarks>
+    /// Strings are quoted, because the line is meant to read like the call the test made. That is a decision
+    /// about how to print an argument, which is why it lives here and not in what the transport carries.
+    /// </remarks>
+    private static string Call(DebugAssertionEntry entry)
+        => entry.Arguments.Length == 0
+            ? entry.AssertionName
+            : $"{entry.AssertionName}({string.Join(", ", entry.Arguments.Select(Argument))})";
+
+    /// <summary>Why a check did not hold, put together from what it expected and what it found.</summary>
+    private static string Comparison(DebugAssertionEntry entry)
+    {
+        string was = $"was {entry.Actual.Summary}";
+
+        return entry.Arguments.Length == 0
+            ? was
+            : $"expected {string.Join(", ", entry.Arguments.Select(Argument))}, {was}";
+    }
+
+    private static string Argument(DebugLogField field)
+        => field.Value.Type == JTokenType.String
+            ? $"\"{DebugLogTemplate.Text(field)}\""
+            : DebugLogTemplate.Text(field);
 
     public Task SignalTimelineRunFinishedAsync(string sessionId)
     {
@@ -540,14 +568,14 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         if (stepRun.InputSnapshots.Count > 0)
             return [.. stepRun.InputSnapshots.Select(RenderInputSnapshotLine)];
 
-        StepIOEntry[] inputs = stepRun.Definition?.IOContract.Inputs.ToArray() ?? [];
+        DebugStepIo[] inputs = stepRun.Definition?.Inputs ?? [];
         if (inputs.Length == 0)
             return ["(none declared)"];
 
         return [.. inputs.Select(RenderInputLine)];
     }
 
-    private string RenderInputLine(StepIOEntry entry)
+    private string RenderInputLine(DebugStepIo entry)
     {
         string requirement = entry.Required ? "required" : "optional";
         string kindLabel = entry.Kind == StepIOKind.Variable ? "Variable" : "Artifact";
@@ -574,9 +602,9 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     {
         List<string> lines = [];
         List<ValueUpdateRenderState> remainingUpdates = [.. stepRun.ValueUpdates];
-        StepIOEntry[] declaredOutputs = stepRun.Definition?.IOContract.Outputs.ToArray() ?? [];
+        DebugStepIo[] declaredOutputs = stepRun.Definition?.Outputs ?? [];
 
-        foreach (StepIOEntry output in declaredOutputs)
+        foreach (DebugStepIo output in declaredOutputs)
         {
             ValueUpdateRenderState? match = remainingUpdates.FirstOrDefault(candidate => candidate.Name == output.Key && candidate.ValueKind == MapValueKind(output.Kind));
             if (match is null)
@@ -631,7 +659,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         if (step is null)
             return "<unknown step>";
 
-        string? label = step.LabelOptions?.Label;
+        string? label = step.Label;
         return label is null ? step.Name : $"{step.Name}  [{label}]";
     }
 
@@ -731,10 +759,10 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         if (RequiresPhaseOrdering(left, right))
             return true;
 
-        if (left.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize || right.ExecutionOptions.ParallelizationMode == StepParallelizationMode.DoNotParallelize)
+        if (left.Parallelization == StepParallelizationMode.DoNotParallelize || right.Parallelization == StepParallelizationMode.DoNotParallelize)
             return true;
 
-        return HasAccessConflict(left.IOContract, right.IOContract);
+        return HasAccessConflict(left, right);
     }
 
     private static bool RequiresPhaseOrdering(DebugStepState left, DebugStepState right)
@@ -750,15 +778,15 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         return phase is StepExecutionPhase.Prepare or StepExecutionPhase.Materialize;
     }
 
-    private static bool HasAccessConflict(StepIOContract left, StepIOContract right)
+    private static bool HasAccessConflict(DebugStepState left, DebugStepState right)
     {
-        foreach (StepIOEntry leftOutput in left.Outputs)
+        foreach (DebugStepIo leftOutput in left.Outputs)
         {
             if (ContainsEntry(right.Inputs, leftOutput) || ContainsEntry(right.Outputs, leftOutput))
                 return true;
         }
 
-        foreach (StepIOEntry leftInput in left.Inputs)
+        foreach (DebugStepIo leftInput in left.Inputs)
         {
             if (ContainsEntry(right.Outputs, leftInput))
                 return true;
@@ -767,7 +795,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         return false;
     }
 
-    private static bool ContainsEntry(IEnumerable<StepIOEntry> entries, StepIOEntry candidate)
+    private static bool ContainsEntry(IEnumerable<DebugStepIo> entries, DebugStepIo candidate)
     {
         return entries.Any(entry => entry.Kind == candidate.Kind && StringComparer.Ordinal.Equals(entry.Key, candidate.Key));
     }
@@ -1111,7 +1139,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
             if (Definition is null)
                 return;
 
-            foreach (StepIOEntry input in Definition.IOContract.Inputs)
+            foreach (DebugStepIo input in Definition.Inputs)
             {
                 string? displayText = input.Kind switch
                 {

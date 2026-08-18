@@ -118,8 +118,26 @@ public class ScopedLogger
         Publish(new ErrorLogEvent(format, args), DebugLogLevel.Error);
     }
 
-    internal void SignalAssertion(DebugAssertionTargetKind targetKind, string target, string assertionName, string assertionDisplay, bool succeeded, string expected = "", string actual = "", string failureReason = "")
+    /// <summary>
+    /// Reports one check and what it found.
+    /// </summary>
+    /// <remarks>
+    /// The arguments are the check's own parameters and the observed value is described here, at the one place
+    /// every asserter passes through, so no asserter has to decide how a value should read.
+    /// </remarks>
+    internal void SignalAssertion(
+        DebugAssertionTargetKind targetKind,
+        string target,
+        string assertionName,
+        (string Name, object? Value)[] arguments,
+        bool succeeded,
+        object? actual)
     {
+        DebugLogField[] fields = new DebugLogField[arguments.Length];
+
+        for (int index = 0; index < arguments.Length; index++)
+            fields[index] = DebugLogField.Of(arguments[index].Name, arguments[index].Value);
+
         // Queued rather than awaited: blocking the step thread on the whole debugger fan-out — which
         // includes a named-pipe write — used to cost real time on every single assertion.
         debuggingSession?.PublishAssertion(new DebugAssertionEntry
@@ -128,11 +146,9 @@ public class ScopedLogger
             TargetKind = targetKind,
             Target = target,
             AssertionName = assertionName,
-            AssertionDisplay = assertionDisplay,
+            Arguments = fields,
             Succeeded = succeeded,
-            Expected = expected,
-            Actual = actual,
-            FailureReason = failureReason,
+            Actual = DebugValueDescriber.Describe(actual).Description,
             AssertionScope = CurrentScope?.GetType().Name ?? ""
         });
     }

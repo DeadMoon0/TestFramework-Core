@@ -37,64 +37,56 @@ public sealed class PipeProtocolStreamTests
         // passes unnoticed — and it only ever exercises empty contracts and default options. This
         // one asserts the values a consumer actually reads.
         StepIOContract contract = new();
-        contract.Inputs.Add(new StepIOEntry("orderId", StepIOKind.Variable, true, typeof(int)));
-        contract.Outputs.Add(new StepIOEntry("receipt", StepIOKind.Artifact, false, typeof(string)));
+        DebugStepIo[] inputs = [new DebugStepIo { Key = "orderId", Kind = StepIOKind.Variable, DeclaredType = nameof(Int32) }];
+        DebugStepIo[] outputs = [new DebugStepIo { Key = "receipt", Kind = StepIOKind.Artifact, Required = false, DeclaredType = nameof(String) }];
 
         PipeInitTimelineRunSignal signal = new()
         {
             SessionId = "session-1",
             Name = "Contract Run",
             ProjectPath = "project.csproj",
-            RunStructure = CreateRunStructure(contract)
+            RunStructure = CreateRunStructure(inputs, outputs)
         };
 
         PipeInitTimelineRunSignal restored = Assert.IsType<PipeInitTimelineRunSignal>(
             PipeSignalFactory.DeserializeSignal(JsonConvert.SerializeObject(signal)));
 
-        StepIOContract restoredContract = restored.RunStructure.Stages[0].Steps[0].IOContract;
+        DebugStepState restoredStep = restored.RunStructure.Stages[0].Steps[0];
 
-        StepIOEntry input = Assert.Single(restoredContract.Inputs);
+        DebugStepIo input = Assert.Single(restoredStep.Inputs);
         Assert.Equal("orderId", input.Key);
         Assert.Equal(StepIOKind.Variable, input.Kind);
         Assert.True(input.Required);
 
-        StepIOEntry output = Assert.Single(restoredContract.Outputs);
+        DebugStepIo output = Assert.Single(restoredStep.Outputs);
         Assert.Equal("receipt", output.Key);
         Assert.Equal(StepIOKind.Artifact, output.Kind);
         Assert.False(output.Required);
 
-        Assert.Equal(typeof(int), input.DeclaredType);
-        Assert.Equal(typeof(string), output.DeclaredType);
+        // Type names, not CLR types. A consumer in another process cannot load the type and has no use for it
+        // beyond the name, which is all that used to survive the round trip anyway.
+        Assert.Equal(nameof(Int32), input.DeclaredType);
+        Assert.Equal(nameof(String), output.DeclaredType);
     }
 
     [Fact]
-    public void RunStructure_LosesTheRetryCountValue_WhenItIsALiteral()
+    public void RunStructure_CarriesTheRetryCount_ThroughARoundTrip()
     {
-        // DOCUMENTS A KNOWN LOSS. RetryOptions.MaxRetryCount is a VariableReference<int> whose
-        // literal value lives in an internal field, so it does not serialize: the UI receives the
-        // reference shell and cannot show "retries: 3". StepIOEntry.DeclaredType, by contrast, does
-        // survive — Newtonsoft writes System.Type as its assembly-qualified name.
-        //
-        // Fixing this means projecting the options into explicit debug DTOs, which belongs with the
-        // wider structure work rather than here. The test exists so the loss is visible and the fix
-        // has something to flip.
-        RetryOptions retryOptions = new() { MaxRetryCount = 3 };
-
+        // This used to be a test of the opposite. The plan carried RetryOptions itself, whose MaxRetryCount is a
+        // VariableReference<int> holding its value behind a method, so the number never serialized and the UI
+        // could not say "retries: 3" — it received the wrapper. The plan now states the resolved policy.
         PipeInitTimelineRunSignal signal = new()
         {
             SessionId = "session-1",
             Name = "Retry Run",
             ProjectPath = "project.csproj",
-            RunStructure = CreateRunStructure(retryOptions: retryOptions)
+            RunStructure = CreateRunStructure(maxRetries: 3)
         };
 
         PipeInitTimelineRunSignal restored = Assert.IsType<PipeInitTimelineRunSignal>(
-            PipeSignalFactory.DeserializeSignal(JsonConvert.SerializeObject(signal)));
+            PipeSignalFactory.DeserializeSignal(JsonConvert.SerializeObject(signal, DebugJson.Settings)));
 
-        RetryOptions restoredOptions = restored.RunStructure.Stages[0].Steps[0].RetryOptions;
-
-        Assert.Equal(3, retryOptions.MaxRetryCount.GetValue(null!));
-        Assert.NotEqual(3, restoredOptions.MaxRetryCount.GetValue(null!));
+        Assert.Equal(3, restored.RunStructure.Stages[0].Steps[0].MaxRetries);
     }
 
     [Fact]
@@ -170,10 +162,9 @@ public sealed class PipeProtocolStreamTests
                     TargetKind = DebugAssertionTargetKind.Variable,
                     Target = "user",
                     AssertionName = "Be",
-                    AssertionDisplay = "Be(\"Ada\")",
+                    Arguments = [DebugLogField.Of("expected", "Ada")],
                     Succeeded = true,
-                    Expected = "Ada",
-                    Actual = "Ada"
+                    Actual = new DebugValueDescription { Summary = "\"Ada\"", Shape = DebugValueShape.Text }
                 }
             },
             new PipeBreakpointHitRequestSignal
@@ -190,7 +181,10 @@ public sealed class PipeProtocolStreamTests
         ];
     }
 
-    private static TimelineRunStructure CreateRunStructure(StepIOContract? ioContract = null, RetryOptions? retryOptions = null)
+    private static TimelineRunStructure CreateRunStructure(
+        DebugStepIo[]? inputs = null,
+        DebugStepIo[]? outputs = null,
+        int? maxRetries = null)
     {
         return new TimelineRunStructure
         {
@@ -237,13 +231,11 @@ public sealed class PipeProtocolStreamTests
                             Name = "Step 1",
                             Description = "protocol step",
                             DoesReturn = true,
-                            ErrorHandlingOptions = new ErrorHandlingOptions(),
-                            ExecutionOptions = new ExecutionOptions(),
-                            IOContract = ioContract ?? new StepIOContract(),
                             Phase = StepExecutionPhase.Act,
-                            LabelOptions = new LabelOptions(),
-                            RetryOptions = retryOptions ?? new RetryOptions(),
-                            TimeOutOptions = new TimeOutOptions()
+                            Parallelization = StepParallelizationMode.Parallelizable,
+                            MaxRetries = maxRetries,
+                            Inputs = inputs ?? [],
+                            Outputs = outputs ?? []
                         }
                     ]
                 }

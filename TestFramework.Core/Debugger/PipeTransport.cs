@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -191,7 +191,7 @@ public static class PipeSignalFactory
     /// </summary>
     public static IPipeSignal DeserializeSignal(string json)
     {
-        PipeSignalKind signalKind = (JsonConvert.DeserializeAnonymousType(json, new { Kind = (PipeSignalKind)0 })
+        PipeSignalKind signalKind = (JsonConvert.DeserializeAnonymousType(json, new { Kind = (PipeSignalKind)0 }, DebugJson.Settings)
             ?? throw new FrameworkStateException("Could not deserialize pipe signal."))
             .Kind;
 
@@ -202,15 +202,15 @@ public static class PipeSignalFactory
     {
         return signalKind switch
         {
-            PipeSignalKind.InitTimelineRun => JsonConvert.DeserializeObject<PipeInitTimelineRunSignal>(json) ?? throw new FrameworkStateException("Could not deserialize init signal."),
-            PipeSignalKind.EntityTransition => JsonConvert.DeserializeObject<PipeEntityTransitionSignal>(json) ?? throw new FrameworkStateException("Could not deserialize entity transition signal."),
-            PipeSignalKind.ValueUpdate => JsonConvert.DeserializeObject<PipeValueUpdateSignal>(json) ?? throw new FrameworkStateException("Could not deserialize value update signal."),
-            PipeSignalKind.LogEntry => JsonConvert.DeserializeObject<PipeLogEntrySignal>(json) ?? throw new FrameworkStateException("Could not deserialize log entry signal."),
-            PipeSignalKind.Assertion => JsonConvert.DeserializeObject<PipeAssertionSignal>(json) ?? throw new FrameworkStateException("Could not deserialize assertion signal."),
-            PipeSignalKind.BreakpointHitRequest => JsonConvert.DeserializeObject<PipeBreakpointHitRequestSignal>(json) ?? throw new FrameworkStateException("Could not deserialize breakpoint request signal."),
-            PipeSignalKind.BreakpointHitContinue => JsonConvert.DeserializeObject<PipeBreakpointHitContinueSignal>(json) ?? throw new FrameworkStateException("Could not deserialize breakpoint continue signal."),
-            PipeSignalKind.TimelineRunFinished => JsonConvert.DeserializeObject<PipeTimelineRunFinishedSignal>(json) ?? throw new FrameworkStateException("Could not deserialize timeline-finished signal."),
-            PipeSignalKind.CancelRun => JsonConvert.DeserializeObject<PipeCancelRunSignal>(json) ?? throw new FrameworkStateException("Could not deserialize cancel-run signal."),
+            PipeSignalKind.InitTimelineRun => JsonConvert.DeserializeObject<PipeInitTimelineRunSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize init signal."),
+            PipeSignalKind.EntityTransition => JsonConvert.DeserializeObject<PipeEntityTransitionSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize entity transition signal."),
+            PipeSignalKind.ValueUpdate => JsonConvert.DeserializeObject<PipeValueUpdateSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize value update signal."),
+            PipeSignalKind.LogEntry => JsonConvert.DeserializeObject<PipeLogEntrySignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize log entry signal."),
+            PipeSignalKind.Assertion => JsonConvert.DeserializeObject<PipeAssertionSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize assertion signal."),
+            PipeSignalKind.BreakpointHitRequest => JsonConvert.DeserializeObject<PipeBreakpointHitRequestSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize breakpoint request signal."),
+            PipeSignalKind.BreakpointHitContinue => JsonConvert.DeserializeObject<PipeBreakpointHitContinueSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize breakpoint continue signal."),
+            PipeSignalKind.TimelineRunFinished => JsonConvert.DeserializeObject<PipeTimelineRunFinishedSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize timeline-finished signal."),
+            PipeSignalKind.CancelRun => JsonConvert.DeserializeObject<PipeCancelRunSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize cancel-run signal."),
             _ => throw new ArgumentOutOfRangeException(nameof(signalKind), signalKind, "Unsupported pipe signal kind.")
         };
     }

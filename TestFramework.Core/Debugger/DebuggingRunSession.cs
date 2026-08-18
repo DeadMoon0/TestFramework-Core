@@ -275,19 +275,9 @@ internal class DebuggingRunSession
     /// </summary>
     internal void PublishAssertion(DebugAssertionEntry entry)
     {
-        DebugAssertionEntry entryWithTimestamp = new()
-        {
-            OccurredAtUtc = entry.OccurredAtUtc == default ? DateTimeOffset.UtcNow : entry.OccurredAtUtc,
-            TargetKind = entry.TargetKind,
-            Target = entry.Target,
-            AssertionName = entry.AssertionName,
-            AssertionDisplay = entry.AssertionDisplay,
-            Succeeded = entry.Succeeded,
-            Expected = entry.Expected,
-            Actual = entry.Actual,
-            FailureReason = entry.FailureReason,
-            AssertionScope = entry.AssertionScope
-        };
+        DebugAssertionEntry entryWithTimestamp = entry.OccurredAtUtc == default
+            ? entry with { OccurredAtUtc = DateTimeOffset.UtcNow }
+            : entry;
 
         Enqueue(() => Debugger.SignalAssertionAsync(SessionId, entryWithTimestamp));
     }

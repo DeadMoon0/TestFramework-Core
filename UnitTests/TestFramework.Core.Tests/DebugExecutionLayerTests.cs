@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -103,7 +103,7 @@ public sealed class DebugExecutionLayerTests
         DebugStepState[] steps = [.. structure.Stages.SelectMany(stage => stage.Steps)];
 
         return [.. labels.Select(label => steps
-            .Single(step => string.Equals(step.LabelOptions.Label, label, StringComparison.Ordinal))
+            .Single(step => string.Equals(step.Label, label, StringComparison.Ordinal))
             .LayerIndex)];
     }
 

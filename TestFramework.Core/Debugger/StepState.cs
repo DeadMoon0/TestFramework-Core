@@ -1,68 +1,98 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using TestFramework.Core.Steps.Options;
 
 namespace TestFramework.Core.Debugger;
 
 /// <summary>
-/// Represents the debugger-facing structure of a step.
+/// A step as it was declared: what it is called, when it runs, what it reads and writes, and the policies it
+/// runs under.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Facts, resolved. This record used to carry the builder objects themselves — <c>RetryOptions</c>,
+/// <c>TimeOutOptions</c>, <c>ExecutionOptions</c> and three more — which meant every step on the wire shipped
+/// five <c>IsFrozen</c> flags, three <c>RequireImmutability</c> flags and a derived <c>HasDeclarations</c>,
+/// while the numbers a reader actually wants were nowhere: a retry count and a timeout live behind a method on
+/// a variable reference, so they serialized as an empty wrapper. Nobody could learn from a journal that a step
+/// retries three times.
+/// </para>
+/// <para>
+/// A policy a test pinned to a variable is stated as that variable's name rather than a value, because at the
+/// moment the plan is sent the variable may not have been written yet. Naming it says the same thing honestly:
+/// this is decided later, and here is where it comes from.
+/// </para>
+/// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public record DebugStepState
 {
-    /// <summary>
-    /// Gets the step name.
-    /// </summary>
+    /// <summary>Gets the step name.</summary>
     public required string Name { get; init; }
-    /// <summary>
-    /// Gets the step description.
-    /// </summary>
+
+    /// <summary>Gets the step description.</summary>
     public required string Description { get; init; }
 
-    /// <summary>
-    /// Gets the retry options for the step.
-    /// </summary>
-    public required RetryOptions RetryOptions { get; init; }
-    /// <summary>
-    /// Gets the error handling options for the step.
-    /// </summary>
-    public required ErrorHandlingOptions ErrorHandlingOptions { get; init; }
-    /// <summary>
-    /// Gets the timeout options for the step.
-    /// </summary>
-    public required TimeOutOptions TimeOutOptions { get; init; }
-    /// <summary>
-    /// Gets the label options for the step.
-    /// </summary>
-    public required LabelOptions LabelOptions { get; init; }
-    /// <summary>
-    /// Gets the execution options for the step.
-    /// </summary>
-    public required ExecutionOptions ExecutionOptions { get; init; }
-    /// <summary>
-    /// Gets the declared IO contract for the step.
-    /// </summary>
-    public required StepIOContract IOContract { get; init; }
+    /// <summary>Gets the label a test gave this step, when it gave one.</summary>
+    public string? Label { get; init; }
 
-    /// <summary>
-    /// Gets the workflow phase used by the planner for this step.
-    /// </summary>
+    /// <summary>Gets which phase of the stage the step belongs to.</summary>
     public required StepExecutionPhase Phase { get; init; }
 
-    /// <summary>
-    /// Gets a value indicating whether the step returns a result.
-    /// </summary>
+    /// <summary>Gets whether the step produces a result.</summary>
     public required bool DoesReturn { get; init; }
 
     /// <summary>
-    /// Gets the execution layer the planner assigned this step to.
+    /// Gets which layer of the stage the step runs in.
     /// </summary>
     /// <remarks>
-    /// Steps sharing a layer run concurrently; a later layer starts only once the one before it has
-    /// finished. Reported rather than left for a consumer to work out, because the real plan depends
-    /// on things the protocol does not carry — parallelization mode, IO access conflicts, artifact
-    /// setup resources shared between steps. A consumer re-deriving it from the IO contract alone
-    /// would draw a plan that disagrees with the one that ran, which is worse than drawing none:
-    /// the whole reason to show layers is to answer "what actually ran at the same time".
+    /// Steps sharing a layer can run together. Resolved by the same planner the runner uses, so the layers
+    /// reported are the layers that run.
     /// </remarks>
     public int LayerIndex { get; init; }
+
+    /// <summary>Gets whether the step may run beside its neighbours.</summary>
+    public required StepParallelizationMode Parallelization { get; init; }
+
+    /// <summary>Gets how many times the step may be retried, when that was fixed when the run was planned.</summary>
+    public int? MaxRetries { get; init; }
+
+    /// <summary>Gets the variable the retry count is read from, when a test pinned it to one.</summary>
+    public string? MaxRetriesVariable { get; init; }
+
+    /// <summary>Gets how long the step may run for, when that was fixed when the run was planned.</summary>
+    public System.TimeSpan? TimeOut { get; init; }
+
+    /// <summary>Gets the variable the timeout is read from, when a test pinned it to one.</summary>
+    public string? TimeOutVariable { get; init; }
+
+    /// <summary>
+    /// Gets the exception types this step is allowed to throw without failing the run.
+    /// </summary>
+    /// <remarks>
+    /// Type names, not CLR types. The wire carried <see cref="System.Type"/> objects before, which a consumer
+    /// in another process cannot load and has no use for beyond the name.
+    /// </remarks>
+    public string[] IgnoredExceptions { get; init; } = [];
+
+    /// <summary>Gets the values the step declares it reads.</summary>
+    public DebugStepIo[] Inputs { get; init; } = [];
+
+    /// <summary>Gets the values the step declares it writes.</summary>
+    public DebugStepIo[] Outputs { get; init; } = [];
+}
+
+/// <summary>One value a step declares it reads or writes.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed record DebugStepIo
+{
+    /// <summary>Gets the variable or artifact identifier.</summary>
+    public required string Key { get; init; }
+
+    /// <summary>Gets whether it is a variable or an artifact.</summary>
+    public required StepIOKind Kind { get; init; }
+
+    /// <summary>Gets whether the step cannot run without it.</summary>
+    public bool Required { get; init; } = true;
+
+    /// <summary>Gets the type the step declared, by name, when it declared one.</summary>
+    public string? DeclaredType { get; init; }
 }

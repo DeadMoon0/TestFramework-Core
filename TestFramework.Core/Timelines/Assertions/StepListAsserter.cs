@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
@@ -34,7 +34,7 @@ public class StepListAsserter
             {
                 var reason = $"step {i + 1} of {_steps.Count} ('{step.Step.Name}') was {step.State}";
                 var message = $"Steps {_label}: AllHaveCompleted failed \u2014 {reason}.";
-                _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), nameof(AllHaveCompleted), false, "all steps complete", reason, reason);
+                _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), [("step", i + 1), ("of", _steps.Count), ("name", step.Step.Name)], false, step.State);
                 if (_logger?.CurrentScope is { } scope)
                 {
                     scope.RecordFailure(message);
@@ -43,7 +43,7 @@ public class StepListAsserter
                 throw new StepAssertionException(message);
             }
         }
-        _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), nameof(AllHaveCompleted), true, "all steps complete", "all steps complete");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), [("of", _steps.Count)], true, StepState.Complete);
         return this;
     }
 

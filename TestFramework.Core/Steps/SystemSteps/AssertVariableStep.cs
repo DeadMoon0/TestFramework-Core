@@ -44,11 +44,9 @@ internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, boo
             DebugAssertionTargetKind.Variable,
             variable.HasIdentifier ? variable.Identifier!.Identifier : "<const>",
             AssertionName,
-            AssertionName,
+            [],
             held,
-            "the predicate holds",
-            Describe(value),
-            held ? "" : $"the predicate rejected {Describe(value)}");
+            value);
 
         if (!held) throw new AssertVariableException(variable.Identifier, value);
         return EmptyStepResultContext.Instance;

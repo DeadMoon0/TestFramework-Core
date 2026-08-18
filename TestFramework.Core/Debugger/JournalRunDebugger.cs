@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
@@ -256,7 +256,7 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable
         if (metadata is null || metadataPath is null)
             return;
 
-        File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented));
+        File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented, DebugJson.Settings));
     }
 
     private void Close()

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TestFramework.Core.Exceptions;
 
@@ -24,6 +24,11 @@ public sealed record DebugFailureDetail
     /// <summary>
     /// Gets the framework's plain-language explanation, when the failure was a framework exception.
     /// </summary>
+    /// <remarks>
+    /// Prose, deliberately. This and the two lists below are not renderings of data carried elsewhere — they
+    /// are the framework saying something a consumer could not work out for itself, and <c>ExceptionType</c>
+    /// above is the stable key to switch on when a consumer wants to say it differently.
+    /// </remarks>
     public string? FriendlyMessage { get; init; }
 
     /// <summary>Gets the framework's suggested recovery steps, when available.</summary>
@@ -35,8 +40,15 @@ public sealed record DebugFailureDetail
     /// <summary>Gets the stack trace, when the exception carried one.</summary>
     public string? StackTrace { get; init; }
 
-    /// <summary>Gets the chain of inner exception types and messages, outermost first.</summary>
-    public IReadOnlyList<string> InnerExceptions { get; init; } = [];
+    /// <summary>
+    /// Gets the chain of inner exceptions, outermost first.
+    /// </summary>
+    /// <remarks>
+    /// Two fields per link rather than one pre-joined <c>"Type: message"</c> string, so a consumer can show the
+    /// types as a chain and the messages as text without splitting a string on the first colon — which is also
+    /// the character most likely to appear inside the message.
+    /// </remarks>
+    public IReadOnlyList<DebugExceptionLink> InnerExceptions { get; init; } = [];
 
     /// <summary>Gets the attempt this failure belongs to, counting from one.</summary>
     public int Attempt { get; init; }
@@ -62,9 +74,15 @@ public sealed record DebugFailureDetail
         if (exception is null)
             return null;
 
-        List<string> inner = [];
+        List<DebugExceptionLink> inner = [];
         for (Exception? current = exception.InnerException; current is not null; current = current.InnerException)
-            inner.Add($"{current.GetType().FullName}: {current.Message}");
+        {
+            inner.Add(new DebugExceptionLink
+            {
+                ExceptionType = current.GetType().FullName ?? current.GetType().Name,
+                Message = current.Message
+            });
+        }
 
         TimelineFrameworkException? frameworkException = exception as TimelineFrameworkException;
 
@@ -82,4 +100,14 @@ public sealed record DebugFailureDetail
             WasSuppressed = wasSuppressed
         };
     }
+}
+
+/// <summary>One exception inside another.</summary>
+public sealed record DebugExceptionLink
+{
+    /// <summary>Gets the exception's type, fully qualified.</summary>
+    public required string ExceptionType { get; init; }
+
+    /// <summary>Gets its message.</summary>
+    public required string Message { get; init; }
 }

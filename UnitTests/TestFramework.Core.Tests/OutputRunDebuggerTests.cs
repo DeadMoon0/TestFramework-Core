@@ -65,8 +65,8 @@ public class OutputRunDebuggerTests
                 TargetKind = DebugAssertionTargetKind.Value,
                 Target = "summaryText",
                 AssertionName = "Be",
-                AssertionDisplay = "Be(\"ok\")",
-                FailureReason = "expected \"ok\", was \"nope\"",
+                Arguments = [DebugLogField.Of("expected", "ok")],
+                Actual = new DebugValueDescription { Summary = "\"nope\"", Shape = DebugValueShape.Text },
                 Succeeded = false
             });
 
@@ -359,30 +359,26 @@ public class OutputRunDebuggerTests
         {
             Name = name,
             Description = string.Empty,
-            RetryOptions = new RetryOptions(),
-            ErrorHandlingOptions = new ErrorHandlingOptions(),
-            TimeOutOptions = new TimeOutOptions(),
-            LabelOptions = new LabelOptions { Label = label },
-            ExecutionOptions = new ExecutionOptions(),
-            IOContract = new StepIOContract(),
+            Label = label,
             Phase = phase,
-            DoesReturn = false
+            DoesReturn = false,
+            Parallelization = StepParallelizationMode.Parallelizable
         };
     }
 
     private static DebugStepState CreateMessageStep(string name, string inputVariable)
-    {
-        DebugStepState step = CreateStep(name);
-        step.IOContract.Inputs.Add(new StepIOEntry(inputVariable, StepIOKind.Variable, true, typeof(string)));
-        return step;
-    }
+        => CreateStep(name) with { Inputs = [Declared(inputVariable)] };
 
     private static DebugStepState CreateSetVariableStep(string name, string outputVariable, string label)
+        => CreateStep(name, label, StepExecutionPhase.Prepare) with { Outputs = [Declared(outputVariable)] };
+
+    private static DebugStepIo Declared(string key) => new()
     {
-        DebugStepState step = CreateStep(name, label, StepExecutionPhase.Prepare);
-        step.IOContract.Outputs.Add(new StepIOEntry(outputVariable, StepIOKind.Variable, true, typeof(string)));
-        return step;
-    }
+        Key = key,
+        Kind = StepIOKind.Variable,
+        Required = true,
+        DeclaredType = nameof(String)
+    };
 
     private static DebugValueEnvelope CreateValueEnvelope(string value)
     {

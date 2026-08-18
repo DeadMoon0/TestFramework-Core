@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -35,7 +35,7 @@ public sealed class TimelineAssertionSignalTests
         Assert.True(assertion.Succeeded);
         Assert.Equal(DebugAssertionTargetKind.Variable, assertion.TargetKind);
         Assert.Equal("name", assertion.Target);
-        Assert.Equal("Ada", assertion.Actual);
+        Assert.Contains("Ada", assertion.Actual.Summary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,8 +56,7 @@ public sealed class TimelineAssertionSignalTests
 
         DebugAssertionEntry assertion = Assert.Single(debugger.Assertions);
         Assert.False(assertion.Succeeded);
-        Assert.Equal("Grace", assertion.Actual);
-        Assert.Contains("Grace", assertion.FailureReason, StringComparison.Ordinal);
+        Assert.Contains("Grace", assertion.Actual.Summary, StringComparison.Ordinal);
     }
 
     [Fact]

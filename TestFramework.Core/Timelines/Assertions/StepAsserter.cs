@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
@@ -24,13 +24,13 @@ public class StepAsserter
 
     private StepAsserter Pass(string assertion)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, assertion, true, ExpectedFor(assertion), ActualFor(assertion));
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, [], true, ActualFor(assertion));
         return this;
     }
 
     private StepAsserter Fail(string assertion, string reason)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, assertion, false, ExpectedFor(assertion), ActualFor(assertion), reason);
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, [], false, ActualFor(assertion));
         var message = $"Step {_display}: {assertion} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {

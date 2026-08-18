@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -139,8 +139,16 @@ public sealed class DebugFailureDetailTests
 
         Assert.Collection(
             failure.InnerExceptions,
-            first => Assert.Contains("middle", first, StringComparison.Ordinal),
-            second => Assert.Contains("inner", second, StringComparison.Ordinal));
+            first =>
+            {
+                Assert.Equal("System.ArgumentException", first.ExceptionType);
+                Assert.Equal("middle", first.Message);
+            },
+            second =>
+            {
+                Assert.Equal("System.FormatException", second.ExceptionType);
+                Assert.Equal("inner", second.Message);
+            });
     }
 
     [Fact]
