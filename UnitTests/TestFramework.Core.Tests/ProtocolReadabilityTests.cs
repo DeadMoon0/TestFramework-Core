@@ -121,6 +121,31 @@ public class ProtocolReadabilityTests
     }
 
     [Fact]
+    public void AOnePropertyWrapperReadsAsItsValueWithoutLosingItsShape()
+    {
+        // Framework messages pass identifiers and methods, which are wrappers around one value. Their structure
+        // is worth carrying and their JSON is not worth reading, so the renderer unwraps what the transport keeps.
+        DebugLogFacts facts = DebugLogFacts.Positional(
+            "FunctionApp HTTP '{0}' -> {1}",
+            new { Identifier = "func" },
+            new { Method = "POST" });
+
+        Assert.Equal("FunctionApp HTTP 'func' -> POST", DebugLogTemplate.Render(facts.Template, facts.Fields));
+
+        // The shape is still on the wire for a consumer that wants the field rather than the sentence.
+        Assert.Equal("func", facts.Fields[0].Value["Identifier"]!.Value<string>());
+    }
+
+    [Fact]
+    public void AnObjectWithMoreThanOnePropertyKeepsItsJson()
+    {
+        // Nothing to unwrap to, and picking one property would be inventing an answer.
+        DebugLogFacts facts = DebugLogFacts.Positional("{0}", new { Id = 7, Customer = "Ada" });
+
+        Assert.Contains("\"Id\":7", DebugLogTemplate.Render(facts.Template, facts.Fields), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnInnerExceptionChainKeepsItsTypesApartFromItsMessages()
     {
         DebugFailureDetail failure = DebugFailureDetail.Capture(

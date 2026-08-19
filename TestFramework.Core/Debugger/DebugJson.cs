@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
@@ -40,12 +41,27 @@ public static class DebugJson
     /// <summary>The same configuration, for the calls that take a serializer rather than settings.</summary>
     public static JsonSerializer Serializer { get; } = JsonSerializer.CreateDefault(Settings);
 
-    /// <summary>One value as text.</summary>
+    /// <summary>
+    /// One value as text.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An object with a single property reads as that property's value. Framework messages are full of
+    /// one-property wrappers — an app identifier, an HTTP method, a queue name — and their structure is worth
+    /// carrying while their JSON is not worth reading: <c>FunctionApp '{"Identifier":"func"}'</c> is a worse
+    /// sentence than <c>FunctionApp 'func'</c>, and the wrapper is what the reader means by the value.
+    /// </para>
+    /// <para>
+    /// An object with more than one property keeps its JSON. There is no single value to unwrap to, and picking
+    /// one would be inventing an answer.
+    /// </para>
+    /// </remarks>
     public static string Text(JToken? value) => value switch
     {
         null => string.Empty,
         JValue { Value: null } => string.Empty,
         JValue single => Convert.ToString(single.Value, CultureInfo.CurrentCulture) ?? string.Empty,
+        JObject { Count: 1 } wrapper => Text(wrapper.Properties().First().Value),
         _ => value.ToString(Formatting.None)
     };
 }
