@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -221,7 +222,7 @@ public class CoreEnvironmentTests
 
     private sealed class TestEnvironment : EnvironmentProviderBase
     {
-        public List<string> Calls { get; } = [];
+        public CallLog Calls { get; } = [];
 
         public TestEnvironment()
         {
@@ -244,7 +245,7 @@ public class CoreEnvironmentTests
 
     private sealed class OpenGenericEnvironment : EnvironmentProviderBase
     {
-        public List<string> Calls { get; } = [];
+        public CallLog Calls { get; } = [];
 
         public OpenGenericEnvironment()
         {
@@ -255,7 +256,7 @@ public class CoreEnvironmentTests
 
     private sealed class RequirementEnvironment : EnvironmentProviderBase
     {
-        public List<string> Calls { get; } = [];
+        public CallLog Calls { get; } = [];
 
         public RequirementEnvironment()
         {
@@ -266,12 +267,13 @@ public class CoreEnvironmentTests
 
     private sealed class ParallelEnvironment : EnvironmentProviderBase
     {
-        public List<string> Calls { get; } = [];
+        public CallLog Calls { get; } = [];
         private int _activeCreates;
+        private int _maxConcurrentCreates;
 
         public override bool SupportsParallelComponentCreation => true;
 
-        public int MaxConcurrentCreates { get; private set; }
+        public int MaxConcurrentCreates => Volatile.Read(ref _maxConcurrentCreates);
 
         public ParallelEnvironment()
         {
@@ -284,7 +286,19 @@ public class CoreEnvironmentTests
         public void OnCreateStart()
         {
             int activeCreates = Interlocked.Increment(ref _activeCreates);
-            MaxConcurrentCreates = Math.Max(MaxConcurrentCreates, activeCreates);
+
+            // Compare-and-swap rather than Math.Max on a field: two creates starting together would read
+            // the same maximum and one would write its own back, under-reporting the very concurrency this
+            // records.
+            int observed = Volatile.Read(ref _maxConcurrentCreates);
+            while (activeCreates > observed)
+            {
+                int previous = Interlocked.CompareExchange(ref _maxConcurrentCreates, activeCreates, observed);
+                if (previous == observed)
+                    break;
+
+                observed = previous;
+            }
         }
 
         public void OnCreateEnd()
@@ -295,7 +309,7 @@ public class CoreEnvironmentTests
 
     private sealed class PersistentEnvironment : EnvironmentProviderBase
     {
-        public static List<string> Calls { get; } = [];
+        public static CallLog Calls { get; } = [];
 
         public PersistentEnvironment()
         {
@@ -337,7 +351,7 @@ public class CoreEnvironmentTests
 
     private sealed class TimeoutPersistentEnvironment : EnvironmentProviderBase
     {
-        public static List<string> Calls { get; } = [];
+        public static CallLog Calls { get; } = [];
 
         public TimeoutPersistentEnvironment()
         {
@@ -356,7 +370,48 @@ public class CoreEnvironmentTests
         public TimeSpan GetPersistentSetupTimeout() => TimeSpan.FromMilliseconds(50);
     }
 
-    private sealed class LoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
+    /// <summary>
+    /// What the components recorded, in the order they recorded it.
+    /// </summary>
+    /// <remarks>
+    /// A plain list until an environment created two components at once: <c>List&lt;T&gt;.Add</c> is not
+    /// thread-safe, and two creates appending at the same moment can write the same slot, so the log came
+    /// back one entry short with the rest shifted. That made the parallel-creation test read an order that
+    /// never happened - failing on a loaded machine and passing on an idle one.
+    /// </remarks>
+    private sealed class CallLog : IEnumerable<string>
+    {
+        private readonly List<string> _entries = [];
+
+        public void Add(string entry)
+        {
+            lock (_entries)
+                _entries.Add(entry);
+        }
+
+        public void Clear()
+        {
+            lock (_entries)
+                _entries.Clear();
+        }
+
+        public int IndexOf(string entry)
+        {
+            lock (_entries)
+                return _entries.IndexOf(entry);
+        }
+
+        // A copy, because a reader enumerating the live list would race the next component to append to it.
+        public IEnumerator<string> GetEnumerator()
+        {
+            lock (_entries)
+                return _entries.ToList().GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private sealed class LoggingEnvComponent(string identifier, CallLog calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
 
@@ -381,7 +436,7 @@ public class CoreEnvironmentTests
         }
     }
 
-    private sealed class TimeoutLoggingEnvComponent(string identifier, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
+    private sealed class TimeoutLoggingEnvComponent(string identifier, CallLog calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
 
@@ -405,7 +460,7 @@ public class CoreEnvironmentTests
             => Task.CompletedTask;
     }
 
-    private sealed class DelayedLoggingEnvComponent(string identifier, ParallelEnvironment environment, List<string> calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
+    private sealed class DelayedLoggingEnvComponent(string identifier, ParallelEnvironment environment, CallLog calls, params EnvComponentIdentifier[] dependencies) : EnvComponent
     {
         private readonly IReadOnlyList<EnvComponentIdentifier> _dependencies = dependencies;
 
