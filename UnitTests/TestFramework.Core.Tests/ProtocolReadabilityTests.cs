@@ -160,5 +160,67 @@ public class ProtocolReadabilityTests
         // anyone trying to split them back apart.
         Assert.Equal("System.FormatException", link.ExceptionType);
         Assert.Equal("time: 3:00 is not a time", link.Message);
+        Assert.Equal(0, link.Depth);
+    }
+
+    [Fact]
+    public void EveryCauseOfAnAggregateIsRecorded()
+    {
+        // Following InnerException alone reported the first of them and dropped the rest without saying so — which
+        // for a step that fanned out and had several shards fail explained one failure and hid the others.
+        DebugFailureDetail failure = DebugFailureDetail.Capture(
+            new InvalidOperationException(
+                "The ledger refused the batch.",
+                new AggregateException(
+                    "One or more entries were rejected.",
+                    new FormatException("Entry 17 is not a decimal."),
+                    new OverflowException("Entry 22 does not fit."))),
+            attempt: 1,
+            willRetry: false,
+            wasSuppressed: false)!;
+
+        Assert.Equal(
+            ["System.AggregateException", "System.FormatException", "System.OverflowException"],
+            failure.InnerExceptions.Select(link => link.ExceptionType));
+    }
+
+    [Fact]
+    public void SiblingCausesAreRecordedAtTheSameDepth()
+    {
+        // What the depth is for. Flattened into a list, two causes aggregated by one parent are adjacent — and a
+        // consumer indenting by position would draw the second as nested inside the first, which is untrue.
+        DebugFailureDetail failure = DebugFailureDetail.Capture(
+            new AggregateException(
+                "Both shards failed.",
+                new InvalidOperationException("shard one", new TimeoutException("gateway one")),
+                new InvalidOperationException("shard two")),
+            attempt: 1,
+            willRetry: false,
+            wasSuppressed: false)!;
+
+        // The aggregate is the failure itself, so both shards are immediate causes and only the gateway sits
+        // under one of them: shard one, its gateway, then shard two — back out to the same depth it started at.
+        Assert.Equal([0, 1, 0], failure.InnerExceptions.Select(link => link.Depth));
+        Assert.Equal("gateway one", failure.InnerExceptions[1].Message);
+
+        // The siblings share a depth, which is the whole reason it is carried: indenting by list position would
+        // have drawn the second shard as something the first one caused.
+        Assert.Equal(failure.InnerExceptions[0].Depth, failure.InnerExceptions[2].Depth);
+    }
+
+    [Fact]
+    public void APathologicalCauseGraphIsCutRatherThanCarriedWhole()
+    {
+        // A wide fan-out can aggregate hundreds. Two dozen reasons is everything a reader can act on, and the
+        // stack trace is still whole for whoever needs more.
+        DebugFailureDetail failure = DebugFailureDetail.Capture(
+            new AggregateException(
+                "Everything failed.",
+                Enumerable.Range(1, 200).Select(index => new InvalidOperationException($"shard {index}"))),
+            attempt: 1,
+            willRetry: false,
+            wasSuppressed: false)!;
+
+        Assert.True(failure.InnerExceptions.Count <= 24, "the walk stops rather than recording every one");
     }
 }
