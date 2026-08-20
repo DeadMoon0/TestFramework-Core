@@ -10,9 +10,14 @@ namespace TestFramework.Core.Tests;
 /// Covers the availability probe that decides, per run, whether a debugger UI is listening.
 /// </summary>
 /// <remarks>
-/// These are Windows-only because the probe reads the Windows object namespace. Elsewhere it
-/// deliberately answers "possibly listening" and defers to a real connect attempt, so there is no
-/// negative result to assert.
+/// These run on every platform. The probe reads the Windows object namespace on Windows and the
+/// socket file backing the pipe under the temp directory on Unix, so a negative result is available
+/// on both -- which matters, because answering "possibly listening" where it is unknown costs a
+/// connect attempt on every run of every suite on a machine that has no UI at all.
+///
+/// Keeping them cross-platform is also what pins the Unix socket path convention: it is an
+/// implementation detail of System.IO.Pipes, and if it ever changed these fail rather than the
+/// feature quietly ceasing to find a UI.
 /// </remarks>
 public sealed class PipeAvailabilityTests : IDisposable
 {
@@ -21,7 +26,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     public void Dispose() => PipeClient.ResetAvailabilityForTests();
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public void ProbeReportsNoListenerForAnUnusedPipeName()
     {
         PipeClient.ResetAvailabilityForTests();
@@ -30,7 +34,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public void ProbeReportsAListenerWhileAServerIsOpen()
     {
         using NamedPipeServerStream server = CreateServer();
@@ -40,7 +43,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public void ProbeNoticesAUiThatStartsLater()
     {
         // The behaviour the removed latch used to prevent: a suite that starts with no UI must pick
@@ -55,7 +57,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public void ProbeNoticesAUiThatGoesAway()
     {
         NamedPipeServerStream server = CreateServer();
@@ -69,7 +70,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public void RepeatedProbesAreServedFromTheCache()
     {
         // IsCapturing is consulted on every variable write, so the probe must not become a syscall
@@ -83,7 +83,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public async Task ProbingDoesNotConsumeTheServersPendingConnection()
     {
         // The probe must observe the pipe without opening it. Testing the pipe path directly (for
@@ -107,7 +106,6 @@ public sealed class PipeAvailabilityTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "WindowsOnly")]
     public async Task ClientReportsUnavailableWithoutAListenerAndAvailableWithOne()
     {
         PipeClient.ResetAvailabilityForTests();

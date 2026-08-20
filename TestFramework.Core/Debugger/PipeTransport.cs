@@ -138,15 +138,30 @@ internal static class PipeAvailability
     /// <summary>Drops the cached answers so a test can observe a pipe appearing or disappearing.</summary>
     internal static void ResetForTests() => Cache.Clear();
 
+    /// <summary>
+    /// The prefix the runtime gives the socket file backing a named pipe on Unix.
+    /// </summary>
+    /// <remarks>
+    /// An implementation detail of System.IO.Pipes rather than a documented contract, which is why
+    /// <c>ProbeReportsAListenerWhileAServerIsOpen</c> runs on every platform: if the runtime ever
+    /// renamed this, that test fails rather than the feature quietly ceasing to find a UI.
+    /// </remarks>
+    private const string UnixPipePrefix = "CoreFxPipe_";
+
     private static bool Probe(string pipeName)
     {
-        // Only Windows exposes pipes as paths. Elsewhere there is nothing cheap to test, so report
-        // "possibly listening" and let the ordinary connect attempt settle it under its own timeout.
-        if (!OperatingSystem.IsWindows())
-            return true;
-
         try
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                // A named pipe on Unix is a socket file under the temp directory, so the name is a
+                // path here too. Stating it with File.Exists only stats it -- measured on Linux, a
+                // pending WaitForConnectionAsync is still pending afterwards -- so the Windows
+                // hazard described below does not apply, and unlike answering "possibly listening"
+                // this costs no connect attempt on a machine with no UI at all.
+                return File.Exists(Path.Combine(Path.GetTempPath(), UnixPipePrefix + pipeName));
+            }
+
             // Enumerate the pipe directory rather than testing the pipe path directly.
             // File.Exists(@"\\.\pipe\name") looks like the obvious check and is actively harmful:
             // opening a pipe path *connects* to it, which completes the UI's pending

@@ -30,7 +30,7 @@ public class ConfigInstanceTests
             })
             .Build();
 
-        IServiceProvider provider = config
+        using ServiceProvider provider = config
             .SetupSubInstance()
             .OverrideConfig("App:Mode", "child")
             .BuildServiceProvider();
@@ -45,7 +45,7 @@ public class ConfigInstanceTests
     [Fact]
     public void BuildServiceProvider_AppliesParameterlessServiceRegistrations()
     {
-        IServiceProvider provider = ConfigInstance.Create()
+        using ServiceProvider provider = ConfigInstance.Create()
             .AddService(services => services.AddSingleton(new MarkerService("created")))
             .BuildServiceProvider();
 
@@ -140,7 +140,10 @@ public class ConfigInstanceTests
 
         ConfigInstance runConfig = persistent.CreateRunConfig(builder => builder.OverrideConfig("App:Mode", "run"));
 
-        IConfiguration configuration = runConfig.BuildServiceProvider().GetRequiredService<IConfiguration>();
+        // Named so it can be disposed: building one inline and reading a service off it leaves
+        // the provider, and every singleton it created, with nobody to release it.
+        await using ServiceProvider runProvider = runConfig.BuildServiceProvider();
+        IConfiguration configuration = runProvider.GetRequiredService<IConfiguration>();
         Assert.Equal("run", configuration["App:Mode"]);
 
         Timeline timeline = Timeline.Create()
