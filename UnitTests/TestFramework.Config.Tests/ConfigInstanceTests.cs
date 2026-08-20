@@ -71,7 +71,10 @@ public class ConfigInstanceTests
                 }
                 """);
 
-            IServiceProvider provider = ConfigInstance.FromJsonFile(tempFile).BuildServiceProvider();
+            // Disposed rather than left to the process. BuildServiceProvider returns the concrete
+            // ServiceProvider because the caller owns it, and a test that ignores that models the
+            // wrong thing for anyone reading it.
+            using ServiceProvider provider = ConfigInstance.FromJsonFile(tempFile).BuildServiceProvider();
             IConfiguration configuration = provider.GetRequiredService<IConfiguration>();
 
             Assert.Equal("json", configuration["App:Mode"]);
