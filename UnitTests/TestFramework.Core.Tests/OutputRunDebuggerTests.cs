@@ -91,21 +91,21 @@ public class OutputRunDebuggerTests
             Assert.Contains(output.Lines, line => line == "│");
             Assert.Contains(output.Lines, line => line == "│ │");
             Assert.StartsWith("│ │ ╭─ Flow Trace ", flowTraceHeader);
-            Assert.Equal(99, flowTraceHeader.Length);
+            Assert.Equal(95, flowTraceHeader.Length);
             Assert.StartsWith("│ │ ╭─ Step [#0]  FetchUsers ", stepHeader);
-            Assert.Equal(99, stepHeader.Length);
+            Assert.Equal(95, stepHeader.Length);
             Assert.StartsWith("│ │ ╭─ Step [#1]  RenderSummary ", lastStepHeader);
-            Assert.Equal(99, lastStepHeader.Length);
+            Assert.Equal(95, lastStepHeader.Length);
             Assert.Contains("> L0  Prepare  x2", rendered);
-            Assert.Contains(output.Lines, line => line.Contains("1. [RUN ] [#0]     -> FetchUsers") || line.Contains("1. [RUN ] [#1]     -> RenderSummary"));
+            Assert.Contains(output.Lines, line => line.Contains("1. [RUN]   [#0]     -> FetchUsers") || line.Contains("1. [RUN]   [#1]     -> RenderSummary"));
             Assert.Contains(output.Lines, line => line.StartsWith("│   │ LOGS ATTEMPT 1"));
             Assert.Contains("State: PASS", rendered);
             Assert.Contains("State: FAIL", rendered);
             Assert.Contains("Flow Trace", rendered);
-            Assert.Contains("1. [RUN ] [#0]     -> FetchUsers", rendered);
-            Assert.Contains("2. [RUN ] [#1]     -> RenderSummary", rendered);
-            Assert.Contains("3. [PASS] [#0]     <- FetchUsers", rendered);
-            Assert.Contains("4. [FAIL] [#1]     <- RenderSummary", rendered);
+            Assert.Contains("1. [RUN]   [#0]     -> FetchUsers", rendered);
+            Assert.Contains("2. [RUN]   [#1]     -> RenderSummary", rendered);
+            Assert.Contains("3. [PASS]  [#0]     <- FetchUsers", rendered);
+            Assert.Contains("4. [FAIL]  [#1]     <- RenderSummary", rendered);
             Assert.Contains("Step [#0]  FetchUsers", rendered);
             Assert.Contains("Step [#1]  RenderSummary", rendered);
             Assert.Contains("Phase: Prepare", rendered);
@@ -264,10 +264,10 @@ public class OutputRunDebuggerTests
 
             string rendered = string.Join(System.Environment.NewLine, output.Lines);
 
-            Assert.Contains("[WAIT] [#0]     <- FlakyCall waiting for retry", rendered);
+            Assert.Contains("[WAIT]  [#0]     <- FlakyCall waiting for retry", rendered);
             Assert.Contains("[RETRY] [#0:r2]  -> FlakyCall (retry 2)", rendered);
-            Assert.Contains("[PASS] [#0:r2]  <- FlakyCall", rendered);
-            Assert.Contains("[SKIP] [#1]     <- OptionalCleanup", rendered);
+            Assert.Contains("[PASS]  [#0:r2]  <- FlakyCall", rendered);
+            Assert.Contains("[SKIP]  [#1]     <- OptionalCleanup", rendered);
             Assert.Single(output.Lines.Where(line => line.Contains("Step [#0]  FlakyCall", StringComparison.Ordinal)));
             Assert.Contains("LOGS ATTEMPT 1", rendered);
             Assert.Contains("LOGS ATTEMPT 2", rendered);
@@ -352,6 +352,109 @@ public class OutputRunDebuggerTests
             Assert.DoesNotContain('╰', rendered);
         });
     }
+
+    /// <summary>
+    /// Every drawn line of the view ends in the same column, at every nesting depth, with tabs and
+    /// over-long lines in the content.
+    /// </summary>
+    /// <remarks>
+    /// The three ways this went wrong all showed up as the right-hand border wandering: a nested panel
+    /// drawn at the full width overhung the one containing it, a tab counted as one column while
+    /// printing as up to eight, and a stage's activity box borrowed the stage's own prefix.
+    /// </remarks>
+    [Fact]
+    public async Task Draws_Every_Panel_To_The_Same_Right_Edge()
+    {
+        await WithUnicodeOutputSettingAsync(null, async () =>
+        {
+            RecordingOutputHelper output = new();
+            OutputRunDebugger debugger = new(output);
+
+            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            {
+                Stages =
+                [
+                    new DebugStageState
+                    {
+                        Name = "Main",
+                        Description = "A description long enough that the renderer has to break it across more than one line of the panel before it can be shown at all.",
+                        Steps = [CreateStep("FetchUsers"), CreateStep("RenderSummary")]
+                    }
+                ],
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+            });
+
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
+            debugger.WriteRenderedLog(["\tStage activity behind a tab"], new LogPlacement("Main", null, null, 0));
+
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
+            debugger.WriteRenderedLog(["\t\tA log line behind two tabs, long enough that it has to be broken across lines as well"], new LogPlacement("Main", 0, 1, 0));
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+
+            await debugger.SignalTimelineRunFinishedAsync("session");
+
+            // Anything shorter is one of the tree's own connector lines between two panels, which carry
+            // no right-hand border to line up.
+            string[] drawn = [.. output.Lines.Where(line => line.Length > TreePrefixOnlyLineLength)];
+            Assert.NotEmpty(drawn);
+            Assert.All(drawn, line => Assert.Equal(95, line.Length));
+            Assert.DoesNotContain(output.Lines, line => line.Contains('\t'));
+
+            // The activity box is a child of the stage, so the stage's own branch connector is drawn once,
+            // and the activity box carries a connector of its own one level deeper.
+            string stageHeader = Assert.Single(output.Lines.Where(line => line.Contains("STAGE  Main", StringComparison.Ordinal)));
+            Assert.StartsWith("└─┤ STAGE  Main", stageHeader);
+            Assert.Contains(output.Lines, line => line.StartsWith("  ├─┤") && line.Contains("Stage activity behind a tab"));
+        });
+    }
+
+    /// <summary>
+    /// A two-column section is joined to the rules that open and close it.
+    /// </summary>
+    [Fact]
+    public async Task Joins_The_Column_Divider_To_The_Separators_Around_It()
+    {
+        await WithUnicodeOutputSettingAsync(null, async () =>
+        {
+            RecordingOutputHelper output = new();
+            OutputRunDebugger debugger = new(output);
+
+            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            {
+                Stages =
+                [
+                    new DebugStageState
+                    {
+                        Name = "Main",
+                        Description = string.Empty,
+                        Steps = [CreateStep("FetchUsers")]
+                    }
+                ],
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+            });
+
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalTimelineRunFinishedAsync("session");
+
+            string columnRow = Assert.Single(output.Lines.Where(line => line.Contains("INPUTS")));
+            int dividerIndex = columnRow.IndexOf('│', columnRow.IndexOf("INPUTS", StringComparison.Ordinal));
+            string openingRule = Assert.Single(output.Lines.Where(line => line.Contains('┬')));
+            string closingRule = Assert.Single(output.Lines.Where(line => line.Contains('┴')));
+
+            Assert.Equal(dividerIndex, openingRule.IndexOf('┬'));
+            Assert.Equal(dividerIndex, closingRule.IndexOf('┴'));
+        });
+    }
+
+    /// <summary>The longest a line made of nothing but the tree prefix and its trunk can be.</summary>
+    private const int TreePrefixOnlyLineLength = 8;
 
     private static DebugStepState CreateStep(string name, string? label = null, StepExecutionPhase phase = StepExecutionPhase.Act)
     {

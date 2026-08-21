@@ -15,7 +15,29 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
 {
     private const string DisableUnicodeOutEnvironmentVariable = "TestFramework_Disable_Unicode_Out";
     private const int PanelWidth = 95;
-    private const int PanelInnerWidth = PanelWidth - 4;
+    private const int MinimumPanelWidth = 16;
+
+    /// <summary>
+    /// The indentation a tab in content stands for.
+    /// </summary>
+    /// <remarks>
+    /// Two spaces, because that is what the log's own nesting indents by: an indented log line keeps the
+    /// depth it was written with instead of gaining whatever tab stop the reader's terminal has.
+    /// </remarks>
+    private const string TabIndent = "  ";
+
+    /// <summary>A separator with no column divider crossing it.</summary>
+    private const int NoJunction = -1;
+
+    /// <summary>
+    /// What the remainder of a line too long for the panel is indented by.
+    /// </summary>
+    /// <remarks>
+    /// Flush against the border, the tail of a wrapped list entry reads as an entry of its own, which is
+    /// the one thing a reader of this view must not have to second-guess.
+    /// </remarks>
+    private const string ContinuationIndent = "  ";
+
     /// <summary>
     /// Steps in one layer run concurrently, so their signals arrive on several threads at once. Every
     /// handler below reads and writes the shared render state, several of them across more than one
@@ -114,7 +136,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
             stepIterations[stepKey] = iteration;
             StepRenderState stepRun = stageState.StartStep(stepId.Value, iteration, step, stepDisplayName);
             stageState.FlowEvents.Add(new FlowEventRenderState(
-                iteration == 1 ? "RUN " : "RETRY",
+                iteration == 1 ? "RUN" : "RETRY",
                 stepRun.Marker,
                 iteration == 1 ? $"-> {stepDisplayName}" : $"-> {stepDisplayName} (retry {iteration})",
                 stepId.Value,
@@ -425,15 +447,19 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
             WriteWrappedContent(stage.Description, stagePrefix, false);
         WriteBottomBorder('=', stagePrefix);
 
+        string childAncestorPrefix = stagePrefix.Rest;
+
+        // Its own child prefix, not the stage's: drawn at the stage's own level it repeated the branch
+        // connector of a node that already had one, and claimed the stage's width for a box one level
+        // deeper. The flow trace always follows it, so it always has a sibling below.
         if (stage.LogLines.Count > 0)
         {
-            WriteGapLine(stagePrefix.Rest);
-            RenderSection("Stage Activity", stage.LogLines, stagePrefix);
+            BoxPrefix activityPrefix = CreateBoxPrefix(childAncestorPrefix, true);
+            WriteGapLine(activityPrefix.Gap);
+            RenderSection("Stage Activity", stage.LogLines, activityPrefix);
         }
 
-        string childAncestorPrefix = stagePrefix.Rest;
-        int childCount = 1 + stepGroups.Count;
-        BoxPrefix flowTracePrefix = CreateBoxPrefix(childAncestorPrefix, childCount > 1);
+        BoxPrefix flowTracePrefix = CreateBoxPrefix(childAncestorPrefix, stepGroups.Count > 0);
         WriteGapLine(flowTracePrefix.Gap);
         RenderFlowTrace(stage, flowTracePrefix);
 
@@ -458,8 +484,10 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         if (!string.IsNullOrWhiteSpace(firstAttempt.Definition?.Description))
             WriteWrappedContent($"Summary: {firstAttempt.Definition.Description}", stepPrefix, false);
 
-        if (ShouldRenderSideBySide(inputLines, outputLines))
-            RenderDualBoxSection("Inputs", inputLines, "Outputs", outputLines, stepPrefix);
+        int closingJunction = NoJunction;
+
+        if (ShouldRenderSideBySide(inputLines, outputLines, LeftColumnWidth(stepPrefix)))
+            closingJunction = RenderDualBoxSection("Inputs", inputLines, "Outputs", outputLines, stepPrefix);
         else
         {
             RenderBoxSection("Inputs", inputLines, stepPrefix);
@@ -467,9 +495,12 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         }
 
         foreach (StepRenderState attempt in stepGroup.Attempts)
-            RenderBoxSection($"Logs Attempt {attempt.Iteration}", attempt.LogLines.Count == 0 ? ["(no log lines)"] : attempt.LogLines, stepPrefix);
+        {
+            RenderBoxSection($"Logs Attempt {attempt.Iteration}", attempt.LogLines.Count == 0 ? ["(no log lines)"] : attempt.LogLines, stepPrefix, closingJunction);
+            closingJunction = NoJunction;
+        }
 
-        RenderBoxSection("Final Result", BuildFinalResultLines(stepGroup), stepPrefix);
+        RenderBoxSection("Final Result", BuildFinalResultLines(stepGroup), stepPrefix, closingJunction);
         WriteBottomBorder('-', stepPrefix);
     }
 
@@ -515,7 +546,10 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
                 connectToBox = false;
             }
 
-            WriteWrappedContent($"{index + 1,2}. [{entry.Badge}] {entry.Marker,-8} {entry.Message}", prefix, connectToBox);
+            // Padded outside the brackets: a five-letter badge is one column wider than a four-letter
+            // one, so brackets that only hug the badge kept every retry row out of step with the rest.
+            string badge = $"[{entry.Badge}]";
+            WriteWrappedContent($"{index + 1,2}. {badge,-7} {entry.Marker,-8} {entry.Message}", prefix, connectToBox);
             connectToBox = false;
         }
 
@@ -539,28 +573,42 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         ];
     }
 
-    private void RenderBoxSection(string title, IReadOnlyCollection<string> lines, BoxPrefix prefix)
+    /// <summary>
+    /// One titled block inside a panel, opened by the separator that closes the block above it.
+    /// </summary>
+    /// <remarks>
+    /// <c>closingJunction</c> is the column at which a divider from the block above meets that
+    /// separator, or <see cref="NoJunction"/> when nothing has to be closed off.
+    /// </remarks>
+    private void RenderBoxSection(string title, IReadOnlyCollection<string> lines, BoxPrefix prefix, int closingJunction = NoJunction)
     {
-        WriteSeparator(prefix);
+        WriteSeparator(prefix, closingJunction, ColumnJoinBottom);
         WriteWrappedContent(title.ToUpperInvariant(), prefix, false);
         foreach (string line in lines)
             WriteWrappedContent($"- {line}", prefix, false);
     }
 
-    private void RenderDualBoxSection(string leftTitle, IReadOnlyCollection<string> leftLines, string rightTitle, IReadOnlyCollection<string> rightLines, BoxPrefix prefix)
+    /// <summary>Two blocks side by side, returning the column its divider has to be closed at.</summary>
+    private int RenderDualBoxSection(string leftTitle, IReadOnlyCollection<string> leftLines, string rightTitle, IReadOnlyCollection<string> rightLines, BoxPrefix prefix)
     {
-        int columnWidth = (PanelInnerWidth - 3) / 2;
+        int columnWidth = LeftColumnWidth(prefix);
+        // The odd column goes to the right one, so the two columns and the divider between them always
+        // add up to the panel's inner width instead of falling a column short at odd widths.
+        int rightColumnWidth = InnerWidth(prefix) - 3 - columnWidth;
         string[] wrappedLeft = FlattenForColumn(leftTitle, leftLines, columnWidth);
-        string[] wrappedRight = FlattenForColumn(rightTitle, rightLines, columnWidth);
+        string[] wrappedRight = FlattenForColumn(rightTitle, rightLines, rightColumnWidth);
         int rowCount = Math.Max(wrappedLeft.Length, wrappedRight.Length);
+        int junctionIndex = columnWidth + 2;
 
-        WriteSeparator(prefix);
+        WriteSeparator(prefix, junctionIndex, ColumnJoinTop);
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
         {
             string left = rowIndex < wrappedLeft.Length ? wrappedLeft[rowIndex] : string.Empty;
             string right = rowIndex < wrappedRight.Length ? wrappedRight[rowIndex] : string.Empty;
-            writer.WriteLine($"{prefix.Rest}{OuterVertical} {left.PadRight(columnWidth)} {InnerVertical} {right.PadRight(columnWidth)} {OuterVertical}");
+            writer.WriteLine($"{prefix.Rest}{OuterVertical} {left.PadRight(columnWidth)} {InnerVertical} {right.PadRight(rightColumnWidth)} {OuterVertical}");
         }
+
+        return junctionIndex;
     }
 
     private string[] RenderInputLines(StepRenderState stepRun)
@@ -698,7 +746,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
             DebugLifecycleState.Timeout => "TIME",
             DebugLifecycleState.Skipped => "SKIP",
             DebugLifecycleState.WaitingForRetry => "WAIT",
-            DebugLifecycleState.Running => "RUN ",
+            DebugLifecycleState.Running => "RUN",
             _ => "INFO"
         };
     }
@@ -923,10 +971,40 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         WriteTitledBorder(title, '-', prefix);
     }
 
+    /// <summary>
+    /// How wide a panel is at the depth its prefix puts it at.
+    /// </summary>
+    /// <remarks>
+    /// A nested box is drawn to the right of its parent's tree prefix, so it has to give up the columns
+    /// that prefix occupies. Drawing every box at the full width instead stepped each one two columns
+    /// further right than the box containing it, and the view's right-hand border came out as a
+    /// staircase rather than a line.
+    /// </remarks>
+    private static int BoxWidth(BoxPrefix prefix) => Math.Max(MinimumPanelWidth, PanelWidth - prefix.Rest.Length);
+
+    /// <summary>The columns a panel has left for content once its borders and their padding are paid for.</summary>
+    private static int InnerWidth(BoxPrefix prefix) => BoxWidth(prefix) - 4;
+
+    /// <summary>The left column of a two-column section, whose divider costs three columns of its own.</summary>
+    private static int LeftColumnWidth(BoxPrefix prefix) => (InnerWidth(prefix) - 3) / 2;
+
+    /// <summary>
+    /// Content measured the way it will be printed.
+    /// </summary>
+    /// <remarks>
+    /// Log lines arrive with their indentation as tab characters, and a tab is one character to
+    /// <see cref="string.PadRight(int)"/> and up to eight columns on screen. One indented log line was
+    /// enough to push a panel's right border out of the column every other line held it in.
+    /// </remarks>
+    private static string ExpandTabs(string content)
+        => content.Contains('\t') ? content.Replace("\t", TabIndent) : content;
+
     private void WriteTitledBorder(string title, char fill, BoxPrefix prefix)
     {
-        string trimmedTitle = title.Length > PanelInnerWidth - 2 ? title[..(PanelInnerWidth - 2)] : title;
-        int remaining = PanelInnerWidth - trimmedTitle.Length - 1;
+        int innerWidth = InnerWidth(prefix);
+        string safeTitle = ExpandTabs(title);
+        string trimmedTitle = safeTitle.Length > innerWidth - 2 ? safeTitle[..(innerWidth - 2)] : safeTitle;
+        int remaining = innerWidth - trimmedTitle.Length - 1;
         char line = MapHorizontal(fill);
         writer.WriteLine($"{prefix.Top}{TitleLeftCorner}{line} {trimmedTitle} {new string(line, Math.Max(0, remaining))}{TitleRightCorner}");
     }
@@ -934,27 +1012,46 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     private void WriteTopBorder(char fill, BoxPrefix prefix)
     {
         char line = MapHorizontal(fill);
-        writer.WriteLine($"{prefix.Top}{TopLeftCorner(fill)}{new string(line, PanelWidth - 2)}{TopRightCorner(fill)}");
+        writer.WriteLine($"{prefix.Top}{TopLeftCorner(fill)}{new string(line, BoxWidth(prefix) - 2)}{TopRightCorner(fill)}");
     }
 
     private void WriteBottomBorder(char fill, BoxPrefix prefix)
     {
         char line = MapHorizontal(fill);
-        writer.WriteLine($"{prefix.Bottom}{BottomLeftCorner(fill)}{new string(line, PanelWidth - 2)}{BottomRightCorner(fill)}");
+        writer.WriteLine($"{prefix.Bottom}{BottomLeftCorner(fill)}{new string(line, BoxWidth(prefix) - 2)}{BottomRightCorner(fill)}");
     }
 
     private void WriteSeparator(BoxPrefix prefix)
     {
-        writer.WriteLine($"{prefix.Rest}{SeparatorLeft}{new string(SeparatorHorizontal, PanelWidth - 2)}{SeparatorRight}");
+        WriteSeparator(prefix, NoJunction, SeparatorHorizontal);
+    }
+
+    /// <summary>
+    /// A separator across the panel, joined to a column divider where one meets it.
+    /// </summary>
+    /// <remarks>
+    /// Without the junction the divider of a two-column section begins and ends against an unbroken
+    /// rule, which reads as a line drawn over the box rather than as part of it.
+    /// </remarks>
+    private void WriteSeparator(BoxPrefix prefix, int junctionIndex, char junction)
+    {
+        char[] line = new string(SeparatorHorizontal, BoxWidth(prefix) - 2).ToCharArray();
+        if (junctionIndex >= 0 && junctionIndex < line.Length)
+            line[junctionIndex] = junction;
+
+        writer.WriteLine($"{prefix.Rest}{SeparatorLeft}{new string(line)}{SeparatorRight}");
     }
 
     private void WriteKeyValueContent(string left, string right, BoxPrefix prefix, bool connectToBox)
     {
-        string safeLeft = left.Length > PanelInnerWidth ? left[..PanelInnerWidth] : left;
-        int spacing = PanelInnerWidth - safeLeft.Length - right.Length;
+        int innerWidth = InnerWidth(prefix);
+        string expandedLeft = ExpandTabs(left);
+        string expandedRight = ExpandTabs(right);
+        string safeLeft = expandedLeft.Length > innerWidth ? expandedLeft[..innerWidth] : expandedLeft;
+        int spacing = innerWidth - safeLeft.Length - expandedRight.Length;
         if (spacing >= 1)
         {
-            WriteContentLine($"{safeLeft}{new string(' ', spacing)}{right}", prefix, connectToBox);
+            WriteContentLine($"{safeLeft}{new string(' ', spacing)}{expandedRight}", prefix, connectToBox);
             return;
         }
 
@@ -965,7 +1062,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     private void WriteWrappedContent(string content, BoxPrefix prefix, bool connectToBox)
     {
         bool isFirstLine = true;
-        foreach (string line in WrapText(content, PanelInnerWidth))
+        foreach (string line in WrapText(content, InnerWidth(prefix)))
         {
             WriteContentLine(line, prefix, connectToBox && isFirstLine);
             isFirstLine = false;
@@ -976,7 +1073,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     {
         char leftBoundary = connectToBox ? ContentJoinLeft : OuterVertical;
         string leftPrefix = connectToBox ? prefix.FirstContent : prefix.Rest;
-        writer.WriteLine($"{leftPrefix}{leftBoundary} {content.PadRight(PanelInnerWidth)} {OuterVertical}");
+        writer.WriteLine($"{leftPrefix}{leftBoundary} {content.PadRight(InnerWidth(prefix))} {OuterVertical}");
     }
 
     private void WriteGapLine(string prefix)
@@ -1008,6 +1105,10 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     private char ContentJoinLeft => useAsciiOutput ? '|' : '┤';
 
     private char InnerVertical => useAsciiOutput ? '|' : '│';
+
+    private char ColumnJoinTop => useAsciiOutput ? '+' : '┬';
+
+    private char ColumnJoinBottom => useAsciiOutput ? '+' : '┴';
 
     private char SeparatorHorizontal => useAsciiOutput ? '-' : '─';
 
@@ -1055,12 +1156,12 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
             || string.Equals(value, "on", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ShouldRenderSideBySide(IReadOnlyCollection<string> leftLines, IReadOnlyCollection<string> rightLines)
+    private static bool ShouldRenderSideBySide(IReadOnlyCollection<string> leftLines, IReadOnlyCollection<string> rightLines, int columnWidth)
     {
         return leftLines.Count <= 3
             && rightLines.Count <= 3
-            && EstimateWrappedLineCount(leftLines, 44) <= 5
-            && EstimateWrappedLineCount(rightLines, 44) <= 5;
+            && EstimateWrappedLineCount(leftLines, columnWidth) <= 5
+            && EstimateWrappedLineCount(rightLines, columnWidth) <= 5;
     }
 
     private static int EstimateWrappedLineCount(IEnumerable<string> lines, int width)
@@ -1091,18 +1192,22 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
 
         foreach (string rawLine in content.Split(["\r\n", "\n", "\r"], StringSplitOptions.None))
         {
-            string remaining = rawLine;
-            while (remaining.Length > width)
-            {
-                int splitAt = remaining.LastIndexOf(' ', width);
-                if (splitAt <= 0)
-                    splitAt = width;
+            string remaining = ExpandTabs(rawLine);
+            string indent = string.Empty;
 
-                yield return remaining[..splitAt].TrimEnd();
+            while (indent.Length + remaining.Length > width)
+            {
+                int limit = Math.Max(1, width - indent.Length);
+                int splitAt = remaining.LastIndexOf(' ', Math.Min(limit, remaining.Length - 1));
+                if (splitAt <= 0)
+                    splitAt = limit;
+
+                yield return indent + remaining[..splitAt].TrimEnd();
                 remaining = remaining[splitAt..].TrimStart();
+                indent = ContinuationIndent;
             }
 
-            yield return remaining;
+            yield return indent + remaining;
         }
     }
 
