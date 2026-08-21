@@ -1,4 +1,5 @@
 ﻿using TestFramework.Core.Artifacts;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
@@ -15,7 +16,7 @@ public interface IFindArtifactAction
     /// <summary>
     /// Adds a step that finds a single artifact.
     /// </summary>
-    public ITimelineBuilder FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>;
@@ -23,7 +24,7 @@ public interface IFindArtifactAction
     /// <summary>
     /// Adds a step that finds multiple artifacts in one operation and assigns generated names.
     /// </summary>
-    public ITimelineBuilder FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>;
@@ -31,7 +32,7 @@ public interface IFindArtifactAction
     /// <summary>
     /// Adds a step that finds multiple artifacts in one operation and assigns exact names.
     /// </summary>
-    public ITimelineBuilder FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>;

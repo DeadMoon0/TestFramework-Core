@@ -21,7 +21,7 @@ internal enum FindArtifactNamingMode
 // Current behaviour: when the finder returns nothing in Single naming mode the step logs a warning
 // and completes, so the declared identifier is left with no artifact behind it. Later steps that
 // read that identifier fail at IO-contract validation, not here.
-internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<EmptyStepResultContext>
+internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference> : Step<EmptyStepResultContext>, IMarkArtifactsReadonly
     where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
     where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
@@ -55,6 +55,8 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
         _namingMode = namingMode;
     }
 
+    public bool MarkArtifactsReadonly { get; set; }
+
     public override bool DoesReturn => false;
 
     public override string Name => "Find Artifact";
@@ -62,7 +64,10 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
 
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(_identifiers, _finder, _namingMode).WithClonedOptions(this);
+        return new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(_identifiers, _finder, _namingMode)
+        {
+            MarkArtifactsReadonly = MarkArtifactsReadonly
+        }.WithClonedOptions(this);
     }
 
     public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
@@ -95,7 +100,8 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
 
             artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], artifactDataResult.Data)
             {
-                State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound
+                State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound,
+                IsReadonly = MarkArtifactsReadonly
             });
         }
         return EmptyStepResultContext.Instance;

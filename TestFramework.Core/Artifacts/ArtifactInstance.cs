@@ -164,6 +164,21 @@ public class ArtifactInstanceGeneric : IFreezable
     /// </summary>
     public ArtifactState State { get => _state; set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
 
+    private bool _isReadonly;
+
+    /// <summary>
+    /// Gets a value indicating whether the timeline marked this artifact readonly, so cleanup must
+    /// leave the underlying resource in place.
+    /// </summary>
+    /// <remarks>
+    /// This is the test author's decision, taken at the <c>RegisterArtifact</c> / <c>FindArtifact</c>
+    /// call site through <c>MarkReadonly()</c>. It is deliberately separate from
+    /// <see cref="ArtifactReferenceGeneric.CanDeconstruct"/>: the reference answers whether the
+    /// resource <em>can</em> be deconstructed, this answers whether it <em>may</em> be. The setter is
+    /// internal so no reference type, finder, or package can overrule the choice.
+    /// </remarks>
+    public bool IsReadonly { get => _isReadonly; internal set { ((IFreezable)this).EnsureNotFrozen(); _isReadonly = value; } }
+
     internal ArtifactInstanceGeneric(ArtifactDescriberGeneric artifact, ArtifactIdentifier identifier, ArtifactReferenceGeneric reference, ArtifactDataGeneric? firstVersionData)
     {
         Artifact = artifact;

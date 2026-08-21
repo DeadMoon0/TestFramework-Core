@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Linq;
 using System.Threading.Tasks;
@@ -33,13 +34,13 @@ internal class TimelineBuilder : ITimelineBuilder
         return timeline;
     }
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, (TArtifactReference)reference)));
-        return AsTypedModifier<EmptyStepResultContext>();
+        return AsArtifactModifier<EmptyStepResultContext>();
     }
 
     public ITimelineBuilderModifier<EmptyStepResultContext> CaptureArtifactVersion(ArtifactIdentifier identifier)
@@ -115,32 +116,32 @@ internal class TimelineBuilder : ITimelineBuilder
         return this;
     }
 
-    public ITimelineBuilder FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, finder)));
 
-        return this;
+        return AsArtifactModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilder FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(baseName, finder, FindArtifactNamingMode.Generated)));
-        return this;
+        return AsArtifactModifier<EmptyStepResultContext>();
     }
 
-    public ITimelineBuilder FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactReference>(identifiers, finder)));
-        return this;
+        return AsArtifactModifier<EmptyStepResultContext>();
     }
 
     internal void WithTimeOut(VariableReference<TimeSpan> timeout)
@@ -225,7 +226,22 @@ internal class TimelineBuilder : ITimelineBuilder
         });
     }
 
+    internal void MarkReadonly()
+    {
+        _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
+        {
+            // The narrowed return type of the artifact verbs is what makes this reachable, so a step
+            // that cannot mark anything is a framework bug rather than a consumer mistake.
+            if (step is not IMarkArtifactsReadonly markable)
+                throw new UnreachableException($"MarkReadonly() reached step '{step.Name}', which produces no artifacts.");
+
+            markable.MarkArtifactsReadonly = true;
+        });
+    }
+
     private ITimelineBuilderModifier<TStepResultContext> AsTypedModifier<TStepResultContext>() where TStepResultContext : StepResultContext => new TypedTimelineBuilderModifier<TStepResultContext>(this);
+
+    private IArtifactTimelineBuilderModifier<TStepResultContext> AsArtifactModifier<TStepResultContext>() where TStepResultContext : StepResultContext => new TypedTimelineBuilderModifier<TStepResultContext>(this);
 
     private static string GetMemberPath(Expression expression)
     {

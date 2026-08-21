@@ -139,6 +139,10 @@ Treat artifact usage as a lifecycle, not as one undifferentiated feature bucket:
 
 Most artifact confusion comes from mixing those paths together mentally. The API is easier to read once you decide which lifecycle path your resource is taking.
 
+Teardown deletes every artifact that was set up, whichever path declared it. Chain `MarkReadonly()` onto
+`RegisterArtifact` / `FindArtifact` / `FindArtifacts` / `FindArtifactsAs` for a resource the run only
+reads - it is the test author's decision, and no reference type or finder can overrule it.
+
 ## Public Contract Layers
 
 Treat the Core surface in this order:

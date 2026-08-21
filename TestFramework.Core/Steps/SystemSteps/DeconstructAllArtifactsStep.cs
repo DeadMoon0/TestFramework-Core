@@ -32,6 +32,14 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
                 // artifacts after it from being cleaned up.
                 if (artifactInstance.State != ArtifactState.Setup) continue;
 
+                // The test author's own choice, so it outranks whatever the reference reports and is
+                // checked first. Deleting is the default; this is the only way to opt out of it.
+                if (artifactInstance.IsReadonly)
+                {
+                    logger.LogInformation("Artifact '{0}' is marked readonly by the timeline, so it is left in place.", artifactInstance.Identifier);
+                    continue;
+                }
+
                 // An observed artifact cannot be deconstructed by design, so passing over it is the
                 // expected outcome rather than a failure worth reporting as one.
                 if (!artifactInstance.Reference.CanDeconstruct)

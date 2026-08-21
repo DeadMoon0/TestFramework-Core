@@ -26,6 +26,8 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
         logger.LogInformation("Artifact: '{0}' of Type: '{1}'", identifier, artifactInstance.Artifact.GetType());
         if (artifactInstance.State != ArtifactState.Setup) return EmptyStepResultContext.Instance;
+        // Contradictory instructions, so this fails loudly rather than picking one silently.
+        if (artifactInstance.IsReadonly) throw new ArtifactMarkedReadonlyException(identifier);
         if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(identifier);
         await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
         artifactInstance.State = ArtifactState.Cleaned;

@@ -106,6 +106,7 @@
     - AssertVariable(...)
     - WaitForEvent(...)
     - SetupArtifact(...), RegisterArtifact(...), RemoveArtifact(...)
+    - FindArtifact(...), FindArtifacts(...), FindArtifactsAs(...)
     - Conditional(...)
     - ForEach(...)
 
@@ -114,6 +115,9 @@
     - WithTimeOut(...)
     - WithRetry(...)
     - ExpectExceptions(...)
+    - MarkReadonly() //Only after RegisterArtifact/FindArtifact/FindArtifacts/FindArtifactsAs.
+      //Teardown deletes every artifact by default; this is the only opt-out. Use it whenever the run
+      //did not create the resource - discovery against a live store deletes what it finds otherwise.
 </api_hints>
 
 <runtime_behavior>

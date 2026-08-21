@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
@@ -11,12 +11,12 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Timelines;
 
-internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineBuilder builder) : ITimelineBuilderModifier<TStepResultContext>
+internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineBuilder builder) : IArtifactTimelineBuilderModifier<TStepResultContext>
     where TStepResultContext : StepResultContext
 {
     public Timeline Build() => builder.Build();
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
@@ -57,19 +57,19 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
 
     public ITimelineBuilder ForEach<TVar, TItem>(ImmutableVariable<TVar, IEnumerable<TItem>> collection, VariableIdentifier variable, Action<ITimelineBuilder> steps) where TVar : VariableReference<IEnumerable<TItem>> => builder.ForEach(collection, variable, steps);
 
-    public ITimelineBuilder FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         => builder.FindArtifact(identifier, finder);
 
-    public ITimelineBuilder FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifacts<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier baseName, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         => builder.FindArtifacts(baseName, finder);
 
-    public ITimelineBuilder FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
+    public IArtifactTimelineBuilderModifier<EmptyStepResultContext> FindArtifactsAs<TArtifactReference, TArtifactDescriber, TArtifactData>(IReadOnlyList<ArtifactIdentifier> identifiers, ArtifactFinder<TArtifactDescriber, TArtifactData, TArtifactReference> finder)
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
@@ -102,6 +102,12 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
     public ITimelineBuilderModifier<TStepResultContext> Name(string label)
     {
         builder.Name(label);
+        return this;
+    }
+
+    public ITimelineBuilderModifier<TStepResultContext> MarkReadonly()
+    {
+        builder.MarkReadonly();
         return this;
     }
 
