@@ -11,7 +11,7 @@
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline;Config</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>An easy to use utility for managing your configs inside the TestFramework timeline.</Description>
-		<Version>0.2.0</Version>
+		<Version>0.2.1</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -41,7 +41,7 @@ Also adds a non-blocking CreateAsync for the persistent environment context and 
 		<!-- Config consumes Core as a published package, not as a project. The dependency tree stays
 		     explicit: this pin is exactly what the produced nuspec declares, and it is the version a
 		     consumer will resolve. Core must therefore be published before Config ships against it. -->
-		<PackageReference Include="TestFramework.Core" Version="0.2.0" />
+		<PackageReference Include="TestFramework.Core" Version="0.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>

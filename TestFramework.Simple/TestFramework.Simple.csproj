@@ -11,7 +11,7 @@
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>A wrapper for simple tasks the Timeline should perform. Like C# Actions, MessageBoxes</Description>
-		<Version>0.2.0</Version>
+		<Version>0.2.1</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -37,7 +37,7 @@ MessageBoxTrigger.Invoker is now public and settable so the dialog can be replac
 	  <!-- Simple consumes Core as a published package, not as a project. The dependency tree stays
 	       explicit: this pin is exactly what the produced nuspec declares, and it is the version a
 	       consumer will resolve. Core must therefore be published before Simple ships against it. -->
-	  <PackageReference Include="TestFramework.Core" Version="0.2.0" />
+	  <PackageReference Include="TestFramework.Core" Version="0.3.0" />
 	</ItemGroup>
 	
 	<ItemGroup>
