@@ -105,7 +105,10 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 attemptGate.Begin(label, iteration),
                 new StepObservation(label, step.Step.Name, stageName, iteration));
 
-            observers.Starting(scope.Observation, logger);
+            await observers.StartingAsync(
+                scope.Observation,
+                () => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, debuggingSession.RunCancellationToken),
+                logger);
 
             StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, scope, debuggingSession.RunCancellationToken);
             step.RetryResults.Add(stepResult);
@@ -170,6 +173,32 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     /// </remarks>
     private sealed record AttemptScope(StepAttemptGate Gate, StepAttempt Attempt, StepObservation Observation);
 
+    /// <summary>
+    /// The run as an observer sees it: the same services, stores, logger and resolved values, no attempt,
+    /// and a budget of its own.
+    /// </summary>
+    /// <remarks>
+    /// The run's stores rather than the attempt's, because gathering evidence is the run recording what
+    /// happened and not the step's last act - an attempt the runner has stopped waiting for has lost its
+    /// licence to write, and the screenshot of that very failure is the last thing that should be dropped
+    /// with it. The budget is <see cref="StepObservers.EvidenceBudget"/> rather than what the step had,
+    /// which by definition is gone.
+    /// </remarks>
+    private RunContext EvidenceContext(
+        IServiceProvider serviceProvider,
+        ScopedLogger logger,
+        VariableStore variableStore,
+        ArtifactStore artifactStore,
+        CancellationToken runCancellationToken)
+        => RunContext.Ambient(
+            serviceProvider,
+            variableStore,
+            artifactStore,
+            logger,
+            values,
+            runCancellationToken,
+            StepObservers.EvidenceBudget);
+
     private static async Task DelayForRetryAsync(StepInstanceGeneric step, int iteration, VariableStore variableStore)
     {
         await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
@@ -185,6 +214,11 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         // attempt the run has stopped waiting for cannot reach the next test.
         VariableStore attemptVariables = variableStore.ForAttempt(scope.Gate, scope.Attempt);
         ArtifactStore attemptArtifacts = artifactStore.ForAttempt(scope.Gate, scope.Attempt);
+
+        // What an observer is handed, built only if one is watching. Deliberately not the attempt's
+        // context: an observer photographing a step that just died must not have its own writes thrown
+        // away with that attempt, and must not inherit the budget that just ran out.
+        RunContext Evidence() => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, runCancellationToken);
 
         // One source of truth for the timeout. There used to be two — a CTS *and* a WaitAsync(timeout)
         // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
@@ -227,7 +261,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         {
             stepResult.Exception = exception;
             stepResult.State = StepState.Timeout;
-            observers.TimedOut(scope.Observation, logger);
+            await observers.TimedOutAsync(scope.Observation, Evidence, logger);
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
         {
@@ -252,7 +286,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 ObserveAbandonedAttempt(executionTask, cancellationTokenSource);
             }
 
-            observers.TimedOut(scope.Observation, logger);
+            await observers.TimedOutAsync(scope.Observation, Evidence, logger);
         }
         catch (Exception exception)
         {
@@ -264,7 +298,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             // Only a real failure. An exception the step was told to ignore did not fail the step, and
             // gathering evidence for every swallowed exception would bury the failures worth looking at.
             if (stepResult.State == StepState.Error)
-                observers.Failed(scope.Observation, exception, logger);
+                await observers.FailedAsync(scope.Observation, exception, Evidence, logger);
         }
         finally
         {

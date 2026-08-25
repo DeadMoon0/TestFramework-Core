@@ -138,6 +138,31 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         Assert.Null(context.Attempt);
     }
 
+    [Fact]
+    public async Task APackageCanBuildAContextWithoutReachingIntoCore()
+    {
+        // The gap this closes, found in Azure's test suite: Ambient needs the run's stores, whose
+        // constructors are internal, so a package could not build a context at all - it was reflecting
+        // over Core's internals to make one. Public API only, one call.
+        Recorder recorder = new Recorder();
+
+        RunContext context = RunContext.Detached(timeout: TimeSpan.FromSeconds(30));
+
+        await new CountingStep(recorder).Execute(context);
+
+        Assert.Equal(1, recorder.Runs);
+
+        // Real stores of its own, a readable budget, and no attempt - it belongs to no run.
+        context.Variables.SetVariable("seeded", "value");
+        Assert.Equal("value", context.Variables.GetVariable<string>("seeded"));
+        Assert.Equal(TimeSpan.FromSeconds(30), context.Deadline.Total);
+        Assert.Null(context.Attempt);
+
+        // And it supplies no resources, which it says rather than pretending otherwise.
+        Assert.Throws<FrameworkConfigurationException>(
+            () => context.Values.Require(ValueRef.AnyKind("orders-db", ValueNames.ConnectionString), ResourceVantage.Host));
+    }
+
     private sealed record ObservedDeadline(TimeSpan Total, TimeSpan Remaining, bool IsUnbounded, bool HasToken);
 
     /// <summary>

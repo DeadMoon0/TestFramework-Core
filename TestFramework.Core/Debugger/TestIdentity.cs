@@ -185,7 +185,20 @@ internal static class TestIdentityResolver
             if (frame.GetMethod() is not MethodInfo method)
                 continue;
 
-            ResolvedMethod resolved = MethodCache.GetOrAdd(method.MethodHandle, _ => Describe(method));
+            RuntimeMethodHandle handle;
+            try
+            {
+                handle = method.MethodHandle;
+            }
+            catch (InvalidOperationException)
+            {
+                // A Reflection.Emit method has no runtime handle and throws when asked for one.
+                // xunit invokes theory methods through exactly such frames, and they sit between
+                // the resolver and the test method — never the test method itself, so walk on.
+                continue;
+            }
+
+            ResolvedMethod resolved = MethodCache.GetOrAdd(handle, _ => Describe(method));
             if (resolved.Framework != TestFrameworkKind.Unknown)
                 return resolved;
         }

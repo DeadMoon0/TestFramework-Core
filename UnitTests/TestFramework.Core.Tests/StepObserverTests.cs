@@ -151,6 +151,51 @@ public class StepObserverTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AnObserverIsHandedTheRunAndItsWritesAreTheRunsOwn()
+    {
+        // Evidence gathering has to be able to find what it is gathering evidence about. UI's screenshot
+        // needs the live browser session, which the run holds; an observer given four strings could only
+        // have reached it through a static of its own, which is the side door the isolation rule exists to
+        // prevent.
+        RecordingObserver observer = new RecordingObserver();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new WritingStep()).Name("writes")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+
+        RunContext handed = Assert.IsType<RunContext>(observer.LastRun);
+
+        // No attempt, and that is the point rather than an omission: an observer photographing a step that
+        // just died must not have its own writes discarded along with that attempt's.
+        Assert.Null(handed.Attempt);
+
+        Assert.Equal("done", run.VariableStore.GetVariable<string>("progress"));
+        Assert.Equal("observed", run.VariableStore.GetVariable<string>("evidence"));
+    }
+
+    [Fact]
+    public async Task TheObserverOfAStepThatRanOutOfTimeIsNotItselfOutOfTime()
+    {
+        // The budget the step spent is exactly the one an observer must not inherit: the moment worth
+        // photographing is the moment there is no time left.
+        RecordingObserver observer = new RecordingObserver();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new SlowStep())
+                .WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("slow")
+            .Build();
+
+        await timeline.SetupRun(Registered(observer), output).RunAsync();
+
+        RunContext handed = Assert.IsType<RunContext>(observer.LastRun);
+
+        Assert.False(handed.Deadline.HasExpired);
+        Assert.True(handed.Deadline.Remaining > TimeSpan.Zero);
+    }
+
+    [Fact]
     public async Task TheStepsTheFrameworkInsertsAreObservedToo()
     {
         // Every step, including the ones nobody wrote: the artifact teardown a run appends is exactly the
@@ -169,27 +214,37 @@ public class StepObserverTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AnObserverRegisteredBothWaysIsStillOnlyToldOnce()
+    public async Task AnObserverRegisteredBothWaysIsStillOnlyToldOnce()
     {
         // A container that answers the single question and the collection question with the same instance
         // is normal; watching a step twice would double every screenshot it takes.
         RecordingObserver observer = new RecordingObserver();
 
         StepObservers observers = StepObservers.For(new BothWaysProvider(observer));
-        observers.Starting(Observation(), new ScopedLogger(null));
+        await observers.StartingAsync(Observation(), () => RunContext.Detached(), new ScopedLogger(null));
 
         Assert.Equal(["starting:checkout:1"], observer.Calls);
     }
 
     [Fact]
-    public void NoObserversIsTheNormalCase()
+    public async Task NoObserversIsTheNormalCase()
     {
         // Nothing registered, and nothing to resolve: the runner still has one thing to call.
         Assert.Same(StepObservers.None, StepObservers.For(null));
         Assert.Same(StepObservers.None, StepObservers.For(new CollectionProvider([])));
 
-        StepObservers.None.Starting(Observation(), new ScopedLogger(null));
+        await StepObservers.None.StartingAsync(Observation(), ThrowingFactory, new ScopedLogger(null));
     }
+
+    /// <summary>
+    /// What the context factory must never be called as, when nothing is watching.
+    /// </summary>
+    /// <remarks>
+    /// The reason the hooks take a factory rather than a context: <c>Starting</c> fires for every step of
+    /// every run, and building a run context for nobody is work every run would pay for.
+    /// </remarks>
+    private static RunContext ThrowingFactory()
+        => throw new InvalidOperationException("Nothing is watching, so nothing should have been built.");
 
     private static StepObservation Observation() => new StepObservation("checkout", "Checkout", "Main Stage", 1);
 
@@ -240,15 +295,37 @@ public class StepObserverTests(ITestOutputHelper output)
             }
         }
 
-        public void OnStepStarting(StepObservation observation) => Record("starting", observation);
+        /// <summary>The run each hook was handed, so a test can assert on what an observer may do with it.</summary>
+        public RunContext? LastRun { get; private set; }
 
-        public void OnStepFailed(StepObservation observation, Exception exception)
+        public Task OnStepStartingAsync(StepObservation observation, RunContext run)
         {
-            LastFailure = exception;
-            Record("failed", observation);
+            LastRun = run;
+
+            // Written from inside the hook, because "the observer was handed a store" and "what it writes
+            // to that store lands in the run" are two different claims.
+            run.Variables.SetVariable("evidence", "observed");
+            Record("starting", observation);
+
+            return Task.CompletedTask;
         }
 
-        public void OnStepTimedOut(StepObservation observation) => Record("timedout", observation);
+        public Task OnStepFailedAsync(StepObservation observation, Exception exception, RunContext run)
+        {
+            LastRun = run;
+            LastFailure = exception;
+            Record("failed", observation);
+
+            return Task.CompletedTask;
+        }
+
+        public Task OnStepTimedOutAsync(StepObservation observation, RunContext run)
+        {
+            LastRun = run;
+            Record("timedout", observation);
+
+            return Task.CompletedTask;
+        }
 
         private void Record(string hook, StepObservation observation)
         {
@@ -261,11 +338,11 @@ public class StepObserverTests(ITestOutputHelper output)
 
     private sealed class ThrowingObserver : IStepObserver
     {
-        public void OnStepStarting(StepObservation observation) => throw new InvalidOperationException("The screenshot directory is gone.");
+        public Task OnStepStartingAsync(StepObservation observation, RunContext run) => throw new InvalidOperationException("The screenshot directory is gone.");
 
-        public void OnStepFailed(StepObservation observation, Exception exception) => throw new InvalidOperationException("The browser is already closed.");
+        public Task OnStepFailedAsync(StepObservation observation, Exception exception, RunContext run) => throw new InvalidOperationException("The browser is already closed.");
 
-        public void OnStepTimedOut(StepObservation observation) => throw new InvalidOperationException("Nothing left to photograph.");
+        public Task OnStepTimedOutAsync(StepObservation observation, RunContext run) => throw new InvalidOperationException("Nothing left to photograph.");
     }
 
     private sealed class PassingStep : Step<EmptyStepResultContext>
@@ -306,6 +383,31 @@ public class StepObserverTests(ITestOutputHelper output)
 
         public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => throw new InvalidOperationException("The warehouse said no.");
+    }
+
+    /// <summary>Writes a variable, so an observer has something of the run's to find.</summary>
+    private sealed class WritingStep : Step<EmptyStepResultContext>
+    {
+        public override string Name => "Writing";
+
+        public override string Description => "Sets a variable and returns.";
+
+        public override bool DoesReturn => false;
+
+        public override Step<EmptyStepResultContext> Clone() => new WritingStep().WithClonedOptions(this);
+
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
+        {
+            context.Variables.SetVariable("progress", "done");
+
+            return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
+        }
     }
 
     private sealed class SlowStep : Step<EmptyStepResultContext>

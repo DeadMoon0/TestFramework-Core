@@ -4,6 +4,7 @@ using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Variables;
@@ -53,6 +54,18 @@ public class VariableStore : IFreezable
     private readonly StepWriteLicence licence;
 
     /// <summary>
+    /// The run's own live things - what a package keeps for the length of a run and cannot put in a
+    /// variable.
+    /// </summary>
+    /// <remarks>
+    /// It hangs here because this is the one object that already means "this run", and it is shared by
+    /// reference with every per-attempt view below, so a step, a retry of that step and the cleanup step
+    /// after it all reach the same instance. A package that keyed its own table on whichever store it was
+    /// handed would not - see <see cref="Runner.RunState"/> for what that cost.
+    /// </remarks>
+    public RunState RunState { get; }
+
+    /// <summary>
     /// A view of this store that writes on behalf of one attempt at one step.
     /// </summary>
     /// <remarks>
@@ -75,6 +88,7 @@ public class VariableStore : IFreezable
         this.debuggingSession = source.debuggingSession;
         this.changeTokens = source.changeTokens;
         this.changeTokenLock = source.changeTokenLock;
+        this.RunState = source.RunState;
         this.licence = StepWriteLicence.For(gate, attempt);
     }
 
@@ -86,6 +100,7 @@ public class VariableStore : IFreezable
         this.changeTokenLock = new object();
         this.logger = logger;
         this.debuggingSession = debuggingSession;
+        this.RunState = new RunState();
         this.licence = StepWriteLicence.Unrestricted;
     }
 

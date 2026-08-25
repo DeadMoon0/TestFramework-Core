@@ -88,6 +88,56 @@ public class ArtifactStore : IFreezable
     }
 
     /// <summary>
+    /// Makes an artifact and holds it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one way to bring an artifact into being. An instance's constructor is internal - it has to be,
+    /// or anything could mint one with a state nobody set and a reference nothing pinned - and until this
+    /// existed there was no public way at all: Core built them inside its own builder, and two packages'
+    /// test suites reflected over the internal constructor to get one, which broke the moment that
+    /// constructor gained a parameter.
+    /// </para>
+    /// <para>
+    /// A package needs this for a real reason, not only for tests: an environment provider decides which
+    /// components a set of artifacts requires, and that means having artifacts to hand it.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TArtifactDescriber">The describer.</typeparam>
+    /// <typeparam name="TArtifactData">The data.</typeparam>
+    /// <typeparam name="TArtifactReference">The reference.</typeparam>
+    /// <param name="identifier">What to call it.</param>
+    /// <param name="reference">Where it lives.</param>
+    /// <param name="data">Its first version, when it already has one.</param>
+    /// <param name="state">The state it exists in from the start.</param>
+    /// <param name="isReadonly">Whether cleanup must leave the underlying resource alone.</param>
+    /// <returns>The artifact, already held by this store.</returns>
+    public ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference> Add<TArtifactDescriber, TArtifactData, TArtifactReference>(
+        ArtifactIdentifier identifier,
+        TArtifactReference reference,
+        TArtifactData? data = null,
+        ArtifactState state = ArtifactState.NotSetup,
+        bool isReadonly = false)
+        where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
+        where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
+        where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+
+        ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference> instance = new(
+            reference.GetArtifactDescriber(),
+            identifier,
+            reference,
+            data,
+            state,
+            isReadonly);
+
+        this.AddArtifact(instance);
+
+        return instance;
+    }
+
+    /// <summary>
     /// Adds or replaces an artifact instance in the store.
     /// </summary>
     /// <param name="instance">The artifact.</param>

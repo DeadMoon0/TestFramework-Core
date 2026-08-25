@@ -1,7 +1,9 @@
 ﻿using System;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps;
@@ -61,6 +63,18 @@ public sealed class RunContext
     /// <summary>The run's artifacts.</summary>
     public ArtifactStore Artifacts { get; }
 
+    /// <summary>
+    /// The run's own live things: what a package keeps for the length of a run and cannot put in a
+    /// variable, such as an open browser session.
+    /// </summary>
+    /// <remarks>
+    /// Read from the variables rather than held here, so the two can never disagree about which run this
+    /// is. That matters more than it sounds: what a step is handed is a per-attempt view of the store, and
+    /// a package treating whichever view it received as the run's identity would get a fresh state on every
+    /// retry. One object means one run, and it is this one.
+    /// </remarks>
+    public RunState State => this.Variables.RunState;
+
     /// <summary>The scoped logger for the run.</summary>
     public ScopedLogger Logger { get; }
 
@@ -80,6 +94,49 @@ public sealed class RunContext
     /// able to say who it is, because by the time a zombie writes, the run has moved on.
     /// </remarks>
     public StepAttempt? Attempt { get; }
+
+    /// <summary>
+    /// Builds a context that belongs to no run, with stores of its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a package's own unit test driving one step: no timeline, no environment, nothing to clean up.
+    /// The alternative was not "use Ambient" - <see cref="Ambient"/> needs the run's stores, and their
+    /// constructors are internal, so a package could not build one at all. Azure's test suite had been
+    /// reflecting over Core's internals to make them, which is the kind of workaround that means the
+    /// public surface is missing something.
+    /// </para>
+    /// <para>
+    /// Nothing here is shared with a real run: reading a resource value fails saying nothing supplies it,
+    /// and writes land in stores only this context can see.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The services the step should resolve from, or null for none.</param>
+    /// <param name="debugger">
+    /// Something to watch what the step does, when the test is about that. The same socket a run debugger
+    /// plugs into, so a package can assert on what its own step reported.
+    /// </param>
+    /// <param name="cancellationToken">What stops the work, when anything does.</param>
+    /// <param name="timeout">How long the step has, or null for no deadline.</param>
+    /// <returns>The context.</returns>
+    public static RunContext Detached(
+        IServiceProvider? services = null,
+        IRunDebugger? debugger = null,
+        System.Threading.CancellationToken cancellationToken = default,
+        TimeSpan? timeout = null)
+    {
+        DebuggingRunSession session = new DebuggingRunSession(debugger ?? new EmptyRunDebugger());
+        ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(session);
+
+        return Ambient(
+            services ?? new EmptyServiceProvider(),
+            new VariableStore(logger, session),
+            new ArtifactStore(logger, session),
+            logger,
+            ValueResolution.Empty,
+            cancellationToken,
+            timeout);
+    }
 
     /// <summary>
     /// Builds a context for code that runs outside a step - a fixture, a persistent environment, or a

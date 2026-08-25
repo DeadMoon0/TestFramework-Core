@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
@@ -57,12 +57,51 @@ public sealed class JsonPathDocument : ConfigDocument
 
         JObject root = Parse(existing, this.Path);
 
-        foreach ((string valuePath, string value) in routed.OrderBy(static entry => entry.Key, StringComparer.Ordinal))
+        string[] paths = [.. routed.Keys.OrderBy(static key => key, StringComparer.Ordinal)];
+
+        RefuseContradictions(paths, this.Path);
+
+        foreach (string valuePath in paths)
         {
-            Insert(root, valuePath, value, this.Path);
+            Insert(root, valuePath, routed[valuePath], this.Path);
         }
 
         return root.ToString(Formatting.Indented);
+    }
+
+    /// <summary>
+    /// Refuses two routed values where one path sits inside the other.
+    /// </summary>
+    /// <remarks>
+    /// <c>Features</c> and <c>Features:UseFakeClock</c> cannot both be true of one file: the first says
+    /// that name holds a value, the second says it holds an object. Whichever is written second wins
+    /// silently, so one of the two values the caller asked for simply disappears - and which one depends
+    /// on ordering, which is the definition of a coin toss.
+    /// <para>
+    /// This is not the same as a route deepening a leaf the *payload* shipped. There, the route is the
+    /// newer statement of intent and wins on purpose. Here both statements arrive together.
+    /// </para>
+    /// </remarks>
+    /// <param name="paths">The routed paths, ordered.</param>
+    /// <param name="documentPath">The document, for the message.</param>
+    private static void RefuseContradictions(string[] paths, string documentPath)
+    {
+        for (int index = 1; index < paths.Length; index++)
+        {
+            string previous = paths[index - 1];
+
+            // Ordered, so a path that contains another sits directly after it. The colon matters: 'Feature'
+            // is not inside 'Features'.
+            if (paths[index].StartsWith(previous + ":", StringComparison.Ordinal))
+            {
+                throw new FrameworkConfigurationException(
+                    $"'{documentPath}' is routed both '{previous}' and '{paths[index]}', so one of them would silently replace the other.",
+                    [
+                        $"Route '{previous}' or the values inside it, not both.",
+                    ],
+                    [$"'{previous}' would have to be a value and an object at the same time"]);
+            }
+        }
     }
 
     private static JObject Parse(string? existing, string path)

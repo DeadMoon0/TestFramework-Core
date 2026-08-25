@@ -389,7 +389,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         // Clone so a reference handed to several runs never shares its pinned state across them.
         TArtifactReference runReference = (TArtifactReference)reference.CloneForRun();
-        _newArtifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(runReference.GetArtifactDescriber(), identifier, runReference, (TArtifactData)data));
+        _newArtifactStore.Add<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, runReference, (TArtifactData)data);
         _externalArtifacts.Add(identifier);
         return this;
     }

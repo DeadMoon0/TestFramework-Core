@@ -1,6 +1,8 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Steps;
@@ -22,6 +24,19 @@ namespace TestFramework.Core.Steps;
 /// </remarks>
 internal sealed class StepObservers
 {
+    /// <summary>
+    /// How long an observer is given before the run says out loud that it is being held.
+    /// </summary>
+    /// <remarks>
+    /// One number doing two jobs, which is why it is not tighter. It is the deadline on the context an
+    /// observer is handed, so evidence gathering has a budget it can consult instead of one it invents;
+    /// and it is when this class warns that an observer is still going. Photographing a page is well under
+    /// a second even on a slow machine, so overrunning it means something else: either an observer is
+    /// wedged - and a warning naming it beats a silent stall - or it is holding the run on purpose, and the
+    /// warning is exactly the notice a person watching the output wants.
+    /// </remarks>
+    internal static readonly TimeSpan EvidenceBudget = TimeSpan.FromSeconds(30);
+
     /// <summary>
     /// No observers at all - what a run gets when nobody registered one.
     /// </summary>
@@ -71,30 +86,64 @@ internal sealed class StepObservers
 
     /// <summary>Tells the observers a step's attempt is starting.</summary>
     /// <param name="observation">Which step.</param>
+    /// <param name="run">Builds the context to hand over, called only when something is watching.</param>
     /// <param name="logger">The run's logger, for anything an observer throws.</param>
-    internal void Starting(StepObservation observation, ScopedLogger logger)
-        => Tell(observer => observer.OnStepStarting(observation), observation, nameof(IStepObserver.OnStepStarting), logger);
+    /// <returns>A task that completes when every observer has.</returns>
+    internal Task StartingAsync(StepObservation observation, Func<RunContext> run, ScopedLogger logger)
+        => this.TellAsync(
+            (observer, context) => observer.OnStepStartingAsync(observation, context),
+            observation,
+            run,
+            nameof(IStepObserver.OnStepStartingAsync),
+            logger);
 
     /// <summary>Tells the observers an attempt failed.</summary>
     /// <param name="observation">Which step.</param>
     /// <param name="exception">What it threw.</param>
+    /// <param name="run">Builds the context to hand over, called only when something is watching.</param>
     /// <param name="logger">The run's logger, for anything an observer throws.</param>
-    internal void Failed(StepObservation observation, Exception exception, ScopedLogger logger)
-        => Tell(observer => observer.OnStepFailed(observation, exception), observation, nameof(IStepObserver.OnStepFailed), logger);
+    /// <returns>A task that completes when every observer has.</returns>
+    internal Task FailedAsync(StepObservation observation, Exception exception, Func<RunContext> run, ScopedLogger logger)
+        => this.TellAsync(
+            (observer, context) => observer.OnStepFailedAsync(observation, exception, context),
+            observation,
+            run,
+            nameof(IStepObserver.OnStepFailedAsync),
+            logger);
 
     /// <summary>Tells the observers an attempt ran out of time.</summary>
     /// <param name="observation">Which step.</param>
+    /// <param name="run">Builds the context to hand over, called only when something is watching.</param>
     /// <param name="logger">The run's logger, for anything an observer throws.</param>
-    internal void TimedOut(StepObservation observation, ScopedLogger logger)
-        => Tell(observer => observer.OnStepTimedOut(observation), observation, nameof(IStepObserver.OnStepTimedOut), logger);
+    /// <returns>A task that completes when every observer has.</returns>
+    internal Task TimedOutAsync(StepObservation observation, Func<RunContext> run, ScopedLogger logger)
+        => this.TellAsync(
+            (observer, context) => observer.OnStepTimedOutAsync(observation, context),
+            observation,
+            run,
+            nameof(IStepObserver.OnStepTimedOutAsync),
+            logger);
 
-    private void Tell(Action<IStepObserver> call, StepObservation observation, string hook, ScopedLogger logger)
+    private async Task TellAsync(
+        Func<IStepObserver, RunContext, Task> call,
+        StepObservation observation,
+        Func<RunContext> run,
+        string hook,
+        ScopedLogger logger)
     {
+        if (this.observers.Count == 0)
+        {
+            // The common case by far, and the reason the context arrives as a factory rather than as a
+            // context: a run with nothing watching should not build one per step only to drop it.
+            return;
+        }
+
         foreach (IStepObserver observer in this.observers)
         {
             try
             {
-                call(observer);
+                // One context each, so two observers cannot spend each other's budget.
+                await AwaitAsync(call(observer, run()), observer, hook, logger).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -108,6 +157,40 @@ internal sealed class StepObservers
                     exception.ToString());
             }
         }
+    }
+
+    /// <summary>
+    /// Waits for an observer, saying so once it has had longer than its budget.
+    /// </summary>
+    /// <remarks>
+    /// Waited out rather than cut off. Abandoning an observer would make what a run reports depend on how
+    /// fast a screenshot was - the same class of mistake as letting one change an outcome - and it would
+    /// break the one case where holding the run is the entire point: a browser kept open on a failure for a
+    /// person to look at. So the run waits, and says whose work it is waiting on.
+    /// </remarks>
+    private static async Task AwaitAsync(Task work, IStepObserver observer, string hook, ScopedLogger logger)
+    {
+        // The timer is cancelled the moment the observer answers, which is the normal case. Left running,
+        // every observed step in a run would leave a half-minute timer behind it.
+        using CancellationTokenSource answered = new CancellationTokenSource();
+
+        Task budget = Task.Delay(EvidenceBudget, answered.Token);
+
+        if (await Task.WhenAny(work, budget).ConfigureAwait(false) == work)
+        {
+            await answered.CancelAsync().ConfigureAwait(false);
+            await work.ConfigureAwait(false);
+
+            return;
+        }
+
+        logger.LogWarning(
+            "{0}.{1} has been running for over {2:0} s and is holding the run. Still waiting for it.",
+            observer.GetType().Name,
+            hook,
+            EvidenceBudget.TotalSeconds);
+
+        await work.ConfigureAwait(false);
     }
 
     private static void Add(List<IStepObserver> observers, IStepObserver? candidate)
