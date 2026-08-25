@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Timelines;
+using TestFramework.Core.Timelines.Builder.TimelineRunBuilder;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Tests;
@@ -75,6 +79,75 @@ public sealed class TestIdentityTests
 
         Assert.True(debugger.Identity!.CanRerun);
     }
+
+    [Theory]
+    [InlineData("first case")]
+    [InlineData("second case")]
+    public async Task ATheoryIsIdentifiedThroughXunitsDynamicInvocationFrames(string dataCase)
+    {
+        // xunit invokes theory methods through Reflection.Emit frames whose MethodBase has no
+        // runtime handle; asking such a frame for one throws InvalidOperationException. The
+        // resolver must walk past those frames to the theory method itself.
+        IdentityRecordingDebugger debugger = new();
+
+        await RunAsync(debugger);
+
+        TestIdentity identity = Assert.IsType<TestIdentity>(debugger.Identity);
+
+        Assert.Equal(TestFrameworkKind.XUnit, identity.Framework);
+        Assert.Equal(nameof(ATheoryIsIdentifiedThroughXunitsDynamicInvocationFrames), identity.MethodName);
+        Assert.Equal(typeof(TestIdentityTests).FullName, identity.TypeFullName);
+        Assert.NotNull(dataCase);
+    }
+
+    [Fact]
+    public async Task AReflectionEmitFrameOnTheStackIsSteppedOver()
+    {
+        // Asking a Reflection.Emit frame for its method handle throws InvalidOperationException,
+        // and xunit invokes theory methods through exactly such frames. Whether a given [Theory]
+        // actually gets an emitted invoker depends on the runtime and invocation count, so the
+        // frame is emitted here explicitly — the resolver has to step over it to this method.
+        IdentityRecordingDebugger debugger = new();
+
+        await SetupThroughEmittedFrame(debugger).RunAsync();
+
+        TestIdentity identity = Assert.IsType<TestIdentity>(debugger.Identity);
+
+        Assert.Equal(TestFrameworkKind.XUnit, identity.Framework);
+        Assert.Equal(nameof(AReflectionEmitFrameOnTheStackIsSteppedOver), identity.MethodName);
+    }
+
+    /// <summary>
+    /// Calls <see cref="SetupRunFor"/> through a <see cref="DynamicMethod"/>, so identity
+    /// resolution — which happens synchronously inside <c>SetupRun</c> — walks across a frame
+    /// that has no method handle, just like xunit's emitted theory invokers.
+    /// </summary>
+    private static ITimelineRunBuilder SetupThroughEmittedFrame(IRunDebugger debugger)
+    {
+        DynamicMethod frame = new(
+            "TheoryStyleInvoker",
+            typeof(ITimelineRunBuilder),
+            [typeof(IRunDebugger)],
+            typeof(TestIdentityTests).Module,
+            skipVisibility: true);
+
+        ILGenerator il = frame.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Call, typeof(TestIdentityTests).GetMethod(nameof(SetupRunFor), BindingFlags.NonPublic | BindingFlags.Static)!);
+        il.Emit(OpCodes.Ret);
+
+        Func<IRunDebugger, ITimelineRunBuilder> invoke =
+            (Func<IRunDebugger, ITimelineRunBuilder>)frame.CreateDelegate(typeof(Func<IRunDebugger, ITimelineRunBuilder>));
+
+        return invoke(debugger);
+    }
+
+    /// <summary>
+    /// NoInlining so the emitted caller stays a distinct frame between this one and the test.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static ITimelineRunBuilder SetupRunFor(IRunDebugger debugger)
+        => Timeline.Create().Build().SetupRun(new DebuggerServiceProvider(debugger));
 
     [Theory]
     [InlineData("FactAttribute", TestFrameworkKind.XUnit)]
