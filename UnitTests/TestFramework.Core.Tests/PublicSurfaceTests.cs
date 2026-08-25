@@ -111,6 +111,21 @@ public class PublicSurfaceTests
             .Select(static type => type.Name));
     }
 
+    [Fact]
+    public void CoreSerialisesWithNewtonsoftAndNothingElse()
+    {
+        // The family picked one JSON library. Two of them means two sets of attributes, two notions of
+        // what null means, and values that survive one round trip but not the other - so the rule is
+        // checked against the compiled assembly rather than trusted to review.
+        Assert.DoesNotContain(
+            "System.Text.Json",
+            typeof(ResourceGraph).Assembly.GetReferencedAssemblies().Select(static reference => reference.Name));
+
+        Assert.Contains(
+            "Newtonsoft.Json",
+            typeof(ResourceGraph).Assembly.GetReferencedAssemblies().Select(static reference => reference.Name));
+    }
+
     private static void AssertNotPublic<T>(string method)
         => Assert.Null(typeof(T).GetMethod(method, BindingFlags.Public | BindingFlags.Instance));
 }

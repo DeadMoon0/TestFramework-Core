@@ -22,22 +22,44 @@ namespace TestFramework.Config.Configuration;
 /// container or a person answered.
 /// </para>
 /// </remarks>
-public sealed class ConfigEnvironment : IResourceNodeSource
+public sealed class ConfigEnvironment : DeclaredNodeSource
 {
-    private readonly Lazy<IReadOnlyList<ResourceNode>> nodes;
+    private readonly IConfiguration configuration;
+    private readonly IReadOnlyList<IConfigShape> shapes;
 
     private ConfigEnvironment(IConfiguration configuration, IReadOnlyList<IConfigShape> shapes)
     {
-        // Lazily, because the shapes are registered in whatever order packages happen to be loaded in,
-        // and nothing should depend on this being built after the last of them.
-        this.nodes = new Lazy<IReadOnlyList<ResourceNode>>(() => Build(configuration, shapes));
+        this.configuration = configuration;
+        this.shapes = shapes;
     }
 
     /// <inheritdoc />
-    public string SourceName => "configuration";
+    public override string SourceName => "configuration";
 
-    /// <inheritdoc />
-    public IReadOnlyList<ResourceNode> Nodes => this.nodes.Value;
+    /// <summary>
+    /// Every configured entry, as a declared resource.
+    /// </summary>
+    /// <remarks>
+    /// Read when the graph is first composed rather than at construction, because shapes are registered
+    /// in whatever order packages happen to load in and nothing should depend on being last.
+    /// </remarks>
+    protected override IEnumerable<DeclaredResource> Declarations
+    {
+        get
+        {
+            foreach (IConfigShape shape in this.shapes)
+            {
+                foreach (string identifier in shape.Identifiers(this.configuration))
+                {
+                    yield return new DeclaredResource(
+                        shape.Kind,
+                        identifier,
+                        shape.Values(shape.Read(this.configuration, identifier)),
+                        $"section '{shape.Section}'");
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Builds the relay from the registered shapes.
@@ -53,40 +75,6 @@ public sealed class ConfigEnvironment : IResourceNodeSource
             [.. services.GetServices<IConfigShape>()]);
     }
 
-    private static IReadOnlyList<ResourceNode> Build(IConfiguration configuration, IReadOnlyList<IConfigShape> shapes)
-    {
-        List<ResourceNode> nodes = [];
-
-        foreach (IConfigShape shape in shapes)
-        {
-            foreach (string identifier in shape.Identifiers(configuration))
-            {
-                object config = shape.Read(configuration, identifier);
-                IReadOnlyDictionary<ValueKey, string> values = shape.Values(config);
-
-                ConfigShapeValidation.EnsureDeclaresOnlyOfferedValues(shape, identifier, values);
-
-                nodes.Add(new DeclaredResourceNode(shape.Kind, identifier, values));
-            }
-        }
-
-        return nodes;
-    }
-
-    /// <summary>
-    /// A resource somebody wrote down: values as declared, nothing to start, nothing to tear down.
-    /// </summary>
-    private sealed class DeclaredResourceNode(
-        ResourceKind kind,
-        string identifier,
-        IReadOnlyDictionary<ValueKey, string> declaredValues) : ResourceNode
-    {
-        public override ResourceKind Kind => kind;
-
-        public override string Identifier => identifier;
-
-        public override IReadOnlyDictionary<ValueKey, string> DeclaredValues => declaredValues;
-    }
 }
 
 /// <summary>

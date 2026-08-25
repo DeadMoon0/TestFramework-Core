@@ -117,35 +117,3 @@ public abstract class ConfigShape<TConfig> : IConfigShape
         return this.Values((TConfig)config);
     }
 }
-
-/// <summary>
-/// Checks a shape against the kind it claims to describe.
-/// </summary>
-/// <remarks>
-/// A shape declaring a value its kind does not offer is the same drift the kind schema exists to prevent,
-/// arriving from the configuration side instead of the code side. Caught while loading, which is still
-/// before a single step runs.
-/// </remarks>
-internal static class ConfigShapeValidation
-{
-    public static void EnsureDeclaresOnlyOfferedValues(
-        IConfigShape shape,
-        string identifier,
-        IReadOnlyDictionary<ValueKey, string> declared)
-    {
-        foreach (ValueKey key in declared.Keys)
-        {
-            if (shape.Kind.Offers(key.ValueName))
-            {
-                continue;
-            }
-
-            throw new FrameworkConfigurationException(
-                $"The shape for section '{shape.Section}' declares {key} for '{identifier}', which {shape.Kind} does not offer.",
-                [
-                    "Declare the value on the kind, or stop declaring it in the shape - the kind is what routes and reads are checked against.",
-                ],
-                [.. shape.Kind.Values.Select(static value => $"{value.KindName} offers {value.ValueName}")]);
-        }
-    }
-}
