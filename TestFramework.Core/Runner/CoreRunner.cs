@@ -16,7 +16,15 @@ using TestFramework.Core.Logging.BuildInEvents;
 
 namespace TestFramework.Core.Runner;
 
-internal class CoreRunner
+/// <summary>
+/// Runs one stage's steps: schedules them, gives each attempt its deadline and its licence to write, and
+/// tells the run's observers what happened.
+/// </summary>
+/// <param name="observers">
+/// What is watching this run's steps. Told about every attempt, and never able to change one - see
+/// <see cref="StepObservers"/>.
+/// </param>
+internal class CoreRunner(StepObservers observers)
 {
     internal async Task RunStage(StageInstance instance, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
     {
@@ -36,7 +44,7 @@ internal class CoreRunner
         instance.Result.State = StageState.Complete;
     }
 
-    private static Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
+    private Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
     {
         return Task.WhenAll(layer.Select(x => ExecuteStepAsync(stageName, x.Index, x.Step, serviceProvider, logger, variableStore, artifactStore, debuggingSession, isCleanupStage)));
     }
@@ -46,7 +54,7 @@ internal class CoreRunner
         return layer.Any(x => x.Step.State != StepState.Complete);
     }
 
-    private static async Task ExecuteStepAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
+    private async Task ExecuteStepAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
     {
         using var _ = debuggingSession.BeginStepExecutionContext(stageName, stepIndex);
 
@@ -68,6 +76,11 @@ internal class CoreRunner
 
         await debuggingSession.WaitWhenBreakpointHit(stageName, stepIndex);
 
+        // One gate per step, not per run: beginning an attempt abandons the previous one, which is what a
+        // retry needs and exactly what a step running beside this one must not suffer.
+        StepAttemptGate attemptGate = new StepAttemptGate();
+        string label = LabelOf(step);
+
         int iteration = 0;
         bool willRetry;
         do
@@ -82,7 +95,14 @@ internal class CoreRunner
             if (iteration > 1)
                 await DelayForRetryAsync(step, iteration, variableStore);
 
-            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, debuggingSession.RunCancellationToken);
+            AttemptScope scope = new AttemptScope(
+                attemptGate,
+                attemptGate.Begin(label, iteration),
+                new StepObservation(label, step.Step.Name, stageName, iteration));
+
+            observers.Starting(scope.Observation, logger);
+
+            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, scope, debuggingSession.RunCancellationToken);
             step.RetryResults.Add(stepResult);
 
             willRetry = ShouldRetry(step, variableStore, iteration, stepResult);
@@ -119,16 +139,47 @@ internal class CoreRunner
         step.Freeze();
     }
 
+    /// <summary>
+    /// What to call this step in an attempt's warnings and in what observers are told.
+    /// </summary>
+    /// <remarks>
+    /// The label a person chose, else the step's name. A step with neither still has to be nameable, or
+    /// beginning its attempt would throw and a nameless step would take the run down with it.
+    /// </remarks>
+    /// <param name="step">The step.</param>
+    /// <returns>The label.</returns>
+    private static string LabelOf(StepInstanceGeneric step)
+    {
+        if (!string.IsNullOrWhiteSpace(step.Step.LabelOptions.Label))
+            return step.Step.LabelOptions.Label!;
+
+        return string.IsNullOrWhiteSpace(step.Step.Name) ? "unnamed step" : step.Step.Name;
+    }
+
+    /// <summary>
+    /// One attempt at one step: who is writing, what may still be written, and what observers are told.
+    /// </summary>
+    /// <remarks>
+    /// Travels together because it is answers to one question - which attempt is this - and passing the
+    /// three separately is how they drift apart. It folds into <c>RunContext</c> when steps take one.
+    /// </remarks>
+    private sealed record AttemptScope(StepAttemptGate Gate, StepAttempt Attempt, StepObservation Observation);
+
     private static async Task DelayForRetryAsync(StepInstanceGeneric step, int iteration, VariableStore variableStore)
     {
         await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
     }
 
-    private static async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, CancellationToken runCancellationToken)
+    private async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, AttemptScope scope, CancellationToken runCancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
         StepResultGeneric stepResult = new StepResultGeneric();
         TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+
+        // What the step writes through: the same stores, but able to say which attempt is writing, so an
+        // attempt the run has stopped waiting for cannot reach the next test.
+        VariableStore attemptVariables = variableStore.ForAttempt(scope.Gate, scope.Attempt);
+        ArtifactStore attemptArtifacts = artifactStore.ForAttempt(scope.Gate, scope.Attempt);
 
         // One source of truth for the timeout. There used to be two — a CTS *and* a WaitAsync(timeout)
         // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
@@ -141,17 +192,20 @@ internal class CoreRunner
 
         try
         {
-            executionTask = step.Step.ExecuteGeneric(serviceProvider, variableStore, artifactStore, logger, cancellationTokenSource.Token);
+            executionTask = step.Step.ExecuteGeneric(serviceProvider, attemptVariables, attemptArtifacts, logger, cancellationTokenSource.Token);
             object? result = await executionTask.WaitAsync(cancellationTokenSource.Token);
             stepResult.Result = result;
             stepResult.State = StepState.Complete;
 
+            // The run's own store, not the attempt's: binding a result is the runner recording what the
+            // step returned, and it happens once the attempt is over.
             ApplyResultBindings(step, result, variableStore);
         }
         catch (TimeoutException exception)
         {
             stepResult.Exception = exception;
             stepResult.State = StepState.Timeout;
+            observers.TimedOut(scope.Observation, logger);
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
         {
@@ -175,6 +229,8 @@ internal class CoreRunner
                 ownsCancellationTokenSource = false;
                 ObserveAbandonedAttempt(executionTask, cancellationTokenSource);
             }
+
+            observers.TimedOut(scope.Observation, logger);
         }
         catch (Exception exception)
         {
@@ -182,9 +238,18 @@ internal class CoreRunner
             stepResult.State = step.Step.ErrorHandlingOptions.IgnoreExceptionTypes.Any(x => x.IsAssignableFrom(exception.GetType()))
                 ? StepState.Complete
                 : StepState.Error;
+
+            // Only a real failure. An exception the step was told to ignore did not fail the step, and
+            // gathering evidence for every swallowed exception would bury the failures worth looking at.
+            if (stepResult.State == StepState.Error)
+                observers.Failed(scope.Observation, exception, logger);
         }
         finally
         {
+            // The attempt is over, whether it answered, failed or was abandoned. Ending it here is what
+            // stops a step that returned - and left something running behind it - from writing on.
+            scope.Gate.End(scope.Attempt);
+
             if (ownsCancellationTokenSource)
                 cancellationTokenSource.Dispose();
         }

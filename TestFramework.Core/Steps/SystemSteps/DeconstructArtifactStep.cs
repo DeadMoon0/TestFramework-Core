@@ -30,8 +30,7 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
         if (artifactInstance.IsReadonly) throw new ArtifactMarkedReadonlyException(identifier);
         if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(identifier);
         await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
-        artifactInstance.State = ArtifactState.Cleaned;
-        artifactStore.PublishArtifactChanged(artifactInstance);
+        artifactStore.MarkState(artifactInstance, ArtifactState.Cleaned);
         return EmptyStepResultContext.Instance;
     }
 

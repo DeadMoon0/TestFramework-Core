@@ -75,7 +75,12 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
     /// <summary>
     /// Adds a new typed version to the artifact instance.
     /// </summary>
-    public void AddVersion(TArtifactData artifact) => base.AddVersionGeneric(artifact);
+    /// <remarks>
+    /// Asked of the store rather than of the instance - see <c>ArtifactStore.CaptureVersion</c> - so that
+    /// a version cannot land from an attempt the run has stopped waiting for, and so that nothing watching
+    /// the run can miss it.
+    /// </remarks>
+    internal void AddVersion(TArtifactData artifact) => base.AddVersionGeneric(artifact);
 
     /// <summary>
     /// Returns a human-readable description of the artifact instance.
@@ -97,9 +102,14 @@ public class ArtifactInstanceGeneric : IFreezable
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the artifact instance.
+    /// Freezes the artifact instance against further mutation.
     /// </summary>
-    public void Freeze()
+    /// <remarks>
+    /// Reached through <see cref="IFreezable"/> rather than offered on the instance: the run freezes its
+    /// artifacts when it ends, and anything else doing it mid-run would turn every later capture of that
+    /// artifact into a failure.
+    /// </remarks>
+    void IFreezable.Freeze()
     {
         IsFrozen = true;
         _dataVersions.Freeze();
@@ -160,9 +170,14 @@ public class ArtifactInstanceGeneric : IFreezable
     private ArtifactState _state = ArtifactState.NotSetup;
 
     /// <summary>
-    /// Gets or sets the current lifecycle state of the artifact instance.
+    /// Gets the current lifecycle state of the artifact instance.
     /// </summary>
-    public ArtifactState State { get => _state; set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
+    /// <remarks>
+    /// Moved through <c>ArtifactStore.MarkState</c> rather than assigned here: setting it is a write to the
+    /// run, so it passes the same licence check as every other write, and the change reaches whatever is
+    /// watching the run instead of only the object.
+    /// </remarks>
+    public ArtifactState State { get => _state; internal set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
 
     private bool _isReadonly;
 
@@ -190,7 +205,11 @@ public class ArtifactInstanceGeneric : IFreezable
     /// <summary>
     /// Adds a new untyped version to the artifact instance.
     /// </summary>
-    public void AddVersionGeneric(ArtifactDataGeneric data)
+    /// <remarks>
+    /// Internal for the reason <see cref="State"/> is: <c>ArtifactStore.CaptureVersion</c> is the one way
+    /// an artifact gains a version, so the licence check and the publication happen every time.
+    /// </remarks>
+    internal void AddVersionGeneric(ArtifactDataGeneric data)
     {
         ((IFreezable)this).EnsureNotFrozen();
         _dataVersions.Add(data);

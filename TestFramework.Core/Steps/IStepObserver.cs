@@ -21,9 +21,14 @@ public sealed record StepObservation(string Label, string Name, string StageName
 /// there. That is per-package code for a per-run concern, and the next package copies it.
 /// </para>
 /// <para>
-/// An observer is registered once and called for every step. It is told what happened; it does not get to
-/// change the outcome, because evidence gathering must never be able to turn a red step green. Anything an
-/// observer throws is logged and swallowed for the same reason.
+/// An observer is registered once - as a service, the way a run debugger is - and called for every step
+/// the run executes, the ones the framework inserts included: an artifact teardown that fails is exactly
+/// when evidence is worth having. Deciding which of those are interesting is the observer's business.
+/// </para>
+/// <para>
+/// It is told what happened; it does not get to change the outcome, because evidence gathering must never
+/// be able to turn a red step green - nor a green step red, since a screenshot that failed to save is a
+/// worse thing to report than the run it was watching. Anything an observer throws is logged and dropped.
 /// </para>
 /// </remarks>
 public interface IStepObserver
@@ -32,7 +37,12 @@ public interface IStepObserver
     /// <param name="observation">Which step.</param>
     void OnStepStarting(StepObservation observation);
 
-    /// <summary>Called when an attempt threw.</summary>
+    /// <summary>Called when an attempt failed.</summary>
+    /// <remarks>
+    /// Not called for an exception the step's error handling was told to ignore: that attempt threw, but
+    /// it did not fail, and an observer capturing evidence for every swallowed exception would bury the
+    /// real failures in it.
+    /// </remarks>
     /// <param name="observation">Which step.</param>
     /// <param name="exception">What it threw.</param>
     void OnStepFailed(StepObservation observation, Exception exception);

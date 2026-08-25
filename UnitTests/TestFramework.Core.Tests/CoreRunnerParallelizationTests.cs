@@ -39,7 +39,7 @@ public class CoreRunnerParallelizationTests
             new PrepareBlockingStep("second", secondStepStarted, releaseSteps));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -65,7 +65,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("second", secondStepStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -94,7 +94,7 @@ public class CoreRunnerParallelizationTests
             new PrepareBlockingStep("prepare-2", secondPrepareStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -125,7 +125,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("consumer", consumerStarted, CreateSignal(completed: true), inputs: [new StepIOEntry("user", StepIOKind.Variable)]));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -154,7 +154,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("candidate", parallelCandidateStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -191,7 +191,7 @@ public class CoreRunnerParallelizationTests
             new TestSerializedArtifactReference("b", new TestSerializedArtifactData()),
             new TestSerializedArtifactData()));
 
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -229,7 +229,7 @@ public class CoreRunnerParallelizationTests
             new TestKeyedArtifactReference("b", "sql-b"),
             new TestKeyedArtifactData()));
 
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -264,7 +264,7 @@ public class CoreRunnerParallelizationTests
             new TestSerializedArtifactReference("a", new TestSerializedArtifactData()),
             new TestSerializedArtifactData()));
 
-        CoreRunner runner = new();
+        CoreRunner runner = new(StepObservers.None);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 

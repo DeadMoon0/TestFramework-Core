@@ -25,8 +25,7 @@ This document describes the current RunDebugger flow in Core, including when eac
 
 The run structure snapshot contains:
 
-- all current variables as `VariableState`
-- all current artifacts as `ArtifactState`
+- all current variables and artifacts as `DebugValue`
 - all stages and steps, including their IO contracts and execution options
 
 This is the point where DebugUI can build the full run tree before execution starts.
@@ -212,8 +211,7 @@ The envelope contains:
 - `Custom`
 
 A variable and an artifact are both a `DebugValue`: a key and an envelope. They are not separate types,
-because nothing downstream can act on a difference the envelope's `Kind` already states. `VariableState`
-and `ArtifactState` remain as obsolete aliases so existing consumers keep compiling.
+because nothing downstream can act on a difference the envelope's `Kind` already states.
 
 `Lifecycle` is present on an artifact and absent on a variable, and carries the state and the whole
 version history as fields. A variable is its current value and nothing else, so it has no lifecycle to

@@ -49,8 +49,7 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
                 }
 
                 await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
-                artifactInstance.State = ArtifactState.Cleaned;
-                artifactStore.PublishArtifactChanged(artifactInstance);
+                artifactStore.MarkState(artifactInstance, ArtifactState.Cleaned);
             }
             catch (Exception e)
             {

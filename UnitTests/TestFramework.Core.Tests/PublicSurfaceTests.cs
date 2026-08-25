@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using TestFramework.Core.Environment.Graph;
+using TestFramework.Core.Artifacts;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 using Xunit;
@@ -55,11 +56,32 @@ public class PublicSurfaceTests
     }
 
     [Fact]
+    public void NobodyCanFreezeTheRunsArtifactsMidRun()
+    {
+        // Damage: the same, one store over - every later capture, registration or cleanup throws. Freezing
+        // a single artifact is worse than freezing the store, because it fails only the test that touches
+        // that one artifact and looks like a problem with the artifact.
+        Assert.Null(typeof(ArtifactStore).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+        Assert.Null(typeof(ArtifactInstanceGeneric).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+    }
+
+    [Fact]
+    public void AnArtifactChangesOnlyThroughTheStore()
+    {
+        // Damage: an artifact mutated on the instance skips the check that the writing attempt is still
+        // the one that counts, so an abandoned step could still version an artifact or mark it cleaned -
+        // and the second one makes the run skip a cleanup it owes somebody's database.
+        Assert.Null(typeof(ArtifactInstanceGeneric).GetMethod("AddVersionGeneric", BindingFlags.Public | BindingFlags.Instance));
+        Assert.Null(typeof(ArtifactInstanceGeneric).GetProperty("State")!.GetSetMethod());
+    }
+
+    [Fact]
     public void AStepCannotSubstituteItsOwnWriterIdentity()
     {
         // Damage: an abandoned attempt could keep writing by claiming to be a live one, which is the whole
         // guarantee the attempt gate exists for.
         Assert.Null(typeof(VariableStore).GetMethod("ForAttempt", BindingFlags.Public | BindingFlags.Instance));
+        Assert.Null(typeof(ArtifactStore).GetMethod("ForAttempt", BindingFlags.Public | BindingFlags.Instance));
         Assert.Null(typeof(StepAttempt).GetMethod("Abandon", BindingFlags.Public | BindingFlags.Instance));
         Assert.Empty(typeof(StepAttempt).GetConstructors(BindingFlags.Public | BindingFlags.Instance));
     }

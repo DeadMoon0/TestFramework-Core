@@ -92,7 +92,10 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
         await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
 
-        var coreRunner = new CoreRunner();
+        // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
+        // would be a different instance per stage if the caller registered it as transient, and evidence
+        // it gathered in one stage would be lost by the next.
+        var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider));
         var totalStopwatch = Stopwatch.StartNew();
         bool runTransitionCompleted = false;
         try

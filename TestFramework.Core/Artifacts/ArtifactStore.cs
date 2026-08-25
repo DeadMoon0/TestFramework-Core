@@ -6,6 +6,7 @@ using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -14,26 +15,69 @@ namespace TestFramework.Core.Artifacts;
 /// </summary>
 public class ArtifactStore : IFreezable
 {
-    private readonly object syncRoot = new();
+    private readonly object syncRoot;
 
     /// <summary>
     /// Gets a value indicating whether the artifact store has been frozen against further mutation.
     /// </summary>
-    public bool IsFrozen { get; private set; }
+    public bool IsFrozen => _artifacts.IsFrozen;
 
     /// <summary>
-    /// Freezes the artifact store.
+    /// Freezes the artifact store against further mutation.
     /// </summary>
-    public void Freeze() { lock (syncRoot) { IsFrozen = true; _artifacts.Freeze(); } }
+    /// <remarks>
+    /// Reached through <see cref="IFreezable"/> rather than offered on the store itself: the run freezes
+    /// its own artifacts when it ends, and anything else doing it mid-run would turn every later capture
+    /// into a failure.
+    /// </remarks>
+    void IFreezable.Freeze() { lock (syncRoot) { _artifacts.Freeze(); } }
 
-    private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts = [];
+    internal void FreezeForRunEnd() { lock (syncRoot) { _artifacts.Freeze(); } }
+
+    private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts;
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
+    /// <summary>
+    /// Whether writes through this view of the store still count.
+    /// </summary>
+    /// <remarks>
+    /// Unrestricted on the run's own store: an artifact seeded before the run starts belongs to no step.
+    /// </remarks>
+    private readonly StepWriteLicence licence;
+
+    /// <summary>
+    /// A view of this store that writes on behalf of one attempt at one step.
+    /// </summary>
+    /// <remarks>
+    /// The artifact half of the quarantine the variables already have. Without it, a step abandoned at
+    /// its deadline could still register an artifact - or capture a version of one - into the store the
+    /// next test reads, and that is the more expensive half of the bug: a variable holds a value, an
+    /// artifact holds a row in somebody's database and a promise to clean it up.
+    /// </remarks>
+    /// <param name="gate">The gate holding the current attempt.</param>
+    /// <param name="attempt">The attempt this view writes for.</param>
+    /// <returns>The view.</returns>
+    internal ArtifactStore ForAttempt(StepAttemptGate gate, StepAttempt attempt)
+        => new ArtifactStore(this, gate, attempt);
+
+    private ArtifactStore(ArtifactStore source, StepAttemptGate gate, StepAttempt attempt)
+    {
+        // Shared by reference on purpose: one store, many writers, each able to say who it is.
+        this.syncRoot = source.syncRoot;
+        this._artifacts = source._artifacts;
+        this.logger = source.logger;
+        this.debuggingSession = source.debuggingSession;
+        this.licence = StepWriteLicence.For(gate, attempt);
+    }
+
     internal ArtifactStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
     {
+        this.syncRoot = new object();
+        this._artifacts = [];
         this.logger = logger;
         this.debuggingSession = debuggingSession;
+        this.licence = StepWriteLicence.Unrestricted;
     }
 
     /// <summary>
@@ -41,6 +85,11 @@ public class ArtifactStore : IFreezable
     /// </summary>
     public void AddArtifact(ArtifactInstanceGeneric instance)
     {
+        // An attempt the runner has stopped waiting for is still running, and it must not be able to
+        // reach the stores a later test reads.
+        if (!licence.Allows(logger, instance.Identifier.Identifier))
+            return;
+
         lock (syncRoot)
         {
             _artifacts[instance.Identifier] = instance;
@@ -64,7 +113,42 @@ public class ArtifactStore : IFreezable
     /// <c>CaptureArtifactVersion</c> — watching a value evolve across a run — was invisible to the
     /// one consumer built to show it.
     /// </remarks>
-    internal void PublishArtifactChanged(ArtifactInstanceGeneric instance)
+    /// <summary>
+    /// Adds a version to an artifact this store already holds.
+    /// </summary>
+    /// <remarks>
+    /// An artifact changes in three ways - it is added, it gains a version, its lifecycle state moves -
+    /// and all three have to pass the same licence check, so all three are asked of the store. That is
+    /// also why the mutators on the instance are internal: a step holding an instance could otherwise
+    /// change the run's artifacts without the store ever hearing about it, which is both a way around
+    /// the quarantine and the reason a debugger used to miss the change.
+    /// </remarks>
+    /// <param name="instance">The artifact.</param>
+    /// <param name="data">The new version's data.</param>
+    internal void CaptureVersion(ArtifactInstanceGeneric instance, ArtifactDataGeneric data)
+    {
+        if (!licence.Allows(logger, instance.Identifier.Identifier))
+            return;
+
+        instance.AddVersionGeneric(data);
+        PublishArtifactChanged(instance);
+    }
+
+    /// <summary>
+    /// Moves an artifact to a new lifecycle state.
+    /// </summary>
+    /// <param name="instance">The artifact.</param>
+    /// <param name="state">The state it reached.</param>
+    internal void MarkState(ArtifactInstanceGeneric instance, ArtifactState state)
+    {
+        if (!licence.Allows(logger, instance.Identifier.Identifier))
+            return;
+
+        instance.State = state;
+        PublishArtifactChanged(instance);
+    }
+
+    private void PublishArtifactChanged(ArtifactInstanceGeneric instance)
     {
         if (!debuggingSession.IsCapturing)
             return;

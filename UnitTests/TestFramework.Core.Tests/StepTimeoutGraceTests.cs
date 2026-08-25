@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -99,6 +100,78 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         Assert.True(store.TryGetVariable<string>("seeded", out _));
     }
 
+    [Fact]
+    public void AnAbandonedAttemptCannotRegisterAnArtifact()
+    {
+        // The expensive half of the same bug: a variable holds a value, an artifact holds a row in
+        // somebody's database and a promise to clean it up.
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        StepAttemptGate gate = new StepAttemptGate();
+
+        StepAttempt abandoned = gate.Begin("find-the-row", 1);
+        ArtifactStore abandonedView = store.ForAttempt(gate, abandoned);
+
+        abandonedView.AddArtifact(Instance("beforeAbandonment"));
+
+        // The run moves on - a retry, or simply the next step.
+        gate.Begin("next-step", 1);
+
+        abandonedView.AddArtifact(Instance("afterAbandonment"));
+
+        Assert.Equal(["beforeAbandonment"], store.GetAll().Select(instance => instance.Identifier.Identifier));
+    }
+
+    [Fact]
+    public void AnAbandonedAttemptCannotVersionOrRetireAnArtifact()
+    {
+        // Registering is not the only write. A version captured by a zombie would show the next test data
+        // from the previous one, and a state moved to Cleaned would have the run skip a cleanup it owes.
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        StepAttemptGate gate = new StepAttemptGate();
+
+        ArtifactInstanceGeneric instance = Instance("row");
+        store.AddArtifact(instance);
+
+        StepAttempt abandoned = gate.Begin("capture", 1);
+        ArtifactStore abandonedView = store.ForAttempt(gate, abandoned);
+
+        gate.Begin("next-step", 1);
+
+        abandonedView.CaptureVersion(instance, new TestArtifactData());
+        abandonedView.MarkState(instance, Artifacts.ArtifactState.Cleaned);
+
+        Assert.Equal(1, instance.VersionCount);
+        Assert.Equal(Artifacts.ArtifactState.NotSetup, instance.State);
+    }
+
+    [Fact]
+    public void TheLiveAttemptsArtifactWritesStillLand()
+    {
+        // The positive half. A quarantine that also stops the live attempt would be a worse bug than the
+        // one it replaces.
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        StepAttemptGate gate = new StepAttemptGate();
+
+        StepAttempt live = gate.Begin("setup", 1);
+        ArtifactStore liveView = store.ForAttempt(gate, live);
+
+        ArtifactInstanceGeneric instance = Instance("row");
+        liveView.AddArtifact(instance);
+        liveView.CaptureVersion(instance, new TestArtifactData());
+        liveView.MarkState(instance, Artifacts.ArtifactState.Setup);
+
+        Assert.Equal(2, instance.VersionCount);
+        Assert.Equal(Artifacts.ArtifactState.Setup, instance.State);
+        Assert.Equal(["row"], store.GetAll().Select(held => held.Identifier.Identifier));
+    }
+
+    private static ArtifactInstanceGeneric Instance(string identifier)
+        => new ArtifactInstance<TestArtifactDescriber, TestArtifactData, TestArtifactReference>(
+            new TestArtifactDescriber(),
+            identifier,
+            new TestArtifactReference(),
+            new TestArtifactData());
+
     /// <summary>A step that notices its deadline and says what it was doing.</summary>
     private sealed class CooperativeStep(string waitingFor) : Step<EmptyStepResultContext>
     {
@@ -172,5 +245,39 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
 
             return EmptyStepResultContext.Instance;
         }
+    }
+
+    private sealed class TestArtifactDescriber : ArtifactDescriber<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
+    {
+        public override Task Setup(IServiceProvider serviceProvider, TestArtifactData data, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+
+        public override Task Deconstruct(IServiceProvider serviceProvider, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+
+        public override string ToString() => "test-artifact";
+    }
+
+    private sealed class TestArtifactData : ArtifactData<TestArtifactData, TestArtifactDescriber, TestArtifactReference>
+    {
+        public override string ToString() => "artifact-data";
+    }
+
+    private sealed class TestArtifactReference : ArtifactReference<TestArtifactReference, TestArtifactDescriber, TestArtifactData>
+    {
+        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+            => Task.FromResult(new ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
+            {
+                Found = true,
+                Data = new TestArtifactData()
+            });
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        {
+        }
+
+        public override string ToString() => "artifact-reference";
     }
 }

@@ -29,8 +29,7 @@ internal class SetupArtifactStep(ArtifactIdentifier identifier) : Step<EmptyStep
         ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
         artifactInstance.Reference.PinReference(variableStore, logger);
         await artifactInstance.Artifact.SetupGeneric(serviceProvider, artifactInstance.Last, artifactInstance.Reference, variableStore, logger);
-        artifactInstance.State = ArtifactState.Setup;
-        artifactStore.PublishArtifactChanged(artifactInstance);
+        artifactStore.MarkState(artifactInstance, ArtifactState.Setup);
         return EmptyStepResultContext.Instance;
     }
 

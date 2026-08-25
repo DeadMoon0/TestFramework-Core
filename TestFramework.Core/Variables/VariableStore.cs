@@ -45,14 +45,13 @@ public class VariableStore : IFreezable
     private readonly object changeTokenLock;
 
     /// <summary>
-    /// The attempt whose writes this view speaks for, and the gate that decides whether it still counts.
+    /// Whether writes through this view of the store still count.
     /// </summary>
     /// <remarks>
-    /// Null on the run's own store: writes that belong to no step - a fixture seeding a variable, the run
-    /// publishing its summary - are always honoured.
+    /// Unrestricted on the run's own store: writes that belong to no step - a fixture seeding a variable,
+    /// the run publishing its summary - are always honoured.
     /// </remarks>
-    private readonly StepAttemptGate? attemptGate;
-    private readonly StepAttempt? writer;
+    private readonly StepWriteLicence licence;
 
     /// <summary>
     /// A view of this store that writes on behalf of one attempt at one step.
@@ -77,8 +76,7 @@ public class VariableStore : IFreezable
         this.debuggingSession = source.debuggingSession;
         this.changeTokens = source.changeTokens;
         this.changeTokenLock = source.changeTokenLock;
-        this.attemptGate = gate;
-        this.writer = attempt;
+        this.licence = StepWriteLicence.For(gate, attempt);
     }
 
     internal VariableStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
@@ -89,6 +87,7 @@ public class VariableStore : IFreezable
         this.changeTokenLock = new object();
         this.logger = logger;
         this.debuggingSession = debuggingSession;
+        this.licence = StepWriteLicence.Unrestricted;
     }
 
     /// <summary>
@@ -100,17 +99,9 @@ public class VariableStore : IFreezable
     public void SetVariable<T>(VariableIdentifier identifier, T value)
     {
         // An attempt the runner has stopped waiting for is still running, and it must not be able to
-        // reach the stores a later test reads. Dropped rather than thrown: the abandoned attempt has
-        // nobody left to report to, and the warning is for whoever reads the log afterwards.
-        if (attemptGate is not null && !attemptGate.Allows(writer))
-        {
-            logger.LogWarning(
-                "A write to '{0}' from {1} was dropped: the run stopped waiting for that attempt.",
-                identifier.Identifier,
-                writer?.ToString() ?? "an unknown attempt");
-
+        // reach the stores a later test reads.
+        if (!licence.Allows(logger, identifier.Identifier))
             return;
-        }
 
         // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
         // expensive, and it used to happen up to three times per write with the lock held.

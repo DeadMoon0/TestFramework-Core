@@ -28,11 +28,9 @@ internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, Artifac
         ArtifactResolveResultGeneric artifactDataResult = await artifactInstance.Reference.ResolveToDataGenericAsync(serviceProvider, versionIdentifier, variableStore, logger);
         if (artifactDataResult.Found && artifactDataResult.Data is null)
             throw new ArtifactResolutionInvariantException(identifier, "artifact version capture", versionIdentifier);
-        artifactInstance.AddVersionGeneric(artifactDataResult.Data!);
-
-        // The version lands on the instance the store already holds, so nothing would otherwise
-        // tell a debugger the artifact moved on.
-        artifactStore.PublishArtifactChanged(artifactInstance);
+        // Asked of the store, not of the instance: the store is what checks that this attempt is still
+        // the one that counts, and what tells a debugger the artifact moved on.
+        artifactStore.CaptureVersion(artifactInstance, artifactDataResult.Data!);
 
         return EmptyStepResultContext.Instance;
     }
