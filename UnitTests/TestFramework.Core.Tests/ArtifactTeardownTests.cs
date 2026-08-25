@@ -1,3 +1,4 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -79,10 +80,10 @@ public class ArtifactTeardownTests
 
     private sealed class RecordingArtifactDescriber : ArtifactDescriber<RecordingArtifactDescriber, RecordingArtifactData, RecordingArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, RecordingArtifactData data, RecordingArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, RecordingArtifactData data, RecordingArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, RecordingArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, RecordingArtifactReference reference)
         {
             reference.Record();
             return Task.CompletedTask;
@@ -112,11 +113,7 @@ public class ArtifactTeardownTests
 
         public void Record() => _recorder.Deconstructed.Add(_name);
 
-        public override Task<ArtifactResolveResult<RecordingArtifactDescriber, RecordingArtifactData, RecordingArtifactReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            ScopedLogger logger)
+        public override Task<ArtifactResolveResult<RecordingArtifactDescriber, RecordingArtifactData, RecordingArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<RecordingArtifactDescriber, RecordingArtifactData, RecordingArtifactReference>
             {
                 Found = _found,
@@ -127,7 +124,7 @@ public class ArtifactTeardownTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

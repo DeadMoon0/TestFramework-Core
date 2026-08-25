@@ -1,6 +1,4 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
@@ -151,10 +149,10 @@ public class VariableStore : IFreezable
         };
     }
 
-    internal static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, string? displayText = null)
-        => GetDebuggingStateFromValue(value, identifier, DebugValueDescriber.Describe(value), displayText);
+    internal static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier)
+        => GetDebuggingStateFromValue(value, identifier, DebugValueDescriber.Describe(value));
 
-    private static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, DescribedValue described, string? displayText = null)
+    private static DebugValue GetDebuggingStateFromValue(object? value, VariableIdentifier identifier, DescribedValue described)
     {
         string typeName = value?.GetType().FullName ?? "null";
 
@@ -178,23 +176,6 @@ public class VariableStore : IFreezable
                 // carries it when it fits, and a value too big for a preview is written to a file.
             }
         };
-    }
-
-    private static JToken ToToken(object? value)
-    {
-        if (value is null)
-            return JValue.CreateNull();
-
-        try
-        {
-            return JToken.FromObject(value, JsonSerializer.CreateDefault());
-        }
-        catch (JsonException)
-        {
-            // A value that cannot be serialized is still worth reporting; losing the whole run to a
-            // debug-payload failure is not an acceptable trade.
-            return new JValue($"<unserializable {value.GetType().FullName}>");
-        }
     }
 
     /// <summary>

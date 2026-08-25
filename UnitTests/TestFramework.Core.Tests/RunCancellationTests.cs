@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -156,7 +156,7 @@ public sealed class RunCancellationTests
         public override string Description => "Asks the run to stop.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             debugger.RequestStop();
             return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
@@ -173,13 +173,13 @@ public sealed class RunCancellationTests
         public override string Description => "Asks the run to stop, then waits on the token.";
         public override bool DoesReturn => false;
 
-        public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             debugger.RequestStop();
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), context.Deadline.Token);
             }
             catch (OperationCanceledException)
             {
@@ -201,7 +201,7 @@ public sealed class RunCancellationTests
         public override string Description => "Records that it ran.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             recorder.Executed.Add(name);
             return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
@@ -219,10 +219,10 @@ public sealed class RunCancellationTests
 
     private sealed class RecordingDescriber : ArtifactDescriber<RecordingDescriber, RecordingData, RecordingReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, RecordingData data, RecordingReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, RecordingData data, RecordingReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, RecordingReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, RecordingReference reference)
         {
             reference.RecordDeconstructed();
             return Task.CompletedTask;
@@ -246,11 +246,7 @@ public sealed class RunCancellationTests
 
         public void RecordDeconstructed() => recorder.Deconstructed.Add("owned");
 
-        public override Task<ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            ScopedLogger logger)
+        public override Task<ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>
             {
                 Found = true,
@@ -258,7 +254,7 @@ public sealed class RunCancellationTests
             });
 
         public override void DeclareIO(StepIOContract contract) { }
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger) { }
+        public override void OnPinReference(RunContext context) { }
         public override string ToString() => "recording-reference";
     }
 }

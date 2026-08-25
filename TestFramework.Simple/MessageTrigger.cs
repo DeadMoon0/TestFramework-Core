@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -46,15 +46,12 @@ public class MessageTrigger(VariableReference<string> msg, VariableReference<str
     /// <summary>
     /// Writes the resolved caption and message to the run log.
     /// </summary>
-    /// <param name="serviceProvider">The runtime service provider for the current timeline run.</param>
-    /// <param name="variableStore">The variable store used to resolve message and caption values.</param>
-    /// <param name="artifactStore">The artifact store for the current timeline run.</param>
-    /// <param name="logger">The scoped logger for the current step execution.</param>
-    /// <param name="cancellationToken">The cancellation token for the current execution.</param>
     /// <returns>A completed task because the trigger does not produce a value.</returns>
-    public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    /// <param name="context">What this step is given.</param>
+    /// <returns>The step's result.</returns>
+    public override Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        logger.LogInformation($"[{caption.GetRequiredValue(variableStore)}] {msg.GetRequiredValue(variableStore)}");
+        context.Logger.LogInformation($"[{caption.GetRequiredValue(context.Variables)}] {msg.GetRequiredValue(context.Variables)}");
         return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 

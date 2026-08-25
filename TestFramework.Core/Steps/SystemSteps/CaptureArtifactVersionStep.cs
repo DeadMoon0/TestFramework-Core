@@ -22,15 +22,15 @@ internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, Artifac
         return new CaptureArtifactVersionStep(identifier, versionIdentifier).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
-        ArtifactResolveResultGeneric artifactDataResult = await artifactInstance.Reference.ResolveToDataGenericAsync(serviceProvider, versionIdentifier, variableStore, logger);
+        ArtifactInstanceGeneric artifactInstance = context.Artifacts.GetArtifact(identifier);
+        ArtifactResolveResultGeneric artifactDataResult = await artifactInstance.Reference.ResolveToDataGenericAsync(context, versionIdentifier);
         if (artifactDataResult.Found && artifactDataResult.Data is null)
             throw new ArtifactResolutionInvariantException(identifier, "artifact version capture", versionIdentifier);
         // Asked of the store, not of the instance: the store is what checks that this attempt is still
         // the one that counts, and what tells a debugger the artifact moved on.
-        artifactStore.CaptureVersion(artifactInstance, artifactDataResult.Data!);
+        context.Artifacts.CaptureVersion(artifactInstance, artifactDataResult.Data!);
 
         return EmptyStepResultContext.Instance;
     }

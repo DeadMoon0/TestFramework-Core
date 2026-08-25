@@ -1,9 +1,12 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Debugger;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
@@ -44,8 +47,24 @@ public class ArtifactRunIsolationTests
     public void CloneForRun_ResetsPinnedAndFrozenState()
     {
         PinningArtifactReference reference = new(new PinRecorder());
-        reference.Freeze();
-        reference.PinReference(null!, new ScopedLogger(null));
+
+        // Pinned first, then frozen: that is the order a run does it in, and since freezing a reference
+        // now refuses further pinning, the old order (freeze, then pin, then assert both) only ever
+        // passed because the frozen flag guarded nothing.
+        ScopedLogger logger = new ScopedLogger(null);
+        DebuggingRunSession session = new DebuggingRunSession(new EmptyRunDebugger());
+        ArtifactStore store = new ArtifactStore(logger, session);
+        VariableStore variables = new VariableStore(logger, session);
+
+        // The reference resolves this when it pins, which is the whole point of pinning: the answer is
+        // kept, so a later change to the variable cannot retarget the artifact.
+        variables.SetVariable("root", "/data");
+
+        store.PinNewReference(
+            "pinned",
+            reference,
+            RunContext.Ambient(new EmptyServiceProvider(), variables, store, logger, ValueResolution.Empty));
+        ((IFreezable)reference).Freeze();
 
         Assert.True(reference.IsFrozen);
         Assert.True(reference.IsPinned);
@@ -74,10 +93,10 @@ public class ArtifactRunIsolationTests
 
     private sealed class PinningArtifactDescriber : ArtifactDescriber<PinningArtifactDescriber, PinningArtifactData, PinningArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, PinningArtifactData data, PinningArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, PinningArtifactData data, PinningArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, PinningArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, PinningArtifactReference reference)
             => Task.CompletedTask;
 
         public override string ToString() => "pinning-artifact";
@@ -92,11 +111,7 @@ public class ArtifactRunIsolationTests
     {
         private string _pinnedPath = "unpinned";
 
-        public override Task<ArtifactResolveResult<PinningArtifactDescriber, PinningArtifactData, PinningArtifactReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            ScopedLogger logger)
+        public override Task<ArtifactResolveResult<PinningArtifactDescriber, PinningArtifactData, PinningArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<PinningArtifactDescriber, PinningArtifactData, PinningArtifactReference>
             {
                 Found = true,
@@ -107,9 +122,9 @@ public class ArtifactRunIsolationTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
-            _pinnedPath = variableStore?.GetVariable<string>("root") ?? "unpinned";
+            _pinnedPath = context.Variables?.GetVariable<string>("root") ?? "unpinned";
             recorder.Record(_pinnedPath);
         }
 

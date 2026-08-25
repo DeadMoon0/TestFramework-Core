@@ -722,16 +722,11 @@ public class MyCustomStep : Step<string>
         contract.Outputs.Add(new("result",  StepIOKind.Variable, Required: false, typeof(string)));
     }
 
-    public override async Task<string?> Execute(
-        IServiceProvider serviceProvider,
-        VariableStore variableStore,
-        ArtifactStore artifactStore,
-        ScopedLogger logger,
-        CancellationToken cancellationToken)
+    public override async Task<string?> Execute(RunContext context)
     {
-        var greeting = variableStore.GetVariable<string>("greeting");
-        logger.LogInformation($"Greeting: {greeting}");
-        variableStore.SetVariable("result", $"Processed: {greeting}");
+        var greeting = context.Variables.GetVariable<string>("greeting");
+        context.Logger.LogInformation($"Greeting: {greeting}");
+        context.Variables.SetVariable("result", $"Processed: {greeting}");
         return greeting;
     }
 }

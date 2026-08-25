@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -63,12 +63,7 @@ public class TimelineRunBuilderReuseTests
 
         public override Step<EmptyStepResultContext> Clone() => new ThrowingStep().WithClonedOptions(this);
 
-        public override Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => throw new InvalidOperationException("boom");
 
         public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);

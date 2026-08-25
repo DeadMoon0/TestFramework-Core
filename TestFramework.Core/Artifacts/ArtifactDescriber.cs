@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Steps;
+using System;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using TestFramework.Core;
@@ -19,22 +20,22 @@ public abstract class ArtifactDescriber<TArtifactDescriber, TArtifactData, TArti
     /// <summary>
     /// Sets up the typed artifact for use in the environment.
     /// </summary>
-    public abstract Task Setup(IServiceProvider serviceProvider, TArtifactData data, TArtifactReference reference, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task Setup(RunContext context, TArtifactData data, TArtifactReference reference);
 
     /// <summary>
     /// Deconstructs the typed artifact from the environment.
     /// </summary>
-    public abstract Task Deconstruct(IServiceProvider serviceProvider, TArtifactReference reference, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task Deconstruct(RunContext context, TArtifactReference reference);
 
     /// <summary>
     /// Sets up the artifact through the non-generic base contract.
     /// </summary>
-    public override Task SetupGeneric(IServiceProvider serviceProvider, ArtifactDataGeneric data, ArtifactReferenceGeneric reference, VariableStore variableStore, ScopedLogger logger) => Setup(serviceProvider, (TArtifactData)data, (TArtifactReference)reference, variableStore, logger);
+    public override Task SetupGeneric(RunContext context, ArtifactDataGeneric data, ArtifactReferenceGeneric reference) => Setup(context, (TArtifactData)data, (TArtifactReference)reference);
 
     /// <summary>
     /// Deconstructs the artifact through the non-generic base contract.
     /// </summary>
-    public override Task DeconstructGeneric(IServiceProvider serviceProvider, ArtifactReferenceGeneric reference, VariableStore variableStore, ScopedLogger logger) => Deconstruct(serviceProvider, (TArtifactReference)reference, variableStore, logger);
+    public override Task DeconstructGeneric(RunContext context, ArtifactReferenceGeneric reference) => Deconstruct(context, (TArtifactReference)reference);
 }
 
 /// <summary>
@@ -50,7 +51,12 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     /// <summary>
     /// Freezes the describer.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    /// <remarks>
+    /// Reached through <see cref="IFreezable"/> like every other part of an artifact. A describer is
+    /// behaviour rather than state, so this settles nothing today - it is here so that "a frozen artifact
+    /// is frozen all the way down" stays true if a describer ever holds something.
+    /// </remarks>
+    void IFreezable.Freeze() { IsFrozen = true; }
 
     /// <summary>
     /// Gets how setup for this artifact kind may be parallelized.
@@ -100,12 +106,12 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     /// <summary>
     /// Sets up the artifact through the non-generic contract.
     /// </summary>
-    public abstract Task SetupGeneric(IServiceProvider serviceProvider, ArtifactDataGeneric data, ArtifactReferenceGeneric reference, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task SetupGeneric(RunContext context, ArtifactDataGeneric data, ArtifactReferenceGeneric reference);
 
     /// <summary>
     /// Deconstructs the artifact through the non-generic contract.
     /// </summary>
-    public abstract Task DeconstructGeneric(IServiceProvider serviceProvider, ArtifactReferenceGeneric reference, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task DeconstructGeneric(RunContext context, ArtifactReferenceGeneric reference);
 
     /// <summary>
     /// Returns a human-readable description of the artifact kind.

@@ -145,6 +145,28 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AnAbandonedAttemptCannotPinAnArtifactsReference()
+    {
+        // Pinning resolves the reference's variables and keeps the answer, so a pin from an attempt the
+        // run has stopped waiting for would aim this artifact - and the cleanup that deletes it - at
+        // whatever that attempt's stale values pointed to.
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        StepAttemptGate gate = new StepAttemptGate();
+
+        ArtifactInstanceGeneric instance = Instance("row");
+        store.AddArtifact(instance);
+
+        StepAttempt abandoned = gate.Begin("setup", 1);
+        ArtifactStore abandonedView = store.ForAttempt(gate, abandoned);
+
+        gate.Begin("next-step", 1);
+
+        abandonedView.PinReference(instance, null!);
+
+        Assert.False(instance.Reference.IsPinned);
+    }
+
+    [Fact]
     public void TheLiveAttemptsArtifactWritesStillLand()
     {
         // The positive half. A quarantine that also stops the live attempt would be a worse bug than the
@@ -159,9 +181,11 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         liveView.AddArtifact(instance);
         liveView.CaptureVersion(instance, new TestArtifactData());
         liveView.MarkState(instance, Artifacts.ArtifactState.Setup);
+        liveView.PinReference(instance, null!);
 
         Assert.Equal(2, instance.VersionCount);
         Assert.Equal(Artifacts.ArtifactState.Setup, instance.State);
+        Assert.True(instance.Reference.IsPinned);
         Assert.Equal(["row"], store.GetAll().Select(held => held.Identifier.Identifier));
     }
 
@@ -189,16 +213,11 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         {
         }
 
-        public override async Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), context.Deadline.Token);
             }
             catch (OperationCanceledException)
             {
@@ -230,12 +249,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         {
         }
 
-        public override async Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             // No token anywhere: the step never learns it should stop.
             while (!release.IsSet)
@@ -249,9 +263,9 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
 
     private sealed class TestArtifactDescriber : ArtifactDescriber<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, TestArtifactData data, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Setup(RunContext context, TestArtifactData data, TestArtifactReference reference) => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, TestArtifactReference reference) => Task.CompletedTask;
 
         public override string ToString() => "test-artifact";
     }
@@ -263,7 +277,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
 
     private sealed class TestArtifactReference : ArtifactReference<TestArtifactReference, TestArtifactDescriber, TestArtifactData>
     {
-        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
             {
                 Found = true,
@@ -274,7 +288,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

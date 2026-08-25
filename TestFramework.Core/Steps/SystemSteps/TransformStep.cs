@@ -24,9 +24,9 @@ internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, Variable
         return new TransformStep<TFrom, TTo>(toVariable, fromVariable, transformer).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        variableStore.SetVariable(toVariable, await transformer(fromVariable.GetValue(variableStore)));
+        context.Variables.SetVariable(toVariable, await transformer(fromVariable.GetValue(context.Variables)));
         return EmptyStepResultContext.Instance;
     }
 

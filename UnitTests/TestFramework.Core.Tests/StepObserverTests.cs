@@ -284,12 +284,7 @@ public class StepObserverTests(ITestOutputHelper output)
         {
         }
 
-        public override Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 
@@ -309,12 +304,7 @@ public class StepObserverTests(ITestOutputHelper output)
         {
         }
 
-        public override Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => throw new InvalidOperationException("The warehouse said no.");
     }
 
@@ -334,14 +324,9 @@ public class StepObserverTests(ITestOutputHelper output)
         {
         }
 
-        public override async Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
-            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(30), context.Deadline.Token);
 
             return EmptyStepResultContext.Instance;
         }

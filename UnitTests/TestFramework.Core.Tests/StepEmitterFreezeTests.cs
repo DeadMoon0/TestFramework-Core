@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -42,12 +42,7 @@ public class StepEmitterFreezeTests
 
         public override Step<EmptyStepResultContext> Clone() => new NoopStep().WithClonedOptions(this);
 
-        public override Task<EmptyStepResultContext?> Execute(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);

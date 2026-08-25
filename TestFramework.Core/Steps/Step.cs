@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -25,12 +28,15 @@ public abstract class Step<TStepResultContext> : StepGeneric where TStepResultCo
     /// <summary>
     /// Executes the step.
     /// </summary>
-    /// <param name="serviceProvider">The service provider available to the step.</param>
-    /// <param name="variableStore">The current run variable store.</param>
-    /// <param name="artifactStore">The current run artifact store.</param>
-    /// <param name="logger">The scoped logger for the run.</param>
-    /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<TStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    /// <remarks>
+    /// Everything the step is given arrives on the context, including how long it has
+    /// (<c>context.Deadline</c>) and where the run's resources ended up (<c>context.Values</c>). There is
+    /// no separate cancellation token: a step whose token could differ from its own deadline is a step
+    /// that believes it has time it does not have.
+    /// </remarks>
+    /// <param name="context">What this step is given.</param>
+    /// <returns>The step's result.</returns>
+    public abstract Task<TStepResultContext?> Execute(RunContext context);
 
     /// <summary>
     /// Creates a runtime instance for this step.
@@ -52,7 +58,9 @@ public abstract class Step<TStepResultContext> : StepGeneric where TStepResultCo
     /// <summary>
     /// Executes the step through the untyped base contract.
     /// </summary>
-    public override async Task<object?> ExecuteGeneric(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken) => await Execute(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
+    /// <param name="context">What this step is given.</param>
+    /// <returns>The step's result.</returns>
+    public override async Task<object?> ExecuteGeneric(RunContext context) => await Execute(context);
 
     /// <summary>
     /// Creates an untyped runtime instance for this step.
@@ -78,16 +86,50 @@ public abstract class StepGeneric : IFreezable
     /// <summary>
     /// Freezes the step definition and its option objects.
     /// </summary>
+    /// <remarks>
+    /// The options are found rather than listed. A hand-written list is one line away from being wrong
+    /// every time an option object is added - and it was: <c>LabelOptions</c> was missing from it, so a
+    /// frozen step's label could still be changed while everything else about it was settled.
+    /// </remarks>
     public void Freeze()
     {
         IsFrozen = true;
-        RetryOptions.Freeze();
-        ErrorHandlingOptions.Freeze();
-        TimeOutOptions.Freeze();
-        ExecutionOptions.Freeze();
-        ResultOptions.Freeze();
-        IOContract.Freeze();
+
+        foreach ((string _, IFreezable part) in this.FrameworkOptions())
+        {
+            part.Freeze();
+        }
     }
+
+    /// <summary>
+    /// The framework's own option objects on this step, by property name.
+    /// </summary>
+    /// <remarks>
+    /// Read from <see cref="StepGeneric"/> itself, never from the concrete step: a derived step may
+    /// expose freezable things it shares with the rest of the run - an artifact reference, say - and
+    /// freezing those here would settle them for everyone else too.
+    /// </remarks>
+    /// <returns>The option objects.</returns>
+    internal IEnumerable<(string Name, IFreezable Part)> FrameworkOptions()
+    {
+        foreach (PropertyInfo property in optionProperties)
+        {
+            if (property.GetValue(this) is IFreezable part)
+            {
+                yield return (property.Name, part);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every freezable option declared on <see cref="StepGeneric"/>. Computed once; the set is a fact
+    /// about the type, not about any step.
+    /// </summary>
+    private static readonly PropertyInfo[] optionProperties =
+        [.. typeof(StepGeneric)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(static property => typeof(IFreezable).IsAssignableFrom(property.PropertyType))
+            .OrderBy(static property => property.Name, StringComparer.Ordinal)];
 
     /// <summary>
     /// Gets the display name of the step.
@@ -153,7 +195,9 @@ public abstract class StepGeneric : IFreezable
     /// <summary>
     /// Executes the step through the untyped base contract.
     /// </summary>
-    public abstract Task<object?> ExecuteGeneric(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    /// <param name="context">What this step is given.</param>
+    /// <returns>The step's result.</returns>
+    public abstract Task<object?> ExecuteGeneric(RunContext context);
 
     /// <summary>
     /// Declares the step input and output contract.

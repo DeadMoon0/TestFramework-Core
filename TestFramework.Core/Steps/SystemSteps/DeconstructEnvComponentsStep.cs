@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -10,7 +10,7 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class DeconstructEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext context) : Step<EmptyStepResultContext>
+internal class DeconstructEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext components) : Step<EmptyStepResultContext>
 {
     public override bool DoesReturn => false;
 
@@ -19,22 +19,14 @@ internal class DeconstructEnvComponentsStep(IEnvironmentProvider environment, En
 
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new DeconstructEnvComponentsStep(environment, context).WithClonedOptions(this);
+        return new DeconstructEnvComponentsStep(environment, components).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        await EnvComponentLifecycleRunner.DeconstructAsync(
-            environment,
-            context.GetCreationOrder(),
-            serviceProvider,
-            variableStore,
-            artifactStore,
-            logger,
-            cancellationToken,
-            identifier =>
+        await EnvComponentLifecycleRunner.DeconstructAsync(environment, components.GetCreationOrder(), context, identifier =>
             {
-                context.TryGetState(identifier, out object? state);
+                components.TryGetState(identifier, out object? state);
                 return state;
             });
 

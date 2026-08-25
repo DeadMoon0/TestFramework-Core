@@ -1,3 +1,4 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -460,10 +461,10 @@ public class ExceptionTests
 
     private sealed class BrokenArtifactFinder : ArtifactFinder<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference>
     {
-        public override Task<ArtifactFinderResult?> FindAsync(IServiceProvider serviceProvider, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger, System.Threading.CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResult?> FindAsync(RunContext context)
             => Task.FromResult<ArtifactFinderResult?>(new ArtifactFinderResult(new BrokenArtifactReference(BrokenArtifactReferenceMode.ReturnNullData)));
 
-        public override Task<ArtifactFinderResultMulti> FindMultiAsync(IServiceProvider serviceProvider, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger, System.Threading.CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResultMulti> FindMultiAsync(RunContext context)
             => throw new NotSupportedException();
     }
 
@@ -487,7 +488,7 @@ public class ExceptionTests
 
     private sealed class BrokenArtifactReference(BrokenArtifactReferenceMode mode) : ArtifactReference<BrokenArtifactReference, BrokenArtifactDescriber, BrokenArtifactData>
     {
-        public override Task<ArtifactResolveResult<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
+        public override Task<ArtifactResolveResult<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference>
             {
                 Found = true,
@@ -498,7 +499,7 @@ public class ExceptionTests
         {
         }
 
-        public override void OnPinReference(TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
@@ -512,10 +513,10 @@ public class ExceptionTests
 
     private sealed class BrokenArtifactDescriber : ArtifactDescriber<BrokenArtifactDescriber, BrokenArtifactData, BrokenArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, BrokenArtifactData data, BrokenArtifactReference reference, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
+        public override Task Setup(RunContext context, BrokenArtifactData data, BrokenArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, BrokenArtifactReference reference, TestFramework.Core.Variables.VariableStore variableStore, TestFramework.Core.Logging.ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, BrokenArtifactReference reference)
             => Task.CompletedTask;
 
         public override string ToString() => nameof(BrokenArtifactDescriber);

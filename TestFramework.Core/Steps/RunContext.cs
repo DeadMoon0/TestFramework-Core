@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
@@ -82,26 +82,43 @@ public sealed class RunContext
     public StepAttempt? Attempt { get; }
 
     /// <summary>
-    /// Builds a context for code that runs outside a step - a fixture, a persistent environment.
+    /// Builds a context for code that runs outside a step - a fixture, a persistent environment, or a
+    /// step being driven directly by its own unit test.
     /// </summary>
+    /// <remarks>
+    /// No deadline, because nothing is timing this: the token is honoured, so the work is still
+    /// cancellable, but <c>Remaining</c> is unbounded rather than a number somebody invented. No attempt
+    /// either, so writes through it are the run's own rather than a step's - which is right, because there
+    /// is no attempt for the gate to quarantine.
+    /// </remarks>
     /// <param name="services">The registered services.</param>
     /// <param name="variables">The variables.</param>
     /// <param name="artifacts">The artifacts.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="values">The resource values.</param>
-    /// <returns>The context, with no deadline and no attempt.</returns>
+    /// <param name="values">
+    /// The resource values. Inside a real run this is that run's own resolution; a step being tested on
+    /// its own can use <see cref="ValueResolution.Empty"/>.
+    /// </param>
+    /// <param name="cancellationToken">What stops the work, when anything does.</param>
+    /// <param name="timeout">
+    /// How long the work has, when the caller has a budget of its own - a persistent environment
+    /// bootstrap does. Left out, the deadline is unbounded and only the token stops anything.
+    /// </param>
+    /// <returns>The context.</returns>
     public static RunContext Ambient(
         IServiceProvider services,
         VariableStore variables,
         ArtifactStore artifacts,
         ScopedLogger logger,
-        ValueResolution values)
+        ValueResolution values,
+        System.Threading.CancellationToken cancellationToken = default,
+        TimeSpan? timeout = null)
         => new RunContext(
             services,
             variables,
             artifacts,
             logger,
             values,
-            new StepDeadline(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.CancellationToken.None),
+            new StepDeadline(timeout ?? System.Threading.Timeout.InfiniteTimeSpan, cancellationToken),
             attempt: null);
 }

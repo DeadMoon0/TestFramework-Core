@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Runner;
 using TestFramework.Core.Stages;
@@ -39,7 +40,7 @@ public class CoreRunnerParallelizationTests
             new PrepareBlockingStep("second", secondStepStarted, releaseSteps));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -65,7 +66,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("second", secondStepStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -94,7 +95,7 @@ public class CoreRunnerParallelizationTests
             new PrepareBlockingStep("prepare-2", secondPrepareStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -125,7 +126,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("consumer", consumerStarted, CreateSignal(completed: true), inputs: [new StepIOEntry("user", StepIOKind.Variable)]));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -154,7 +155,7 @@ public class CoreRunnerParallelizationTests
             new BlockingStep("candidate", parallelCandidateStarted, CreateSignal(completed: true)));
 
         RuntimeContext runtime = RuntimeContext.Create();
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -191,7 +192,7 @@ public class CoreRunnerParallelizationTests
             new TestSerializedArtifactReference("b", new TestSerializedArtifactData()),
             new TestSerializedArtifactData()));
 
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -229,7 +230,7 @@ public class CoreRunnerParallelizationTests
             new TestKeyedArtifactReference("b", "sql-b"),
             new TestKeyedArtifactData()));
 
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -264,7 +265,7 @@ public class CoreRunnerParallelizationTests
             new TestSerializedArtifactReference("a", new TestSerializedArtifactData()),
             new TestSerializedArtifactData()));
 
-        CoreRunner runner = new(StepObservers.None);
+        CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
 
         Task runTask = runner.RunStage(stage, runtime.ServiceProvider, runtime.Logger, runtime.VariableStore, runtime.ArtifactStore, runtime.DebuggingSession);
 
@@ -352,10 +353,10 @@ public class CoreRunnerParallelizationTests
         public override string Description => $"Blocking step '{name}'.";
         public override bool DoesReturn => false;
 
-        public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             started.TrySetResult();
-            await release.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            await release.Task.WaitAsync(TimeSpan.FromSeconds(2), context.Deadline.Token);
             return EmptyStepResultContext.Instance;
         }
 
@@ -413,13 +414,13 @@ public class CoreRunnerParallelizationTests
 
         public override ArtifactSetupParallelizationMode SetupParallelization => ArtifactSetupParallelizationMode.SerializeByArtifactType;
 
-        public override async Task Setup(IServiceProvider serviceProvider, TestSerializedArtifactData data, TestSerializedArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override async Task Setup(RunContext context, TestSerializedArtifactData data, TestSerializedArtifactReference reference)
         {
             started.TrySetResult();
             await release.Task.WaitAsync(SignalTimeout);
         }
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestSerializedArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, TestSerializedArtifactReference reference) => Task.CompletedTask;
 
         public override string ToString() => "serialized-artifact";
     }
@@ -452,13 +453,13 @@ public class CoreRunnerParallelizationTests
             return $"keyed:{reference.ResourceKey}";
         }
 
-        public override async Task Setup(IServiceProvider serviceProvider, TestKeyedArtifactData data, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override async Task Setup(RunContext context, TestKeyedArtifactData data, TestKeyedArtifactReference reference)
         {
             started.TrySetResult();
             await release.Task.WaitAsync(SignalTimeout);
         }
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestKeyedArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, TestKeyedArtifactReference reference) => Task.CompletedTask;
 
         public override string ToString() => "keyed-artifact";
     }
@@ -474,7 +475,7 @@ public class CoreRunnerParallelizationTests
 
         public string ResourceKey { get; } = resourceKey;
 
-        public override Task<ArtifactResolveResult<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
         {
             return Task.FromResult(new ArtifactResolveResult<TestKeyedArtifactDescriber, TestKeyedArtifactData, TestKeyedArtifactReference>
             {
@@ -487,7 +488,7 @@ public class CoreRunnerParallelizationTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
@@ -496,7 +497,7 @@ public class CoreRunnerParallelizationTests
 
     private sealed class TestSerializedArtifactReference(string name, TestSerializedArtifactData data) : ArtifactReference<TestSerializedArtifactReference, TestSerializedArtifactDescriber, TestSerializedArtifactData>
     {
-        public override Task<ArtifactResolveResult<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
         {
             return Task.FromResult(new ArtifactResolveResult<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>
             {
@@ -509,7 +510,7 @@ public class CoreRunnerParallelizationTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

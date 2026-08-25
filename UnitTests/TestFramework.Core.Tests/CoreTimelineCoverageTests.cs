@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -117,16 +117,16 @@ public class CoreTimelineCoverageTests
     [Fact]
     public async Task TimelineRun_WaitForSequentialReturningEvent_DoesNotCompleteBeforePayloadIsAvailable()
     {
-        ReturningSequentialProbeEvent probeEvent = new();
+        PollCounter polls = new PollCounter();
         Timeline timeline = Timeline.Create()
-            .WaitForEvent(probeEvent)
+            .WaitForEvent(new ReturningSequentialProbeEvent(polls))
             .Name("await-event")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
 
         run.EnsureRanToCompletion();
-        Assert.Equal(2, probeEvent.Attempts);
+        Assert.Equal(2, polls.Attempts);
         Assert.Equal("done", Assert.IsType<TextResultContext>(run.Step("await-event").LastResult.Result).Value);
     }
 
@@ -284,7 +284,7 @@ public class CoreTimelineCoverageTests
             _value = value;
         }
 
-        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, Logging.ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
             {
                 Found = true,
@@ -295,7 +295,7 @@ public class CoreTimelineCoverageTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, Logging.ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
@@ -315,8 +315,8 @@ public class CoreTimelineCoverageTests
 
     private sealed class TestArtifactDescriber : ArtifactDescriber<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, TestArtifactData data, TestArtifactReference reference, VariableStore variableStore, Logging.ScopedLogger logger) => Task.CompletedTask;
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestArtifactReference reference, VariableStore variableStore, Logging.ScopedLogger logger) => Task.CompletedTask;
+        public override Task Setup(RunContext context, TestArtifactData data, TestArtifactReference reference) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, TestArtifactReference reference) => Task.CompletedTask;
         public override string ToString() => "TestArtifact";
     }
 
@@ -333,7 +333,7 @@ public class CoreTimelineCoverageTests
         public override string Description => "Fails a fixed number of times before succeeding.";
         public override bool DoesReturn => true;
 
-        public override Task<TextResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<TextResultContext?> Execute(RunContext context)
         {
             int attempt = probe.Increment();
             if (attempt <= failuresBeforeSuccess)
@@ -356,9 +356,9 @@ public class CoreTimelineCoverageTests
         public override string Description => "Captures the current loop variable value.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
         {
-            seen.Add(variableStore.GetVariable<string>(variableName)!);
+            seen.Add(context.Variables.GetVariable<string>(variableName)!);
             return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
         }
 
@@ -378,9 +378,9 @@ public class CoreTimelineCoverageTests
         public override string Description => "Writes a log line through the scoped logger.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
         {
-            logger.LogInformation(message);
+            context.Logger.LogInformation(message);
             return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
         }
 
@@ -399,7 +399,7 @@ public class CoreTimelineCoverageTests
         public override string Description => "Returns a constant string.";
         public override bool DoesReturn => true;
 
-        public override Task<TextResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<TextResultContext?> Execute(RunContext context)
             => Task.FromResult<TextResultContext?>(new TextResultContext(value));
 
         public override void DeclareIO(StepIOContract contract)
@@ -411,22 +411,32 @@ public class CoreTimelineCoverageTests
         public override StepInstance<Step<TextResultContext>, TextResultContext> GetInstance() => new(this);
     }
 
-    private sealed class ReturningSequentialProbeEvent : SequentialEvent<ReturningSequentialProbeEvent, TextResultContext>
+    /// <summary>
+    /// Counts polls across the clone boundary: the run executes a clone of the event, not the object the
+    /// test is holding, so the count has to live outside both.
+    /// </summary>
+    private sealed class PollCounter
     {
         public int Attempts { get; private set; }
 
+        public int Next() => ++this.Attempts;
+    }
+
+    private sealed class ReturningSequentialProbeEvent(PollCounter polls) : SequentialEvent<ReturningSequentialProbeEvent, TextResultContext>
+    {
         public override string Name => "ReturningSequentialProbeEvent";
 
         public override string Description => "Returns an incomplete poll once before yielding a value.";
 
         public override bool DoesReturn => true;
 
-        public override Step<TextResultContext> Clone() => this;
+        // Shares the counter, not itself. Returning 'this' would hand the run the test's own object, so
+        // the modifiers applied for this run would edit it - which is why the framework refuses it.
+        public override Step<TextResultContext> Clone() => new ReturningSequentialProbeEvent(polls).WithClonedOptions(this);
 
-        public override Task<SequentialPollingResult<TextResultContext>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<SequentialPollingResult<TextResultContext>> OnSequentialPolling(RunContext context)
         {
-            Attempts++;
-            return Task.FromResult(Attempts == 1
+            return Task.FromResult(polls.Next() == 1
             ? new SequentialPollingResult<TextResultContext>(false, null, TimeSpan.Zero)
             : new SequentialPollingResult<TextResultContext>(true, new TextResultContext("done"), TimeSpan.Zero));
         }

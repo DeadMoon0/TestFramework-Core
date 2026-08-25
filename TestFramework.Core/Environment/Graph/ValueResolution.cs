@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Exceptions;
@@ -27,6 +27,17 @@ namespace TestFramework.Core.Environment.Graph;
 /// </remarks>
 public sealed class ValueResolution
 {
+    /// <summary>
+    /// A run that declares no resources at all.
+    /// </summary>
+    /// <remarks>
+    /// For driving a step directly - a package unit-testing its own step, without a timeline around it.
+    /// Reading anything from it fails saying nothing in this run supplies it, which is the truth for a
+    /// step being exercised on its own. Handing this to something that runs inside a real run would hide
+    /// that run's actual resources, so a step under a timeline always gets the run's own resolution.
+    /// </remarks>
+    public static ValueResolution Empty { get; } = new ValueResolution(new ResourceValueStore());
+
     private readonly ResourceValueStore store;
 
     internal ValueResolution(ResourceValueStore store)

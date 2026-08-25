@@ -21,16 +21,16 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
         return new DeconstructArtifactStep(identifier).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
-        logger.LogInformation("Artifact: '{0}' of Type: '{1}'", identifier, artifactInstance.Artifact.GetType());
+        ArtifactInstanceGeneric artifactInstance = context.Artifacts.GetArtifact(identifier);
+        context.Logger.LogInformation("Artifact: '{0}' of Type: '{1}'", identifier, artifactInstance.Artifact.GetType());
         if (artifactInstance.State != ArtifactState.Setup) return EmptyStepResultContext.Instance;
         // Contradictory instructions, so this fails loudly rather than picking one silently.
         if (artifactInstance.IsReadonly) throw new ArtifactMarkedReadonlyException(identifier);
         if (!artifactInstance.Reference.CanDeconstruct) throw new ArtifactDeconstructionUnavailableException(identifier);
-        await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
-        artifactStore.MarkState(artifactInstance, ArtifactState.Cleaned);
+        await artifactInstance.Artifact.DeconstructGeneric(context, artifactInstance.Reference);
+        context.Artifacts.MarkState(artifactInstance, ArtifactState.Cleaned);
         return EmptyStepResultContext.Instance;
     }
 

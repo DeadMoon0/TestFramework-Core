@@ -1,3 +1,4 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -75,13 +76,13 @@ public class NamingTests
 
         public DummyFinder(int count) { _count = count; }
 
-        public override Task<ArtifactFinderResult?> FindAsync(System.IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResult?> FindAsync(RunContext context)
         {
             // single not used in these tests
             return Task.FromResult<ArtifactFinderResult?>(null);
         }
 
-        public override Task<ArtifactFinderResultMulti> FindMultiAsync(System.IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResultMulti> FindMultiAsync(RunContext context)
         {
             var results = new ArtifactFinderResult[_count];
             for (int i = 0; i < _count; i++)
@@ -94,8 +95,8 @@ public class NamingTests
 
     private sealed class DummyDescriber : ArtifactDescriber<DummyDescriber, DummyData, DummyReference>
     {
-        public override System.Threading.Tasks.Task Deconstruct(IServiceProvider serviceProvider, DummyReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
-        public override System.Threading.Tasks.Task Setup(IServiceProvider serviceProvider, DummyData data, DummyReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override System.Threading.Tasks.Task Deconstruct(RunContext context, DummyReference reference) => Task.CompletedTask;
+        public override System.Threading.Tasks.Task Setup(RunContext context, DummyData data, DummyReference reference) => Task.CompletedTask;
         public override string ToString() => "dummy";
     }
 
@@ -115,14 +116,14 @@ public class NamingTests
             _data = data;
         }
 
-        public override Task<ArtifactResolveResult<DummyDescriber, DummyData, DummyReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<DummyDescriber, DummyData, DummyReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
         {
             return Task.FromResult(new ArtifactResolveResult<DummyDescriber, DummyData, DummyReference> { Found = true, Data = _data });
         }
 
         public override void DeclareIO(StepIOContract contract) { }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger) { }
+        public override void OnPinReference(RunContext context) { }
 
         public override ArtifactDescriberGeneric GetArtifactDescriberGeneric() => new DummyDescriber();
 

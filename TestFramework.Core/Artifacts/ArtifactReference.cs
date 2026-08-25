@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Steps;
+using System;
 using System.Threading.Tasks;
 using TestFramework.Core;
 using TestFramework.Core.Logging;
@@ -48,12 +49,12 @@ public abstract class ArtifactReference<TArtifactReference, TArtifactDescriber, 
     /// <summary>
     /// Resolves the reference to typed artifact data.
     /// </summary>
-    public abstract Task<ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task<ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier);
 
     /// <summary>
     /// Resolves the reference through the untyped base contract.
     /// </summary>
-    public override async Task<ArtifactResolveResultGeneric> ResolveToDataGenericAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger) => await ResolveToDataAsync(serviceProvider, versionIdentifier, variableStore, logger);
+    public override async Task<ArtifactResolveResultGeneric> ResolveToDataGenericAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier) => await ResolveToDataAsync(context, versionIdentifier);
 
     /// <summary>
     /// Returns the typed artifact describer associated with the reference.
@@ -80,9 +81,14 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the artifact reference.
+    /// Freezes the artifact reference against further pinning.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    /// <remarks>
+    /// Reached through <see cref="IFreezable"/> rather than offered here: the run settles its artifacts
+    /// when it ends, and freezing a reference before its setup step pins it would fail that step for
+    /// reasons the step cannot explain.
+    /// </remarks>
+    void IFreezable.Freeze() { IsFrozen = true; }
 
     /// <summary>
     /// Gets a value indicating whether the reference has already been pinned.
@@ -92,11 +98,22 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     /// <summary>
     /// Pins the reference against the current variable store.
     /// </summary>
-    public void PinReference(VariableStore variableStore, ScopedLogger logger)
+    /// <remarks>
+    /// Asked of the store - <c>ArtifactStore.PinReference</c> - rather than called on the reference.
+    /// Pinning resolves this reference's variables and keeps the answer, so a pin from an attempt the run
+    /// has stopped waiting for would aim the artifact, and the cleanup that deletes it, at whatever that
+    /// attempt's stale values pointed to. The ticket is what makes the store the only route.
+    /// </remarks>
+    /// <param name="context">What the pinning code is given, including the variables to resolve against.</param>
+    /// <param name="ticket">Proof the store allowed this write.</param>
+    internal void Pin(RunContext context, ArtifactWriteTicket ticket)
     {
+        ArgumentNullException.ThrowIfNull(ticket);
+        ((IFreezable)this).EnsureNotFrozen();
+
         if (IsPinned) return;
         IsPinned = true;
-        OnPinReference(variableStore, logger);
+        OnPinReference(context);
     }
 
     /// <summary>
@@ -128,7 +145,7 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     /// <summary>
     /// Resolves the reference to artifact data through the non-generic base contract.
     /// </summary>
-    public abstract Task<ArtifactResolveResultGeneric> ResolveToDataGenericAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger);
+    public abstract Task<ArtifactResolveResultGeneric> ResolveToDataGenericAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier);
 
     /// <summary>
     /// Declares the IO contract implied by the reference.
@@ -138,7 +155,7 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     /// <summary>
     /// Performs the pinning behavior for the reference.
     /// </summary>
-    public abstract void OnPinReference(VariableStore variableStore, ScopedLogger logger);
+    public abstract void OnPinReference(RunContext context);
 
     /// <summary>
     /// Returns a human-readable description of the reference.

@@ -16,6 +16,7 @@ using TestFramework.Core.Variables;
 using TestFramework.Core.Logging.BuildInEvents;
 using TestFramework.Core.Runner;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Steps.SystemSteps;
 using Xunit.Abstractions;
 
@@ -85,9 +86,14 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
             : _serviceProvider;
 
+        // Composed and validated before anything runs: a route to a value nothing offers, or two resources
+        // waiting on each other, is a sentence at plan time rather than a step timing out later against an
+        // address nobody supplied.
+        RunResources resources = RunResources.Compose(runServiceProvider, _environment);
+
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
-        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, logger);
+        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, logger);
 
         await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
         await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
@@ -95,7 +101,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
         // would be a different instance per stage if the caller registered it as transient, and evidence
         // it gathered in one stage would be lost by the next.
-        var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider));
+        var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), resources.Resolution);
         var totalStopwatch = Stopwatch.StartNew();
         bool runTransitionCompleted = false;
         try

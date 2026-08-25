@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -423,13 +423,13 @@ public class CoreEnvironmentTests
 
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
 
-        public override Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
         {
             calls.Add($"create:{Id}");
             return Task.FromResult((object?)$"state:{Id}");
         }
 
-        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
         {
             calls.Add($"deconstruct:{Id}:{state}");
             return Task.CompletedTask;
@@ -448,15 +448,15 @@ public class CoreEnvironmentTests
 
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
 
-        public override async Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
         {
             calls.Add($"create:{Id}:start");
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(5), context.Deadline.Token);
             calls.Add($"create:{Id}:end");
             return $"state:{Id}";
         }
 
-        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
             => Task.CompletedTask;
     }
 
@@ -468,13 +468,13 @@ public class CoreEnvironmentTests
 
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => _dependencies;
 
-        public override async Task<object?> CreateAsync(IEnvironmentProvider environmentProvider, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<object?> CreateAsync(IEnvironmentProvider environmentProvider, RunContext context)
         {
             calls.Add($"start:{Id}");
             environment.OnCreateStart();
             try
             {
-                await Task.Delay(75, cancellationToken);
+                await Task.Delay(75, context.Deadline.Token);
                 calls.Add($"end:{Id}");
                 calls.Add($"create:{Id}");
                 return $"state:{Id}";
@@ -485,7 +485,7 @@ public class CoreEnvironmentTests
             }
         }
 
-        public override Task DeconstructAsync(object? state, IEnvironmentProvider environmentProvider, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environmentProvider, RunContext context)
         {
             calls.Add($"deconstruct:{Id}:{state}");
             return Task.CompletedTask;
@@ -498,7 +498,7 @@ public class CoreEnvironmentTests
         public override string Description => "NoOp";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new NoOpStep().WithClonedOptions(this);
@@ -519,7 +519,7 @@ public class CoreEnvironmentTests
         public IReadOnlyCollection<EnvironmentRequirement> GetEnvironmentRequirements(VariableStore variableStore)
             => [new EnvironmentRequirement("test.servicebus", "bus")];
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new RequirementStep().WithClonedOptions(this);
@@ -533,10 +533,10 @@ public class CoreEnvironmentTests
 
     private sealed class TestArtifactDescriber : ArtifactDescriber<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, TestArtifactData data, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, TestArtifactData data, TestArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, TestArtifactReference reference)
             => Task.CompletedTask;
 
         public override string ToString() => nameof(TestArtifactDescriber);
@@ -549,7 +549,7 @@ public class CoreEnvironmentTests
 
     private sealed class TestArtifactReference : ArtifactReference<TestArtifactReference, TestArtifactDescriber, TestArtifactData>
     {
-        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
             {
                 Found = true,
@@ -560,7 +560,7 @@ public class CoreEnvironmentTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
@@ -569,10 +569,10 @@ public class CoreEnvironmentTests
 
     private sealed class GenericArtifactDescriber<T> : ArtifactDescriber<GenericArtifactDescriber<T>, GenericArtifactData<T>, GenericArtifactReference<T>>
     {
-        public override Task Setup(IServiceProvider serviceProvider, GenericArtifactData<T> data, GenericArtifactReference<T> reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, GenericArtifactData<T> data, GenericArtifactReference<T> reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, GenericArtifactReference<T> reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, GenericArtifactReference<T> reference)
             => Task.CompletedTask;
 
         public override string ToString() => nameof(GenericArtifactDescriber<T>);
@@ -585,7 +585,7 @@ public class CoreEnvironmentTests
 
     private sealed class GenericArtifactReference<T> : ArtifactReference<GenericArtifactReference<T>, GenericArtifactDescriber<T>, GenericArtifactData<T>>
     {
-        public override Task<ArtifactResolveResult<GenericArtifactDescriber<T>, GenericArtifactData<T>, GenericArtifactReference<T>>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<GenericArtifactDescriber<T>, GenericArtifactData<T>, GenericArtifactReference<T>>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<GenericArtifactDescriber<T>, GenericArtifactData<T>, GenericArtifactReference<T>>
             {
                 Found = true,
@@ -596,7 +596,7 @@ public class CoreEnvironmentTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

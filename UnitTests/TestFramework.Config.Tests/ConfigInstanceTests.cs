@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -188,10 +188,10 @@ public class ConfigInstanceTests
 
         public override EnvComponentReuseMode ReuseMode => ReuseModeOverride;
 
-        public override Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
             => Task.FromResult((object?)$"state:{Id}");
 
-        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
             => Task.CompletedTask;
     }
 
@@ -201,7 +201,7 @@ public class ConfigInstanceTests
         public override string Description => "ConfigNoOp";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new ConfigNoOpStep().WithClonedOptions(this);

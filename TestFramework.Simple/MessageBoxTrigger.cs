@@ -126,16 +126,13 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <summary>
     /// Shows the configured Windows message box.
     /// </summary>
-    /// <param name="serviceProvider">The runtime service provider for the current timeline run.</param>
-    /// <param name="variableStore">The variable store used to resolve message and caption values.</param>
-    /// <param name="artifactStore">The artifact store for the current timeline run.</param>
-    /// <param name="logger">The scoped logger for the current step execution.</param>
-    /// <param name="cancellationToken">The cancellation token for the current execution.</param>
     /// <returns>A completed task because the trigger does not produce a value.</returns>
     /// <remarks>This trigger requires Windows because it calls <c>user32.dll</c>.</remarks>
-    public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    /// <param name="context">What this step is given.</param>
+    /// <returns>The step's result.</returns>
+    public override Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        Invoker(msg.GetRequiredValue(variableStore), caption.GetRequiredValue(variableStore));
+        Invoker(msg.GetRequiredValue(context.Variables), caption.GetRequiredValue(context.Variables));
         return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 

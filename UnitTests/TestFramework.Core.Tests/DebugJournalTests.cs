@@ -347,7 +347,7 @@ public sealed class DebugJournalTests : IDisposable
         public override string Description => "Does nothing.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, Logging.ScopedLogger logger, System.Threading.CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new JournalNoopStep().WithClonedOptions(this);

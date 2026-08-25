@@ -24,12 +24,12 @@ internal class SetupArtifactStep(ArtifactIdentifier identifier) : Step<EmptyStep
         return new SetupArtifactStep(identifier).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        ArtifactInstanceGeneric artifactInstance = artifactStore.GetArtifact(identifier);
-        artifactInstance.Reference.PinReference(variableStore, logger);
-        await artifactInstance.Artifact.SetupGeneric(serviceProvider, artifactInstance.Last, artifactInstance.Reference, variableStore, logger);
-        artifactStore.MarkState(artifactInstance, ArtifactState.Setup);
+        ArtifactInstanceGeneric artifactInstance = context.Artifacts.GetArtifact(identifier);
+        context.Artifacts.PinReference(artifactInstance, context);
+        await artifactInstance.Artifact.SetupGeneric(context, artifactInstance.Last, artifactInstance.Reference);
+        context.Artifacts.MarkState(artifactInstance, ArtifactState.Setup);
         return EmptyStepResultContext.Instance;
     }
 

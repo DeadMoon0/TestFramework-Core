@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Artifacts;
@@ -70,17 +71,19 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
     /// </summary>
     public new TArtifactData Last { get => (TArtifactData)base.Last; }
 
-    internal ArtifactInstance(TArtifactDescriber artifact, ArtifactIdentifier identifier, TArtifactReference reference, TArtifactData? firstVersionData) : base(artifact, identifier, reference, firstVersionData) { }
+    internal ArtifactInstance(TArtifactDescriber artifact, ArtifactIdentifier identifier, TArtifactReference reference, TArtifactData? firstVersionData, ArtifactState state = ArtifactState.NotSetup, bool isReadonly = false)
+        : base(artifact, identifier, reference, firstVersionData, state, isReadonly) { }
 
     /// <summary>
     /// Adds a new typed version to the artifact instance.
     /// </summary>
     /// <remarks>
-    /// Asked of the store rather than of the instance - see <c>ArtifactStore.CaptureVersion</c> - so that
-    /// a version cannot land from an attempt the run has stopped waiting for, and so that nothing watching
-    /// the run can miss it.
+    /// Asked of the store rather than of the instance - see <c>ArtifactStore.CaptureVersion</c> - and the
+    /// ticket is what makes that the only route: nothing outside the store can make one.
     /// </remarks>
-    internal void AddVersion(TArtifactData artifact) => base.AddVersionGeneric(artifact);
+    /// <param name="artifact">The new version's data.</param>
+    /// <param name="ticket">Proof the store allowed this write.</param>
+    internal void AddVersion(TArtifactData artifact, ArtifactWriteTicket ticket) => base.AddVersionGeneric(artifact, ticket);
 
     /// <summary>
     /// Returns a human-readable description of the artifact instance.
@@ -107,12 +110,15 @@ public class ArtifactInstanceGeneric : IFreezable
     /// <remarks>
     /// Reached through <see cref="IFreezable"/> rather than offered on the instance: the run freezes its
     /// artifacts when it ends, and anything else doing it mid-run would turn every later capture of that
-    /// artifact into a failure.
+    /// artifact into a failure. The reference and the describer are settled with it - a frozen artifact
+    /// whose reference could still be re-pinned would be frozen in name only.
     /// </remarks>
     void IFreezable.Freeze()
     {
         IsFrozen = true;
         _dataVersions.Freeze();
+        ((IFreezable)Reference).Freeze();
+        ((IFreezable)Artifact).Freeze();
     }
 
     private readonly FreezableCollection<ArtifactDataGeneric> _dataVersions = [];
@@ -173,13 +179,24 @@ public class ArtifactInstanceGeneric : IFreezable
     /// Gets the current lifecycle state of the artifact instance.
     /// </summary>
     /// <remarks>
-    /// Moved through <c>ArtifactStore.MarkState</c> rather than assigned here: setting it is a write to the
-    /// run, so it passes the same licence check as every other write, and the change reaches whatever is
-    /// watching the run instead of only the object.
+    /// Read-only from everywhere. It moves through <c>ArtifactStore.MarkState</c>, because setting it is a
+    /// write to the run: it passes the same licence check as every other write, and the change reaches
+    /// whatever is watching the run instead of only this object.
     /// </remarks>
-    public ArtifactState State { get => _state; internal set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
+    public ArtifactState State => _state;
 
-    private bool _isReadonly;
+    /// <summary>
+    /// Moves this artifact to a new lifecycle state.
+    /// </summary>
+    /// <param name="state">The state it reached.</param>
+    /// <param name="ticket">Proof the store allowed this write.</param>
+    internal void SetState(ArtifactState state, ArtifactWriteTicket ticket)
+    {
+        ArgumentNullException.ThrowIfNull(ticket);
+        ((IFreezable)this).EnsureNotFrozen();
+
+        _state = state;
+    }
 
     /// <summary>
     /// Gets a value indicating whether the timeline marked this artifact readonly, so cleanup must
@@ -189,29 +206,59 @@ public class ArtifactInstanceGeneric : IFreezable
     /// This is the test author's decision, taken at the <c>RegisterArtifact</c> / <c>FindArtifact</c>
     /// call site through <c>MarkReadonly()</c>. It is deliberately separate from
     /// <see cref="ArtifactReferenceGeneric.CanDeconstruct"/>: the reference answers whether the
-    /// resource <em>can</em> be deconstructed, this answers whether it <em>may</em> be. The setter is
-    /// internal so no reference type, finder, or package can overrule the choice.
+    /// resource <em>can</em> be deconstructed, this answers whether it <em>may</em> be. Decided when the
+    /// artifact is made and never afterwards, so no reference type, finder, or package can overrule the
+    /// choice - not even by being wrong once.
     /// </remarks>
-    public bool IsReadonly { get => _isReadonly; internal set { ((IFreezable)this).EnsureNotFrozen(); _isReadonly = value; } }
+    public bool IsReadonly { get; }
 
-    internal ArtifactInstanceGeneric(ArtifactDescriberGeneric artifact, ArtifactIdentifier identifier, ArtifactReferenceGeneric reference, ArtifactDataGeneric? firstVersionData)
+    /// <summary>
+    /// Creates an artifact instance in the state it was born in.
+    /// </summary>
+    /// <remarks>
+    /// The state is a constructor argument rather than something assigned afterwards, so that
+    /// <see cref="State"/>'s setter has exactly one caller - <c>ArtifactStore.MarkState</c> - and
+    /// "an artifact's state only ever moves through the store" is true rather than nearly true. A
+    /// discovered artifact is born <c>Setup</c> or <c>NotFound</c>; nothing moved it there.
+    /// </remarks>
+    /// <param name="artifact">The describer.</param>
+    /// <param name="identifier">The identifier.</param>
+    /// <param name="reference">The reference.</param>
+    /// <param name="firstVersionData">The first version's data, when it already has one.</param>
+    /// <param name="state">The state it exists in from the start.</param>
+    /// <param name="isReadonly">Whether the timeline marked it readonly.</param>
+    internal ArtifactInstanceGeneric(
+        ArtifactDescriberGeneric artifact,
+        ArtifactIdentifier identifier,
+        ArtifactReferenceGeneric reference,
+        ArtifactDataGeneric? firstVersionData,
+        ArtifactState state = ArtifactState.NotSetup,
+        bool isReadonly = false)
     {
         Artifact = artifact;
         Identifier = identifier;
         Reference = reference;
-        if (firstVersionData is not null) AddVersionGeneric(firstVersionData);
+        IsReadonly = isReadonly;
+        _state = state;
+
+        // Construction, not a write: there is no store yet, and nothing to tell about it.
+        if (firstVersionData is not null) _dataVersions.Add(firstVersionData);
     }
 
     /// <summary>
     /// Adds a new untyped version to the artifact instance.
     /// </summary>
     /// <remarks>
-    /// Internal for the reason <see cref="State"/> is: <c>ArtifactStore.CaptureVersion</c> is the one way
-    /// an artifact gains a version, so the licence check and the publication happen every time.
+    /// Ticketed for the reason <see cref="SetState"/> is: <c>ArtifactStore.CaptureVersion</c> is the one
+    /// way an artifact gains a version, so the licence check and the publication happen every time.
     /// </remarks>
-    internal void AddVersionGeneric(ArtifactDataGeneric data)
+    /// <param name="data">The new version's data.</param>
+    /// <param name="ticket">Proof the store allowed this write.</param>
+    internal void AddVersionGeneric(ArtifactDataGeneric data, ArtifactWriteTicket ticket)
     {
+        ArgumentNullException.ThrowIfNull(ticket);
         ((IFreezable)this).EnsureNotFrozen();
+
         _dataVersions.Add(data);
     }
 

@@ -70,22 +70,22 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
         }.WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
         List<TArtifactReference> artifacts = [];
         if (_namingMode == FindArtifactNamingMode.Single)
         {
-            ArtifactFinderResult? result = await _finder.FindAsync(serviceProvider, variableStore, logger, cancellationToken);
+            ArtifactFinderResult? result = await _finder.FindAsync(context);
             if (result is null)
             {
-                logger.LogWarning("No Artifact Found.");
+                context.Logger.LogWarning("No Artifact Found.");
                 return EmptyStepResultContext.Instance;
             }
             artifacts.Add((TArtifactReference)result.Reference);
         }
         else
         {
-            artifacts.AddRange((await _finder.FindMultiAsync(serviceProvider, variableStore, logger, cancellationToken)).ArtifactReferences.Select(x => (TArtifactReference)x.Reference));
+            artifacts.AddRange((await _finder.FindMultiAsync(context)).ArtifactReferences.Select(x => (TArtifactReference)x.Reference));
         }
 
         EnsureIdentifierCountMatches(artifacts.Count);
@@ -93,16 +93,18 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
         for (int i = 0; i < artifacts.Count; i++)
         {
             ArtifactIdentifier identifier = GetIdentifier(i);
-            artifacts[i].PinReference(variableStore, logger);
-            ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await artifacts[i].ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger);
+            context.Artifacts.PinNewReference(identifier, artifacts[i], context);
+            ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await artifacts[i].ResolveToDataAsync(context, ArtifactVersionIdentifier.Default);
             if (artifactDataResult.Found && artifactDataResult.Data is null)
                 throw new ArtifactResolutionInvariantException(identifier, "artifact discovery");
 
-            artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(artifacts[i].GetArtifactDescriber(), identifier, artifacts[i], artifactDataResult.Data)
-            {
-                State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound,
-                IsReadonly = MarkArtifactsReadonly
-            });
+            context.Artifacts.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(
+                artifacts[i].GetArtifactDescriber(),
+                identifier,
+                artifacts[i],
+                artifactDataResult.Data,
+                artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound,
+                MarkArtifactsReadonly));
         }
         return EmptyStepResultContext.Instance;
     }

@@ -35,17 +35,19 @@ internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifact
         }.WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        reference.PinReference(variableStore, logger);
-        ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await reference.ResolveToDataAsync(serviceProvider, ArtifactVersionIdentifier.Default, variableStore, logger);
+        context.Artifacts.PinNewReference(identifier, reference, context);
+        ArtifactResolveResult<TArtifactDescriber, TArtifactData, TArtifactReference> artifactDataResult = await reference.ResolveToDataAsync(context, ArtifactVersionIdentifier.Default);
         if (artifactDataResult.Found && artifactDataResult.Data is null)
             throw new ArtifactResolutionInvariantException(identifier, "artifact registration");
-        artifactStore.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(reference.GetArtifactDescriber(), identifier, reference, artifactDataResult.Data)
-        {
-            State = artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound,
-            IsReadonly = MarkArtifactsReadonly
-        });
+        context.Artifacts.AddArtifact(new ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>(
+            reference.GetArtifactDescriber(),
+            identifier,
+            reference,
+            artifactDataResult.Data,
+            artifactDataResult.Found ? ArtifactState.Setup : ArtifactState.NotFound,
+            MarkArtifactsReadonly));
         return EmptyStepResultContext.Instance;
     }
 

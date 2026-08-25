@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -12,7 +12,7 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext context, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<EmptyStepResultContext>
+internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext components, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<EmptyStepResultContext>
 {
     public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
 
@@ -23,21 +23,13 @@ internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComp
 
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new CreateEnvComponentsStep(environment, context, requirements).WithClonedOptions(this);
+        return new CreateEnvComponentsStep(environment, components, requirements).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        IReadOnlyCollection<EnvComponentIdentifier> resolvedComponents = environment.ResolveComponents(artifactStore.GetAll(), requirements);
-        await EnvComponentLifecycleRunner.CreateAsync(
-            environment,
-            resolvedComponents,
-            serviceProvider,
-            variableStore,
-            artifactStore,
-            logger,
-            cancellationToken,
-            context.SetState);
+        IReadOnlyCollection<EnvComponentIdentifier> resolvedComponents = environment.ResolveComponents(context.Artifacts.GetAll(), requirements);
+        await EnvComponentLifecycleRunner.CreateAsync(environment, resolvedComponents, context, components.SetState);
 
         return EmptyStepResultContext.Instance;
     }

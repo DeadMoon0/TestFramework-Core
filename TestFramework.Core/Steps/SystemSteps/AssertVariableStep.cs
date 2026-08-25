@@ -31,16 +31,16 @@ internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, boo
         return new AssertVariableStep<T>(variable, predicate).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        T? value = variable.GetValue(variableStore);
+        T? value = variable.GetValue(context.Variables);
         bool held = predicate(value);
 
         // Reported whether it held or not, and reported before the throw. A consumer decides whether
         // a run proved anything from the assertions it was told about, so an assertion written in the
         // timeline has to reach the same channel as one written after the run — otherwise a timeline
         // full of checks looks like a run that checked nothing.
-        logger.SignalAssertion(
+        context.Logger.SignalAssertion(
             DebugAssertionTargetKind.Variable,
             variable.HasIdentifier ? variable.Identifier!.Identifier : "<const>",
             AssertionName,

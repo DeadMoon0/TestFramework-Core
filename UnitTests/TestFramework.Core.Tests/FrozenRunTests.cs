@@ -1,3 +1,5 @@
+﻿using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,16 +40,25 @@ public class FrozenRunTests
 
         Assert.True(run.ArtifactStore.IsFrozen);
         Assert.True(instance.IsFrozen);
-        Assert.Throws<FrameworkStateException>(() => instance.AddVersionGeneric(new FrozenTestArtifactData()));
-        Assert.Throws<FrameworkStateException>(() => instance.State = ArtifactState.Cleaned);
+
+        // Attempted the only way they can be attempted: through the store. Nothing can reach an
+        // artifact's state or its versions directly any more, which is why these read as store calls.
+        Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.CaptureVersion(instance, new FrozenTestArtifactData()));
+        Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.MarkState(instance, ArtifactState.Cleaned));
+
+        // A frozen artifact is frozen all the way down, or "frozen" means only "the list of versions is".
+        Assert.True(instance.Reference.IsFrozen);
+        Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.PinReference(
+            instance,
+            RunContext.Ambient(new EmptyServiceProvider(), run.VariableStore, run.ArtifactStore, new ScopedLogger(null), run.Values)));
     }
 
     private sealed class FrozenTestArtifactDescriber : ArtifactDescriber<FrozenTestArtifactDescriber, FrozenTestArtifactData, FrozenTestArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, FrozenTestArtifactData data, FrozenTestArtifactReference reference, VariableStore variableStore, Logging.ScopedLogger logger)
+        public override Task Setup(RunContext context, FrozenTestArtifactData data, FrozenTestArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, FrozenTestArtifactReference reference, VariableStore variableStore, Logging.ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, FrozenTestArtifactReference reference)
             => Task.CompletedTask;
 
         public override string ToString() => "frozen-test-artifact";
@@ -60,11 +71,7 @@ public class FrozenRunTests
 
     private sealed class FrozenTestArtifactReference : ArtifactReference<FrozenTestArtifactReference, FrozenTestArtifactDescriber, FrozenTestArtifactData>
     {
-        public override Task<ArtifactResolveResult<FrozenTestArtifactDescriber, FrozenTestArtifactData, FrozenTestArtifactReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            Logging.ScopedLogger logger)
+        public override Task<ArtifactResolveResult<FrozenTestArtifactDescriber, FrozenTestArtifactData, FrozenTestArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<FrozenTestArtifactDescriber, FrozenTestArtifactData, FrozenTestArtifactReference>
             {
                 Found = true,
@@ -75,7 +82,7 @@ public class FrozenRunTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, Logging.ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

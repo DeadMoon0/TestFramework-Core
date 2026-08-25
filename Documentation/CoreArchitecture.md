@@ -820,15 +820,11 @@ public class MyStep : Step<MyResult>
     public override string Description => "Does something useful";
     public override bool DoesReturn => true;
 
-    public override async Task<MyResult?> Execute(
-        IServiceProvider serviceProvider,
-        VariableStore variableStore,
-        ArtifactStore artifactStore,
-        ScopedLogger logger,
-        CancellationToken cancellationToken)
+    public override async Task<MyResult?> Execute(RunContext context)
     {
-        logger.LogInformation("Executing my step...");
-        // your logic here
+        context.Logger.LogInformation("Executing my step...");
+        // Everything the step is given is on the context: the run's stores, how long it has
+        // (context.Deadline), and where the run's resources ended up (context.Values).
         return new MyResult(/* ... */);
     }
 

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
@@ -24,7 +25,11 @@ namespace TestFramework.Core.Runner;
 /// What is watching this run's steps. Told about every attempt, and never able to change one - see
 /// <see cref="StepObservers"/>.
 /// </param>
-internal class CoreRunner(StepObservers observers)
+/// <param name="values">
+/// Where this run's resources ended up. Handed to every step, so asking is one call rather than each
+/// package's own way of finding out.
+/// </param>
+internal class CoreRunner(StepObservers observers, ValueResolution values)
 {
     internal async Task RunStage(StageInstance instance, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
     {
@@ -192,7 +197,18 @@ internal class CoreRunner(StepObservers observers)
 
         try
         {
-            executionTask = step.Step.ExecuteGeneric(serviceProvider, attemptVariables, attemptArtifacts, logger, cancellationTokenSource.Token);
+            // Built here and nowhere else: the deadline is the same token the step is cancelled with, so a
+            // step cannot be told it has time it does not have.
+            RunContext context = new RunContext(
+                serviceProvider,
+                attemptVariables,
+                attemptArtifacts,
+                logger,
+                values,
+                new StepDeadline(timeout, cancellationTokenSource.Token),
+                scope.Attempt);
+
+            executionTask = step.Step.ExecuteGeneric(context);
             object? result = await executionTask.WaitAsync(cancellationTokenSource.Token);
             stepResult.Result = result;
             stepResult.State = StepState.Complete;

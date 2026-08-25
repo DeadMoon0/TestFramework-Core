@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Steps;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -139,10 +140,10 @@ public sealed class ArtifactVersionPublicationTests
 
     private sealed class CountingArtifactDescriber : ArtifactDescriber<CountingArtifactDescriber, CountingArtifactData, CountingArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, CountingArtifactData data, CountingArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, CountingArtifactData data, CountingArtifactReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, CountingArtifactReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, CountingArtifactReference reference)
             => Task.CompletedTask;
 
         public override string ToString() => "counting-artifact";
@@ -152,11 +153,7 @@ public sealed class ArtifactVersionPublicationTests
     {
         public CountingArtifactReference() => CanDeconstruct = true;
 
-        public override Task<ArtifactResolveResult<CountingArtifactDescriber, CountingArtifactData, CountingArtifactReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            ScopedLogger logger)
+        public override Task<ArtifactResolveResult<CountingArtifactDescriber, CountingArtifactData, CountingArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<CountingArtifactDescriber, CountingArtifactData, CountingArtifactReference>
             {
                 Found = true,
@@ -167,7 +164,7 @@ public sealed class ArtifactVersionPublicationTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 

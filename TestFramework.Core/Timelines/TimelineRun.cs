@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
@@ -56,19 +57,25 @@ public class TimelineRun : IFreezable
     public EnvComponentContext EnvironmentContext { get; }
 
     /// <summary>
+    /// Gets where this run's resources ended up - the same answer the steps read, kept for assertions.
+    /// </summary>
+    public ValueResolution Values { get; }
+
+    /// <summary>
     /// Gets the executed stages and their step instances.
     /// </summary>
     public IFreezableCollection<StageInstance> Stages { get; }
 
     private readonly ScopedLogger? _logger;
 
-    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, EnvComponentContext environmentContext, ScopedLogger? logger = null)
+    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, EnvComponentContext environmentContext, ValueResolution values, ScopedLogger? logger = null)
     {
         Timeline = timeline;
         Stages = stages;
         ArtifactStore = artifactStore;
         VariableStore = variableStore;
         EnvironmentContext = environmentContext;
+        Values = values;
         _logger = logger;
     }
 

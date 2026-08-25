@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Events;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
@@ -27,12 +28,13 @@ public class SequentialEventCancellationTests
 
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => step.Execute(
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => step.Execute(RunContext.Ambient(
             new EmptyServiceProvider(),
             CreateStore(),
             CreateArtifactStore(),
             new ScopedLogger(null),
-            cancellation.Token));
+            ValueResolution.Empty,
+            cancellation.Token)));
 
         stopwatch.Stop();
 
@@ -64,12 +66,7 @@ public class SequentialEventCancellationTests
         {
         }
 
-        public override Task<SequentialPollingResult<EmptyStepResultContext>> OnSequentialPolling(
-            IServiceProvider serviceProvider,
-            VariableStore variableStore,
-            ArtifactStore artifactStore,
-            ScopedLogger logger,
-            CancellationToken cancellationToken)
+        public override Task<SequentialPollingResult<EmptyStepResultContext>> OnSequentialPolling(RunContext context)
         {
             Interlocked.Increment(ref _pollCount);
             return Task.FromResult(new SequentialPollingResult<EmptyStepResultContext>(false, null, nextDelay));

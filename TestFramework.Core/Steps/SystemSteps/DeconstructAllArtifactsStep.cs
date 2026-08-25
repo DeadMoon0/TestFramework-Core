@@ -20,13 +20,13 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
         return new DeconstructAllArtifactsStep().WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        foreach (var artifactInstance in artifactStore.GetAll())
+        foreach (var artifactInstance in context.Artifacts.GetAll())
         {
             try
             {
-                logger.LogInformation("Artifact: '{0}' of Type: '{1}'", artifactInstance.Identifier, artifactInstance.Artifact.GetType());
+                context.Logger.LogInformation("Artifact: '{0}' of Type: '{1}'", artifactInstance.Identifier, artifactInstance.Artifact.GetType());
 
                 // Skipped, not returned: one artifact that was never set up must not stop the
                 // artifacts after it from being cleaned up.
@@ -36,7 +36,7 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
                 // checked first. Deleting is the default; this is the only way to opt out of it.
                 if (artifactInstance.IsReadonly)
                 {
-                    logger.LogInformation("Artifact '{0}' is marked readonly by the timeline, so it is left in place.", artifactInstance.Identifier);
+                    context.Logger.LogInformation("Artifact '{0}' is marked readonly by the timeline, so it is left in place.", artifactInstance.Identifier);
                     continue;
                 }
 
@@ -44,16 +44,16 @@ internal class DeconstructAllArtifactsStep : Step<EmptyStepResultContext>
                 // expected outcome rather than a failure worth reporting as one.
                 if (!artifactInstance.Reference.CanDeconstruct)
                 {
-                    logger.LogInformation("Artifact '{0}' is observed rather than owned, so it is left in place.", artifactInstance.Identifier);
+                    context.Logger.LogInformation("Artifact '{0}' is observed rather than owned, so it is left in place.", artifactInstance.Identifier);
                     continue;
                 }
 
-                await artifactInstance.Artifact.DeconstructGeneric(serviceProvider, artifactInstance.Reference, variableStore, logger);
-                artifactStore.MarkState(artifactInstance, ArtifactState.Cleaned);
+                await artifactInstance.Artifact.DeconstructGeneric(context, artifactInstance.Reference);
+                context.Artifacts.MarkState(artifactInstance, ArtifactState.Cleaned);
             }
             catch (Exception e)
             {
-                logger.LogError("Could not deconstruct artifact '{0}' due to an error:\n{1}", artifactInstance.Identifier, e.ToString());
+                context.Logger.LogError("Could not deconstruct artifact '{0}' due to an error:\n{1}", artifactInstance.Identifier, e.ToString());
             }
         }
         return EmptyStepResultContext.Instance;

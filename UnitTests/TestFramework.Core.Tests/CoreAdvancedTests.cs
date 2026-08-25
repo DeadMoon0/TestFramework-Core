@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -196,7 +196,7 @@ public class CoreAdvancedTests
         public override string Description => stepName;
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new TestStep(stepName).WithClonedOptions(this);
@@ -214,7 +214,7 @@ public class CoreAdvancedTests
         public override string Description => "Never completes and ignores cancellation.";
         public override bool DoesReturn => false;
 
-        public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan);
             return EmptyStepResultContext.Instance;

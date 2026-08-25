@@ -22,9 +22,9 @@ internal class SetVariableStep(VariableIdentifier identifier, VariableReferenceG
         return new SetVariableStep(identifier, reference).WithClonedOptions(this);
     }
 
-    public override async Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        variableStore.SetVariable(identifier, reference.GetValueGeneric(variableStore));
+        context.Variables.SetVariable(identifier, reference.GetValueGeneric(context.Variables));
         return EmptyStepResultContext.Instance;
     }
 

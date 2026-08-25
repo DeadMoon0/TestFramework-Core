@@ -192,7 +192,7 @@ public sealed class DebugFailureDetailTests
         public override string Description => "Always throws.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => throw exception;
 
         public override Step<EmptyStepResultContext> Clone() => new ThrowingStep(exception).WithClonedOptions(this);
@@ -210,7 +210,7 @@ public sealed class DebugFailureDetailTests
         public override string Description => "Always succeeds.";
         public override bool DoesReturn => false;
 
-        public override Task<EmptyStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new PassingStep().WithClonedOptions(this);

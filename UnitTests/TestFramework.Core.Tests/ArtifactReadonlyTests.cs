@@ -1,3 +1,4 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -187,11 +188,11 @@ public class ArtifactReadonlyTests
     private sealed class RecordingFinder(TeardownRecorder recorder, int count, bool claimsOwnershipWhenPinned = false)
         : ArtifactFinder<RecordingDescriber, RecordingData, RecordingReference>
     {
-        public override Task<ArtifactFinderResult?> FindAsync(IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResult?> FindAsync(RunContext context)
             => Task.FromResult<ArtifactFinderResult?>(new ArtifactFinderResult(
                 new RecordingReference(recorder, "found_single", claimsOwnershipWhenPinned)));
 
-        public override Task<ArtifactFinderResultMulti> FindMultiAsync(IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<ArtifactFinderResultMulti> FindMultiAsync(RunContext context)
             => Task.FromResult(new ArtifactFinderResultMulti(
                 [.. Enumerable.Range(0, count).Select(i => new ArtifactFinderResult(
                     new RecordingReference(recorder, $"found_{i}", claimsOwnershipWhenPinned)))]));
@@ -199,10 +200,10 @@ public class ArtifactReadonlyTests
 
     private sealed class RecordingDescriber : ArtifactDescriber<RecordingDescriber, RecordingData, RecordingReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, RecordingData data, RecordingReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Setup(RunContext context, RecordingData data, RecordingReference reference)
             => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, RecordingReference reference, VariableStore variableStore, ScopedLogger logger)
+        public override Task Deconstruct(RunContext context, RecordingReference reference)
         {
             reference.Record();
             return Task.CompletedTask;
@@ -232,11 +233,7 @@ public class ArtifactReadonlyTests
 
         public void Record() => _recorder.Deconstructed.Add(_name);
 
-        public override Task<ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>> ResolveToDataAsync(
-            IServiceProvider serviceProvider,
-            ArtifactVersionIdentifier versionIdentifier,
-            VariableStore variableStore,
-            ScopedLogger logger)
+        public override Task<ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<RecordingDescriber, RecordingData, RecordingReference>
             {
                 Found = true,
@@ -247,7 +244,7 @@ public class ArtifactReadonlyTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
             if (_claimsOwnershipWhenPinned)
                 CanDeconstruct = true;

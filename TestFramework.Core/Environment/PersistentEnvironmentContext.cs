@@ -1,3 +1,5 @@
+﻿using TestFramework.Core.Environment.Graph;
+using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -83,7 +85,8 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     /// </summary>
     /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
     /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
-    /// <param name="cancellationToken">Cancels the bootstrap.</param>
+    /// <param name="cancellationToken">What stops the bootstrap.</param>
+    /// <returns>The bootstrapped context.</returns>
     public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
         IServiceProvider? persistentServiceProvider = null,
         bool disposePersistentServiceProvider = false,
@@ -96,7 +99,8 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     /// <param name="setup">The persistent environment setup.</param>
     /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
     /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
-    /// <param name="cancellationToken">Cancels the bootstrap.</param>
+    /// <param name="cancellationToken">What stops the bootstrap.</param>
+    /// <returns>The bootstrapped context.</returns>
     public static async Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
         TSetup setup,
         IServiceProvider? persistentServiceProvider = null,
@@ -217,15 +221,19 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
         try
         {
-            await EnvComponentLifecycleRunner.CreateAsync(
-                _bootstrapEnvironment,
-                persistentRoots,
+            RunContext context = RunContext.Ambient(
                 _persistentServiceProvider,
                 variableStore,
                 artifactStore,
                 logger,
+
+                // Empty on purpose: a persistent bootstrap declares no resources of its own, and saying so
+                // is better than handing its components a resolution belonging to some later run.
+                ValueResolution.Empty,
                 cancellationTokenSource.Token,
-                (identifier, state) =>
+                _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);
+
+            await EnvComponentLifecycleRunner.CreateAsync(_bootstrapEnvironment, persistentRoots, context, (identifier, state) =>
                 {
                     _persistentStates[identifier] = state;
                     if (!_persistentCreationOrder.Contains(identifier))
@@ -249,14 +257,19 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 
-        await EnvComponentLifecycleRunner.DeconstructAsync(
-            _bootstrapEnvironment,
-            _persistentCreationOrder,
+        // Teardown has no deadline: cutting a release short is how a resource is stranded, which is the
+        // thing this path exists to prevent.
+        RunContext context = RunContext.Ambient(
             _persistentServiceProvider,
             variableStore,
             artifactStore,
             logger,
-            CancellationToken.None,
+            ValueResolution.Empty);
+
+        await EnvComponentLifecycleRunner.DeconstructAsync(
+            _bootstrapEnvironment,
+            _persistentCreationOrder,
+            context,
             identifier => _persistentStates.TryGetValue(identifier, out object? state) ? state : null);
 
         _persistentCreationOrder.Clear();
@@ -293,10 +306,10 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => inner.Dependencies;
 
-        public override Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
             => Task.FromResult(state);
 
-        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
             => Task.CompletedTask;
     }
 }

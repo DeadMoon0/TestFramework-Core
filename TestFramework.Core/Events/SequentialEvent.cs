@@ -29,12 +29,9 @@ public abstract class SequentialEvent<TEvent, TStepResultContext> : Event<TEvent
     /// <summary>
     /// Performs a single polling iteration.
     /// </summary>
-    /// <param name="serviceProvider">The service provider available to the event.</param>
-    /// <param name="variableStore">The current run variable store.</param>
-    /// <param name="artifactStore">The current run artifact store.</param>
-    /// <param name="logger">The scoped logger for the run.</param>
-    /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<SequentialPollingResult<TStepResultContext>> OnSequentialPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    /// <param name="context">What this event is given.</param>
+    /// <returns>Whether the wait is over, and the result when it is.</returns>
+    public abstract Task<SequentialPollingResult<TStepResultContext>> OnSequentialPolling(RunContext context);
 
     /// <summary>
     /// Executes the polling loop until a completed result is returned.
@@ -44,20 +41,21 @@ public abstract class SequentialEvent<TEvent, TStepResultContext> : Event<TEvent
     /// blocks synchronously therefore blocks the start of its execution layer; make it genuinely async.
     /// In exchange, cancelling the step stops the loop instead of merely abandoning it.
     /// </remarks>
-    public override async Task<TStepResultContext?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken)
+    /// <param name="context">What this event is given.</param>
+    /// <returns>The event's result.</returns>
+    public override async Task<TStepResultContext?> DoEventPolling(RunContext context)
     {
         // No Task.Run wrapper: WaitAsync would abandon the loop rather than stop it, so a long
         // NextDelay kept polling long after the step had been cancelled.
         while (true)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            context.Deadline.Token.ThrowIfCancellationRequested();
 
-            SequentialPollingResult<TStepResultContext> result =
-                await OnSequentialPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
+            SequentialPollingResult<TStepResultContext> result = await OnSequentialPolling(context);
 
             if (result.IsDone) return result.Result;
 
-            await Task.Delay(result.NextDelay, cancellationToken);
+            await Task.Delay(result.NextDelay, context.Deadline.Token);
         }
     }
 }

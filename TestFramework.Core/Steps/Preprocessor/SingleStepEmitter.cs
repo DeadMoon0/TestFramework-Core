@@ -19,7 +19,9 @@ public class SingleStepEmitter(StepGeneric step) : StepEmitter
     /// </summary>
     public override IEnumerable<StepEmitterStepResult> Emit(ArtifactStore artifactStore, VariableStore variableStore, VariableTracker variableTracker, ArtifactTracker artifactTracker, List<Action<StepGeneric, VariableTracker, ArtifactTracker>> modifierActions, ScopedLogger? logger = null)
     {
-        StepGeneric modifiedStep = step.CloneGeneric();
+        // Checked here because this is the only place a step definition is ever cloned, and a clone that
+        // shares state with the authored step is silent until the second run of that timeline.
+        StepGeneric modifiedStep = StepCloneGuard.Verify(step, step.CloneGeneric());
         foreach (var modifier in modifierActions)
         {
             modifier(modifiedStep, variableTracker, artifactTracker);

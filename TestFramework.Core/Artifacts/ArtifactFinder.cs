@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Steps;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Logging;
@@ -37,10 +38,10 @@ public abstract class ArtifactFinderGeneric
     /// <summary>
     /// Locates a single artifact reference.
     /// </summary>
-    public abstract Task<ArtifactFinderResult?> FindAsync(IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<ArtifactFinderResult?> FindAsync(RunContext context);
 
     /// <summary>
     /// Locates multiple artifact references.
     /// </summary>
-    public abstract Task<ArtifactFinderResultMulti> FindMultiAsync(IServiceProvider serviceProvider, VariableStore variableStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<ArtifactFinderResultMulti> FindMultiAsync(RunContext context);
 }

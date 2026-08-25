@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -105,7 +105,7 @@ public class ReadmeSamplesTests
             _value = value;
         }
 
-        public override Task<ArtifactResolveResult<ReadmeArtifactDescriber, ReadmeArtifactData, ReadmeArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<ReadmeArtifactDescriber, ReadmeArtifactData, ReadmeArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
             => Task.FromResult(new ArtifactResolveResult<ReadmeArtifactDescriber, ReadmeArtifactData, ReadmeArtifactReference>
             {
                 Found = true,
@@ -116,7 +116,7 @@ public class ReadmeSamplesTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
@@ -137,9 +137,9 @@ public class ReadmeSamplesTests
 
     private sealed class ReadmeArtifactDescriber : ArtifactDescriber<ReadmeArtifactDescriber, ReadmeArtifactData, ReadmeArtifactReference>
     {
-        public override Task Setup(IServiceProvider serviceProvider, ReadmeArtifactData data, ReadmeArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Setup(RunContext context, ReadmeArtifactData data, ReadmeArtifactReference reference) => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, ReadmeArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, ReadmeArtifactReference reference) => Task.CompletedTask;
 
         public override string ToString() => "ReadmeArtifact";
     }

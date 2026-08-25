@@ -25,17 +25,20 @@ public abstract class Event<TEvent, TStepResultContext> : Step<TStepResultContex
     /// <summary>
     /// Performs the event polling logic until a result is available.
     /// </summary>
-    /// <param name="serviceProvider">The service provider available to the event.</param>
-    /// <param name="variableStore">The current run variable store.</param>
-    /// <param name="artifactStore">The current run artifact store.</param>
-    /// <param name="logger">The scoped logger for the run.</param>
-    /// <param name="cancellationToken">The cancellation token for the running step.</param>
-    public abstract Task<TStepResultContext?> DoEventPolling(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    /// <remarks>
+    /// An event knows how long it has through <c>context.Deadline</c>, so it can say what it was waiting
+    /// for instead of being cut off mid-wait with nothing to report.
+    /// </remarks>
+    /// <param name="context">What this event is given.</param>
+    /// <returns>The event's result.</returns>
+    public abstract Task<TStepResultContext?> DoEventPolling(RunContext context);
 
     /// <summary>
-    /// Executes the event by delegating to <see cref="DoEventPolling(IServiceProvider, VariableStore, ArtifactStore, ScopedLogger, CancellationToken)"/>.
+    /// Executes the event by delegating to <see cref="DoEventPolling(RunContext)"/>.
     /// </summary>
-    public override Task<TStepResultContext?> Execute(IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken) => DoEventPolling(serviceProvider, variableStore, artifactStore, logger, cancellationToken);
+    /// <param name="context">What this event is given.</param>
+    /// <returns>The event's result.</returns>
+    public override Task<TStepResultContext?> Execute(RunContext context) => DoEventPolling(context);
 
     /// <summary>
     /// Creates a runtime instance for the event step.

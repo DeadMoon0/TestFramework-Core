@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core;
@@ -7,6 +6,7 @@ using TestFramework.Core.Debugger;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -81,58 +81,30 @@ public class ArtifactStore : IFreezable
     }
 
     /// <summary>
-    /// Adds or replaces an artifact instance in the store.
+    /// The only ticket there is. Private, so nothing else can name it, let alone make one.
     /// </summary>
-    public void AddArtifact(ArtifactInstanceGeneric instance)
+    private sealed class Ticket : ArtifactWriteTicket
     {
-        // An attempt the runner has stopped waiting for is still running, and it must not be able to
-        // reach the stores a later test reads.
-        if (!licence.Allows(logger, instance.Identifier.Identifier))
-            return;
-
-        lock (syncRoot)
-        {
-            _artifacts[instance.Identifier] = instance;
-        }
-
-        // Building the debug state serializes the reference and the data. Skip it when nothing reads it.
-        if (!debuggingSession.IsCapturing)
-            return;
-
-        debuggingSession.PublishArtifactUpdate(instance.Identifier, WithBody(GetDebuggingStateFromInstance(instance), instance));
     }
 
     /// <summary>
-    /// Re-publishes an artifact whose contents changed in place, rather than through
-    /// <see cref="AddArtifact"/>.
+    /// Adds or replaces an artifact instance in the store.
     /// </summary>
-    /// <remarks>
-    /// Capturing a version and changing lifecycle state both mutate the instance the store already
-    /// holds, so neither passes through <see cref="AddArtifact"/>. Without this, a debugger only
-    /// ever saw an artifact's first version and its initial state: the whole point of
-    /// <c>CaptureArtifactVersion</c> — watching a value evolve across a run — was invisible to the
-    /// one consumer built to show it.
-    /// </remarks>
+    /// <param name="instance">The artifact.</param>
+    public void AddArtifact(ArtifactInstanceGeneric instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        this.Write(instance.Identifier, ticket => this.Hold(instance, ticket), instance);
+    }
+
     /// <summary>
-    /// Adds a version to an artifact this store already holds.
+    /// Adds a version to an artifact this store holds.
     /// </summary>
-    /// <remarks>
-    /// An artifact changes in three ways - it is added, it gains a version, its lifecycle state moves -
-    /// and all three have to pass the same licence check, so all three are asked of the store. That is
-    /// also why the mutators on the instance are internal: a step holding an instance could otherwise
-    /// change the run's artifacts without the store ever hearing about it, which is both a way around
-    /// the quarantine and the reason a debugger used to miss the change.
-    /// </remarks>
     /// <param name="instance">The artifact.</param>
     /// <param name="data">The new version's data.</param>
     internal void CaptureVersion(ArtifactInstanceGeneric instance, ArtifactDataGeneric data)
-    {
-        if (!licence.Allows(logger, instance.Identifier.Identifier))
-            return;
-
-        instance.AddVersionGeneric(data);
-        PublishArtifactChanged(instance);
-    }
+        => this.Write(instance.Identifier, ticket => instance.AddVersionGeneric(data, ticket), instance);
 
     /// <summary>
     /// Moves an artifact to a new lifecycle state.
@@ -140,20 +112,79 @@ public class ArtifactStore : IFreezable
     /// <param name="instance">The artifact.</param>
     /// <param name="state">The state it reached.</param>
     internal void MarkState(ArtifactInstanceGeneric instance, ArtifactState state)
-    {
-        if (!licence.Allows(logger, instance.Identifier.Identifier))
-            return;
+        => this.Write(instance.Identifier, ticket => instance.SetState(state, ticket), instance);
 
-        instance.State = state;
-        PublishArtifactChanged(instance);
+    /// <summary>
+    /// Pins the reference of an artifact this store holds.
+    /// </summary>
+    /// <remarks>
+    /// Pinning resolves the reference's variables and keeps the answer, so a pin from an attempt the run
+    /// has stopped waiting for would aim this artifact - and the cleanup that deletes it - at whatever
+    /// that attempt's stale values pointed to.
+    /// </remarks>
+    /// <param name="instance">The artifact.</param>
+    /// <param name="context">What the step doing this was given.</param>
+    internal void PinReference(ArtifactInstanceGeneric instance, RunContext context)
+        => this.Write(instance.Identifier, ticket => instance.Reference.Pin(context, ticket), instance);
+
+    /// <summary>
+    /// Pins a reference for an artifact that is about to be added.
+    /// </summary>
+    /// <remarks>
+    /// Discovery and registration pin before there is an instance to hold. The check is the same and is
+    /// keyed on the identifier the artifact is about to take, so an abandoned attempt is refused here
+    /// rather than three lines later when it tries to add what it pinned.
+    /// </remarks>
+    /// <param name="identifier">The identifier the artifact will have.</param>
+    /// <param name="reference">The reference to pin.</param>
+    /// <param name="context">What the step doing this was given.</param>
+    internal void PinNewReference(ArtifactIdentifier identifier, ArtifactReferenceGeneric reference, RunContext context)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+
+        this.Write(identifier, ticket => reference.Pin(context, ticket), published: null);
     }
 
-    private void PublishArtifactChanged(ArtifactInstanceGeneric instance)
+    /// <summary>
+    /// The one place a change to the run's artifacts happens.
+    /// </summary>
+    /// <remarks>
+    /// One licence check, one ticket, one publication. Every write is expressed as <em>what</em> changes;
+    /// none of them decides <em>whether</em> it may, which is why a new kind of write cannot arrive
+    /// without the check.
+    /// </remarks>
+    /// <param name="target">What is being written, for the warning a refused write produces.</param>
+    /// <param name="change">The change to make.</param>
+    /// <param name="published">The artifact to publish afterwards, or null when there is nothing to show yet.</param>
+    private void Write(ArtifactIdentifier target, Action<ArtifactWriteTicket> change, ArtifactInstanceGeneric? published)
     {
-        if (!debuggingSession.IsCapturing)
+        // An attempt the runner has stopped waiting for is still running, and it must not be able to
+        // reach the stores a later test reads.
+        if (!licence.Allows(logger, target.Identifier))
             return;
 
-        debuggingSession.PublishArtifactUpdate(instance.Identifier, WithBody(GetDebuggingStateFromInstance(instance), instance));
+        // Legal here and nowhere else: a nested type's private constructor is reachable from the type
+        // that encloses it, and from nothing further out.
+        change(new Ticket());
+
+        // Building the debug state serialises the reference and the data. Skip it when nothing reads it.
+        if (published is null || !debuggingSession.IsCapturing)
+            return;
+
+        // Every change is published, not just the ones that arrive through AddArtifact. A version landing
+        // on an instance the store already holds used to be invisible to a debugger, which made watching
+        // a value evolve across a run - the whole point of capturing versions - impossible to see.
+        debuggingSession.PublishArtifactUpdate(published.Identifier, WithBody(GetDebuggingStateFromInstance(published), published));
+    }
+
+    private void Hold(ArtifactInstanceGeneric instance, ArtifactWriteTicket ticket)
+    {
+        ArgumentNullException.ThrowIfNull(ticket);
+
+        lock (syncRoot)
+        {
+            _artifacts[instance.Identifier] = instance;
+        }
     }
 
     /// <summary>
@@ -220,36 +251,10 @@ public class ArtifactStore : IFreezable
         };
     }
 
-    private static JArray DescribeVersions(ArtifactInstanceGeneric instance)
-    {
-        JArray versions = [];
-
-        foreach (string version in VersionsOf(instance))
-            versions.Add(version);
-
-        return versions;
-    }
-
     private static IEnumerable<string> VersionsOf(ArtifactInstanceGeneric instance)
     {
         for (int index = 0; index < instance.VersionCount; index++)
             yield return instance[index].Identifier.ToString();
-    }
-
-    private static JToken ToToken(object? value)
-    {
-        if (value is null)
-            return JValue.CreateNull();
-
-        try
-        {
-            return JToken.FromObject(value, JsonSerializer.CreateDefault());
-        }
-        catch (JsonException)
-        {
-            // A debug payload that cannot be serialized must not take the run down with it.
-            return new JValue($"<unserializable {value.GetType().FullName}>");
-        }
     }
 
     /// <summary>

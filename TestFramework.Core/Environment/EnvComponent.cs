@@ -1,3 +1,4 @@
+﻿using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -31,12 +32,12 @@ public abstract class EnvComponent
     /// <summary>
     /// Creates the component state.
     /// </summary>
-    public abstract Task<object?> CreateAsync(IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context);
 
     /// <summary>
     /// Deconstructs the component state.
     /// </summary>
-    public abstract Task DeconstructAsync(object? state, IEnvironmentProvider environment, IServiceProvider serviceProvider, VariableStore variableStore, ArtifactStore artifactStore, ScopedLogger logger, CancellationToken cancellationToken);
+    public abstract Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context);
 
     /// <summary>
     /// Returns the component identifier as a string.

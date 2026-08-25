@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Steps;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -145,9 +146,9 @@ public class CoreRuntimeTests
             return new JObject { ["mode"] = "debug" };
         }
 
-        public override Task Setup(IServiceProvider serviceProvider, TestArtifactData data, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Setup(RunContext context, TestArtifactData data, TestArtifactReference reference) => Task.CompletedTask;
 
-        public override Task Deconstruct(IServiceProvider serviceProvider, TestArtifactReference reference, VariableStore variableStore, ScopedLogger logger) => Task.CompletedTask;
+        public override Task Deconstruct(RunContext context, TestArtifactReference reference) => Task.CompletedTask;
 
         public override string ToString() => "test-artifact";
     }
@@ -159,7 +160,7 @@ public class CoreRuntimeTests
 
     private sealed class TestArtifactReference : ArtifactReference<TestArtifactReference, TestArtifactDescriber, TestArtifactData>
     {
-        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(IServiceProvider serviceProvider, ArtifactVersionIdentifier versionIdentifier, VariableStore variableStore, ScopedLogger logger)
+        public override Task<ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>> ResolveToDataAsync(RunContext context, ArtifactVersionIdentifier versionIdentifier)
         {
             return Task.FromResult(new ArtifactResolveResult<TestArtifactDescriber, TestArtifactData, TestArtifactReference>
             {
@@ -172,7 +173,7 @@ public class CoreRuntimeTests
         {
         }
 
-        public override void OnPinReference(VariableStore variableStore, ScopedLogger logger)
+        public override void OnPinReference(RunContext context)
         {
         }
 
