@@ -191,6 +191,12 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         // was never told to stop, its exception went unobserved, and the retry started immediately
         // alongside the attempt it was supposedly replacing.
         CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(runCancellationToken);
+        // The deadline is built before the cancellation is armed, so the moment it says the time is up is
+        // never later than the moment the token fires. The other order leaves a step cancelled while its
+        // own deadline still reports time remaining - which is exactly the disagreement this type exists
+        // to prevent, and it only shows up under load.
+        StepDeadline deadline = new StepDeadline(timeout, cancellationTokenSource.Token);
+
         cancellationTokenSource.CancelAfter(timeout);
         bool ownsCancellationTokenSource = true;
         Task<object?>? executionTask = null;
@@ -205,7 +211,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 attemptArtifacts,
                 logger,
                 values,
-                new StepDeadline(timeout, cancellationTokenSource.Token),
+                deadline,
                 scope.Attempt);
 
             executionTask = step.Step.ExecuteGeneric(context);

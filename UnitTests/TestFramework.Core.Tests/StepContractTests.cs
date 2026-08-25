@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using TestFramework.Core.Steps;
 using Xunit;
@@ -16,25 +16,32 @@ public class StepContractTests
     {
         // The whole reason two packages hand-rolled their own margins: a step that knows what remains can
         // decide how patient to be, instead of a figure guessed at when the step was written.
-        DateTimeOffset now = new DateTimeOffset(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
-        StepDeadline deadline = new StepDeadline(TimeSpan.FromSeconds(30), CancellationToken.None, () => now);
+        // Elapsed time rather than a wall clock: the deadline is measured monotonically so it cannot
+        // disagree with the timer that cancels the step.
+        TimeSpan elapsed = TimeSpan.Zero;
+        StepDeadline deadline = new StepDeadline(TimeSpan.FromSeconds(30), CancellationToken.None, () => elapsed);
 
         Assert.Equal(TimeSpan.FromSeconds(30), deadline.Remaining);
+        Assert.False(deadline.HasExpired);
 
-        now += TimeSpan.FromSeconds(25);
+        elapsed = TimeSpan.FromSeconds(25);
         Assert.Equal(TimeSpan.FromSeconds(5), deadline.Remaining);
+        Assert.False(deadline.HasExpired);
     }
 
     [Fact]
     public void RemainingIsFlooredRatherThanNegative()
     {
         // A step asking after its deadline gets "no time", not a negative delay to pass to a wait.
-        DateTimeOffset now = new DateTimeOffset(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
-        StepDeadline deadline = new StepDeadline(TimeSpan.FromSeconds(5), CancellationToken.None, () => now);
+        TimeSpan elapsed = TimeSpan.Zero;
+        StepDeadline deadline = new StepDeadline(TimeSpan.FromSeconds(5), CancellationToken.None, () => elapsed);
 
-        now += TimeSpan.FromSeconds(30);
+        elapsed = TimeSpan.FromSeconds(30);
 
         Assert.Equal(TimeSpan.Zero, deadline.Remaining);
+
+        // And it says the time ran out, which is the question a cancelled step actually asks.
+        Assert.True(deadline.HasExpired);
     }
 
     [Fact]

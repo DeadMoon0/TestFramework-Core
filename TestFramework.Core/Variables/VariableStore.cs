@@ -2,6 +2,7 @@
 using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 
@@ -182,12 +183,17 @@ public class VariableStore : IFreezable
     /// Gets a variable value without a static result type.
     /// </summary>
     /// <param name="identifier">The variable identifier to resolve.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="MissingVariableException">Nothing in this run set it.</exception>
     public object? GetVariable(VariableIdentifier identifier)
     {
         lock (syncRoot)
         {
-            return _variables[identifier];
+            if (_variables.TryGetValue(identifier, out object? value))
+                return value;
         }
+
+        throw this.Missing(identifier);
     }
 
     /// <summary>
@@ -195,12 +201,69 @@ public class VariableStore : IFreezable
     /// </summary>
     /// <typeparam name="T">The expected variable value type.</typeparam>
     /// <param name="identifier">The variable identifier to resolve.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="MissingVariableException">Nothing in this run set it.</exception>
+    /// <exception cref="VariableTypeMismatchException">It holds a different type.</exception>
     public T? GetVariable<T>(VariableIdentifier identifier)
     {
+        object? value;
+
         lock (syncRoot)
         {
-            return (T?)_variables[identifier];
+            if (!_variables.TryGetValue(identifier, out value))
+                throw this.Missing(identifier);
         }
+
+        return Cast<T>(identifier, value);
+    }
+
+    /// <summary>
+    /// Says which variable is missing and which ones this run does have.
+    /// </summary>
+    /// <remarks>
+    /// The dictionary lookup this replaces threw <c>KeyNotFoundException</c> - "the given key 'root' was
+    /// not present in the dictionary" - which names neither the run nor anything a reader could act on.
+    /// <see cref="MissingVariableException"/> had been written for exactly this and never thrown.
+    /// </remarks>
+    /// <param name="identifier">The variable that is not there.</param>
+    /// <returns>The exception to throw.</returns>
+    private MissingVariableException Missing(VariableIdentifier identifier)
+    {
+        Dictionary<string, object?> available = [];
+
+        lock (syncRoot)
+        {
+            foreach (KeyValuePair<VariableIdentifier, object?> entry in _variables)
+            {
+                available[entry.Key.Identifier] = entry.Value;
+            }
+        }
+
+        return new MissingVariableException(identifier.Identifier, available);
+    }
+
+    /// <summary>
+    /// Reads a value as the requested type, or says which variable disagreed.
+    /// </summary>
+    /// <typeparam name="T">The type the caller asked for.</typeparam>
+    /// <param name="identifier">Which variable, for the message.</param>
+    /// <param name="value">What it holds.</param>
+    /// <returns>The value.</returns>
+    private static T? Cast<T>(VariableIdentifier identifier, object? value)
+    {
+        if (value is null)
+        {
+            // A variable that was set to null reads as null, whatever type was asked for: it is a value
+            // somebody stored on purpose, not a mismatch.
+            return default;
+        }
+
+        if (value is T typed)
+        {
+            return typed;
+        }
+
+        throw new VariableTypeMismatchException(identifier, typeof(T), value.GetType());
     }
 
     /// <summary>
@@ -212,17 +275,22 @@ public class VariableStore : IFreezable
     /// <returns><see langword="true"/> when the variable exists; otherwise <see langword="false"/>.</returns>
     public bool TryGetVariable<T>(VariableIdentifier identifier, out T? value)
     {
+        object? raw;
+
         lock (syncRoot)
         {
-            if (_variables.TryGetValue(identifier, out object? raw))
+            if (!_variables.TryGetValue(identifier, out raw))
             {
-                value = (T?)raw;
-                return true;
+                value = default;
+                return false;
             }
         }
 
-        value = default;
-        return false;
+        // Present but the wrong type is still a mistake worth naming. TryGet answers "is it there", not
+        // "is it whatever I claimed" - silently returning default here would hide a real disagreement.
+        value = Cast<T>(identifier, raw);
+
+        return true;
     }
 
     /// <summary>

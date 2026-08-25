@@ -1,4 +1,7 @@
-﻿using TestFramework.Core.Steps;
+﻿using TestFramework.Core.Logging;
+using TestFramework.Core.Debugger;
+using TestFramework.Core.Variables;
+using TestFramework.Core.Steps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +21,67 @@ namespace TestFramework.Core.Tests;
 /// </summary>
 public class ExceptionTests
 {
+    [Fact]
+    public void ReadingAVariableThatWasNeverSetSaysWhatTheRunDoesHave()
+    {
+        // The store used to index its dictionary, so this was "The given key 'root' was not present in the
+        // dictionary" - a message that names neither the run nor anything to do about it. The exception
+        // that says it properly had been written for exactly this case and was never thrown.
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+
+        store.SetVariable("orderId", "A-1");
+        store.SetVariable("customer", 42);
+
+        MissingVariableException failure = Assert.Throws<MissingVariableException>(() => store.GetVariable<string>("root"));
+
+        Assert.Contains("'root' was never set", failure.Message, StringComparison.Ordinal);
+
+        // What the run does have, with types, so the reader can see the typo.
+        Assert.Contains("orderId (type: String)", failure.ToString(), StringComparison.Ordinal);
+        Assert.Contains("customer (type: Int32)", failure.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadingAVariableAsTheWrongTypeNamesTheVariable()
+    {
+        // The cast threw InvalidCastException, which names two types and not the variable - so a reader
+        // learned that something somewhere was a String, and had to go find which one.
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+
+        store.SetVariable("orderId", "A-1");
+
+        VariableTypeMismatchException failure = Assert.Throws<VariableTypeMismatchException>(() => store.GetVariable<int>("orderId"));
+
+        Assert.Contains("'orderId' holds 'String', not the requested 'Int32'", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("GetVariable<String>(\"orderId\")", failure.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AVariableSetToNullReadsAsNullRatherThanAsAMismatch()
+    {
+        // Somebody stored null on purpose. Reading it back is not a disagreement about types.
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+
+        store.SetVariable<string?>("optional", null);
+
+        Assert.Null(store.GetVariable<string>("optional"));
+        Assert.True(store.TryGetVariable<string>("optional", out string? value));
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryGetStillRefusesToPretendAboutTheType()
+    {
+        // TryGet answers "is it there", not "is it whatever I claimed". Handing back default for a value
+        // of the wrong type would hide a real mistake behind a false negative.
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+
+        store.SetVariable("orderId", "A-1");
+
+        Assert.False(store.TryGetVariable<string>("missing", out _));
+        Assert.Throws<VariableTypeMismatchException>(() => store.TryGetVariable<int>("orderId", out _));
+    }
+
     [Fact]
     public void MissingVariableException_IncludesAvailableVariables()
     {

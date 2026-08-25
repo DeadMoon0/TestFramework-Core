@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace TestFramework.Core.Steps;
@@ -22,15 +23,31 @@ namespace TestFramework.Core.Steps;
 /// </remarks>
 public sealed class StepDeadline
 {
-    private readonly DateTimeOffset? expiresAt;
-    private readonly Func<DateTimeOffset> now;
+    private readonly Func<TimeSpan> elapsed;
+    private readonly bool bounded;
 
-    internal StepDeadline(TimeSpan total, CancellationToken token, Func<DateTimeOffset>? now = null)
+    /// <summary>
+    /// Starts the clock for a step's deadline.
+    /// </summary>
+    /// <remarks>
+    /// Time is measured with <see cref="Stopwatch"/> rather than the wall clock, and that is not a
+    /// preference. <c>DateTimeOffset.UtcNow</c> advances in system timer ticks - about 15 ms on Windows -
+    /// while the cancellation this deadline shares fires from a timer of its own. Compared against a coarse
+    /// clock, a 200 ms deadline could fire while the clock still read "not yet", so a step asking whether
+    /// its time was up got the wrong answer roughly one run in several. A monotonic elapsed time cannot
+    /// disagree with a timer that never fires early.
+    /// </remarks>
+    /// <param name="total">How long the step has.</param>
+    /// <param name="token">The token that fires when it runs out.</param>
+    /// <param name="elapsed">How much time has passed, for a test that needs to control it.</param>
+    internal StepDeadline(TimeSpan total, CancellationToken token, Func<TimeSpan>? elapsed = null)
     {
-        this.now = now ?? (static () => DateTimeOffset.UtcNow);
+        Stopwatch started = Stopwatch.StartNew();
+
+        this.elapsed = elapsed ?? (() => started.Elapsed);
         this.Total = total;
         this.Token = token;
-        this.expiresAt = IsBounded(total) ? this.now() + total : null;
+        this.bounded = IsBounded(total);
     }
 
     /// <summary>
@@ -44,7 +61,24 @@ public sealed class StepDeadline
     public CancellationToken Token { get; }
 
     /// <summary>Whether this step has a deadline at all.</summary>
-    public bool IsUnbounded => this.expiresAt is null;
+    public bool IsUnbounded => !this.bounded;
+
+    /// <summary>
+    /// Whether the time ran out.
+    /// </summary>
+    /// <remarks>
+    /// The question a cancelled step actually needs answered: was I stopped because my time is up, or
+    /// because the whole run was cancelled? Those deserve different reports - "the file never appeared" is
+    /// true of the first and misleading about the second - and a step cannot tell them apart from the
+    /// token alone.
+    /// <para>
+    /// Reading <c>Remaining == TimeSpan.Zero</c> instead looks equivalent and is not: the runner arms the
+    /// cancellation and builds this from the same timeout, so the two can only agree if the deadline is
+    /// created first. It is, and this is the property that says so out loud rather than leaving every
+    /// caller to do the arithmetic and get the edge wrong.
+    /// </para>
+    /// </remarks>
+    public bool HasExpired => this.bounded && this.elapsed() >= this.Total;
 
     /// <summary>
     /// How long is left, floored at zero. <see cref="Timeout.InfiniteTimeSpan"/> when unbounded.
@@ -57,12 +91,12 @@ public sealed class StepDeadline
     {
         get
         {
-            if (this.expiresAt is not { } expiry)
+            if (!this.bounded)
             {
                 return Timeout.InfiniteTimeSpan;
             }
 
-            TimeSpan remaining = expiry - this.now();
+            TimeSpan remaining = this.Total - this.elapsed();
 
             return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }

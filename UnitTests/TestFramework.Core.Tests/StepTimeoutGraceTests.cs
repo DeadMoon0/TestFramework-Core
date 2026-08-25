@@ -63,6 +63,26 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AStepCancelledByItsOwnDeadlineSeesThatTheTimeRanOut()
+    {
+        // The question a cancelled step needs answered before it reports anything: was my time up, or was
+        // the run cancelled? Getting this wrong is subtle - the runner used to arm the cancellation before
+        // building the deadline, so at the moment the token fired the deadline still reported time
+        // remaining, by however long the two lines took. Under load that gap is milliseconds, and a step
+        // deciding from it reported the wrong thing intermittently.
+        ExpiryReportingStep step = new ExpiryReportingStep();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(step).WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("expires")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+
+        Assert.Equal(StepState.Timeout, run.Step("expires").LastResult.State);
+        Assert.True(step.SawExpiry, "the step was cancelled while its own deadline still reported time left");
+    }
+
+    [Fact]
     public void AnAbandonedAttemptsWritesAreRefusedRatherThanLanding()
     {
         // The suspected mechanism behind a suite that fails differently under load: a step abandoned in
@@ -293,5 +313,44 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         }
 
         public override string ToString() => "artifact-reference";
+    }
+
+    /// <summary>Reports whether its deadline agreed that the time was up when it was cancelled.</summary>
+    private sealed class ExpiryReportingStep : Step<EmptyStepResultContext>
+    {
+        // Read by the test after the run: the run executes a clone, so this lives on neither - it is a
+        // static because the step is used once, in one test.
+        internal bool SawExpiry => sawExpiry;
+
+        private static bool sawExpiry;
+
+        public override string Name => "Expiry reporting";
+
+        public override string Description => "Waits, then says whether its deadline had expired.";
+
+        public override bool DoesReturn => false;
+
+        public override Step<EmptyStepResultContext> Clone() => new ExpiryReportingStep().WithClonedOptions(this);
+
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), context.Deadline.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                sawExpiry = context.Deadline.HasExpired;
+                throw;
+            }
+
+            return EmptyStepResultContext.Instance;
+        }
     }
 }
