@@ -24,10 +24,20 @@ namespace TestFramework.Core.Environment.Graph;
 /// <para>
 /// Components may be created in parallel, so the store is concurrent.
 /// </para>
+/// <para>
+/// Reading is public; changing is not. A value redirected from outside the run would point a test at a
+/// different system, and a withdrawn one would strand a step mid-flight, so values arrive only two ways:
+/// a node declaring them, or a node producing them through its own context - which checks them against
+/// its kind first.
+/// </para>
 /// </remarks>
 public sealed class ResourceValueStore
 {
     private readonly ConcurrentDictionary<Slot, ResolvedValue> values = new ConcurrentDictionary<Slot, ResolvedValue>();
+
+    internal ResourceValueStore()
+    {
+    }
 
     /// <summary>
     /// Records a value an author wrote. Relayed exactly as declared.
@@ -37,7 +47,7 @@ public sealed class ResourceValueStore
     /// <param name="key">Which value.</param>
     /// <param name="value">The value.</param>
     /// <param name="source">Who declared it, for messages.</param>
-    public void Declare(string resourceKind, string identifier, ValueKey key, string value, string source)
+    internal void Declare(string resourceKind, string identifier, ValueKey key, string value, string source)
         => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Declared, source));
 
     /// <summary>
@@ -48,7 +58,7 @@ public sealed class ResourceValueStore
     /// <param name="key">Which value.</param>
     /// <param name="value">The value.</param>
     /// <param name="source">Who produced it, for messages.</param>
-    public void Produce(string resourceKind, string identifier, ValueKey key, string value, string source)
+    internal void Produce(string resourceKind, string identifier, ValueKey key, string value, string source)
         => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Produced, source));
 
     /// <summary>
@@ -60,7 +70,7 @@ public sealed class ResourceValueStore
     /// </remarks>
     /// <param name="resourceKind">The kind that owned it.</param>
     /// <param name="identifier">Which resource.</param>
-    public void WithdrawProduced(string resourceKind, string identifier)
+    internal void WithdrawProduced(string resourceKind, string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);

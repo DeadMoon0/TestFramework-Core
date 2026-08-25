@@ -29,16 +29,40 @@ public sealed class ConfigStore<TConfig>
 
     private bool sealedForRun;
 
+    internal ConfigStore()
+    {
+    }
+
     /// <summary>
     /// Creates a store holding one entry, for a test or a fixture that configures by hand.
     /// </summary>
+    /// <remarks>
+    /// Sealed on the way out: everything a store holds is stated when it is made, which is what lets a
+    /// reader trust it to describe intent rather than whatever the run got up to.
+    /// </remarks>
     /// <param name="identifier">The identifier.</param>
     /// <param name="config">The configuration.</param>
     /// <returns>The store.</returns>
     public static ConfigStore<TConfig> Create(string identifier, TConfig config)
+        => Create([new KeyValuePair<string, TConfig>(identifier, config)]);
+
+    /// <summary>
+    /// Creates a store holding several entries, for a fixture that configures by hand.
+    /// </summary>
+    /// <param name="entries">The entries.</param>
+    /// <returns>The store, already sealed.</returns>
+    public static ConfigStore<TConfig> Create(IEnumerable<KeyValuePair<string, TConfig>> entries)
     {
+        ArgumentNullException.ThrowIfNull(entries);
+
         ConfigStore<TConfig> store = new ConfigStore<TConfig>();
-        store.Add(identifier, config);
+
+        foreach ((string identifier, TConfig config) in entries)
+        {
+            store.Add(identifier, config);
+        }
+
+        store.Seal();
 
         return store;
     }
@@ -49,7 +73,7 @@ public sealed class ConfigStore<TConfig>
     /// <param name="identifier">The identifier.</param>
     /// <param name="config">The configuration.</param>
     /// <exception cref="FrameworkConfigurationException">Loading has finished.</exception>
-    public void Add(string identifier, TConfig config)
+    internal void Add(string identifier, TConfig config)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
         ArgumentNullException.ThrowIfNull(config);
@@ -73,7 +97,7 @@ public sealed class ConfigStore<TConfig>
     /// <summary>
     /// Ends the declaration phase. Called once the configuration has been loaded.
     /// </summary>
-    public void Seal()
+    internal void Seal()
     {
         lock (this.syncRoot)
         {

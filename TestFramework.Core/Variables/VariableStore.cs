@@ -5,6 +5,7 @@ using System.Linq;
 using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Variables;
 
@@ -13,30 +14,79 @@ namespace TestFramework.Core.Variables;
 /// </summary>
 public class VariableStore : IFreezable
 {
-    private readonly object syncRoot = new();
+    private readonly object syncRoot;
 
     /// <summary>
     /// Gets a value indicating whether the variable store has been frozen against further mutation.
     /// </summary>
-    public bool IsFrozen { get; private set; }
+    public bool IsFrozen => _variables.IsFrozen;
 
     /// <summary>
     /// Freezes the variable store against further mutation.
     /// </summary>
-    public void Freeze() { lock (syncRoot) { IsFrozen = true; _variables.Freeze(); } }
+    /// <remarks>
+    /// Reached through <see cref="IFreezable"/> rather than offered on the store itself: the run freezes
+    /// its own variables when it ends, and anything else doing it mid-run would turn every later write
+    /// into a failure. Explicit implementation keeps it out of reach of ordinary code without pretending
+    /// a determined cast is impossible.
+    /// </remarks>
+    void IFreezable.Freeze() { lock (syncRoot) { _variables.Freeze(); } }
 
-    private readonly FreezableDictionary<VariableIdentifier, object?> _variables = [];
+    internal void FreezeForRunEnd() { lock (syncRoot) { _variables.Freeze(); } }
+
+    private readonly FreezableDictionary<VariableIdentifier, object?> _variables;
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
     /// <summary>
     /// Last published content fingerprint per variable. Only populated while something is capturing.
     /// </summary>
-    private readonly Dictionary<VariableIdentifier, string> changeTokens = [];
-    private readonly object changeTokenLock = new();
+    private readonly Dictionary<VariableIdentifier, string> changeTokens;
+    private readonly object changeTokenLock;
+
+    /// <summary>
+    /// The attempt whose writes this view speaks for, and the gate that decides whether it still counts.
+    /// </summary>
+    /// <remarks>
+    /// Null on the run's own store: writes that belong to no step - a fixture seeding a variable, the run
+    /// publishing its summary - are always honoured.
+    /// </remarks>
+    private readonly StepAttemptGate? attemptGate;
+    private readonly StepAttempt? writer;
+
+    /// <summary>
+    /// A view of this store that writes on behalf of one attempt at one step.
+    /// </summary>
+    /// <remarks>
+    /// The same store and the same API - only the identity of the writer differs, which is what lets an
+    /// abandoned attempt be told apart from the live one. A step therefore needs no new type and no new
+    /// call shape; it just cannot write once the run has stopped waiting for it.
+    /// </remarks>
+    /// <param name="gate">The gate holding the current attempt.</param>
+    /// <param name="attempt">The attempt this view writes for.</param>
+    /// <returns>The view.</returns>
+    internal VariableStore ForAttempt(StepAttemptGate gate, StepAttempt attempt)
+        => new VariableStore(this, gate, attempt);
+
+    private VariableStore(VariableStore source, StepAttemptGate gate, StepAttempt attempt)
+    {
+        // Shared by reference on purpose: one store, many writers, each able to say who it is.
+        this.syncRoot = source.syncRoot;
+        this._variables = source._variables;
+        this.logger = source.logger;
+        this.debuggingSession = source.debuggingSession;
+        this.changeTokens = source.changeTokens;
+        this.changeTokenLock = source.changeTokenLock;
+        this.attemptGate = gate;
+        this.writer = attempt;
+    }
 
     internal VariableStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
     {
+        this.syncRoot = new object();
+        this._variables = [];
+        this.changeTokens = [];
+        this.changeTokenLock = new object();
         this.logger = logger;
         this.debuggingSession = debuggingSession;
     }
@@ -49,6 +99,19 @@ public class VariableStore : IFreezable
     /// <param name="value">The value to store.</param>
     public void SetVariable<T>(VariableIdentifier identifier, T value)
     {
+        // An attempt the runner has stopped waiting for is still running, and it must not be able to
+        // reach the stores a later test reads. Dropped rather than thrown: the abandoned attempt has
+        // nobody left to report to, and the warning is for whoever reads the log afterwards.
+        if (attemptGate is not null && !attemptGate.Allows(writer))
+        {
+            logger.LogWarning(
+                "A write to '{0}' from {1} was dropped: the run stopped waiting for that attempt.",
+                identifier.Identifier,
+                writer?.ToString() ?? "an unknown attempt");
+
+            return;
+        }
+
         // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
         // expensive, and it used to happen up to three times per write with the lock held.
         lock (syncRoot)

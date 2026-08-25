@@ -155,12 +155,20 @@ internal class CoreRunner
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
         {
-            stepResult.Exception = new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", exception);
             stepResult.State = StepState.Timeout;
+
+            // The step has been told to stop; now it gets a short while to say what it was doing. A step
+            // that answers within the grace window has its own account surfaced, which is the whole
+            // reason packages used to under-cut their deadlines by hand.
+            Exception? own = executionTask is null
+                ? null
+                : await AwaitGraceAsync(executionTask, StepDeadline.GraceFor(timeout));
+
+            stepResult.Exception = own ?? new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", exception);
 
             if (executionTask is not null && !executionTask.IsCompleted)
             {
-                logger.LogWarning($"Step '{step.Step.Name}' did not stop when it timed out after {timeout}. The abandoned attempt may still be running and writing to this run's stores.");
+                logger.LogWarning($"Step '{step.Step.Name}' did not stop when it timed out after {timeout}. Its writes to this run's stores are refused from here on.");
 
                 // Hand ownership of the CTS to the continuation: disposing it here would race the
                 // still-running attempt, and someone has to observe that attempt's exception.
@@ -185,6 +193,36 @@ internal class CoreRunner
         stepResult.TimeSpent = stopwatch.Elapsed;
         stepResult.Freeze();
         return stepResult;
+    }
+
+    /// <summary>
+    /// Waits a little for a cancelled attempt to finish complaining.
+    /// </summary>
+    /// <remarks>
+    /// A step that stops cooperatively usually throws something far more useful than "it timed out" - the
+    /// address it was waiting on, the element it could not find. Without this window that exception was
+    /// raised into a task nobody was waiting for any more, so the reader got the generic message and the
+    /// step's own account was lost. Anything the step throws here wins; a cancellation is not an account
+    /// of anything, so it does not.
+    /// </remarks>
+    /// <param name="executionTask">The attempt.</param>
+    /// <param name="grace">How long to wait.</param>
+    /// <returns>What the step said, or null when it said nothing in time.</returns>
+    private static async Task<Exception?> AwaitGraceAsync(Task executionTask, TimeSpan grace)
+    {
+        if (grace <= TimeSpan.Zero)
+            return null;
+
+        // Decided by which task finished, never by what was thrown: a step's own account is very often a
+        // TimeoutException itself, so using the wait's own timeout exception as the signal made the two
+        // indistinguishable and lost exactly the message this window exists to keep.
+        Task finished = await Task.WhenAny(executionTask, Task.Delay(grace, CancellationToken.None));
+
+        if (!ReferenceEquals(finished, executionTask))
+            return null;
+
+        // A cancellation is not an account of anything; only a real failure is worth surfacing.
+        return executionTask.Exception?.InnerExceptions.FirstOrDefault(static inner => inner is not OperationCanceledException);
     }
 
     /// <summary>
