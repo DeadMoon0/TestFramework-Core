@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
+using TestFramework.Core.Conventions;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
@@ -227,6 +228,17 @@ public class PublicSurfaceTests
         Assert.Contains(
             "Newtonsoft.Json",
             typeof(ResourceGraph).Assembly.GetReferencedAssemblies().Select(static reference => reference.Name));
+    }
+
+    [Fact]
+    public void CoreKeepsItsInternalsToItself()
+    {
+        // The engine is not exempt from the rule it ships. No piece is special to Core and Core is special
+        // to no piece: a grant here would be the engine picking a favourite, which is the one place it would
+        // do the most damage - every other package would then be writing against a smaller surface than the
+        // favoured one, without knowing it.
+        // Throws when it finds one; the report is what it looked at.
+        Assert.Equal(1, StepConventions.AssertNoPackageSeesAnothersInternals(typeof(ResourceGraph).Assembly).Checked);
     }
 
     private static void AssertNotPublic<T>(string method)

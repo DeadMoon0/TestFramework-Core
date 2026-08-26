@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Steps;
 
@@ -41,6 +42,63 @@ public sealed record ConventionReport(int Checked, IReadOnlyList<string> Skipped
 /// </remarks>
 public static class StepConventions
 {
+    /// <summary>
+    /// No package hands another package a view of its internals.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every package is a stranger to every other, Core included: they talk through the sockets the engine
+    /// offers and the run's channels, and through nothing else. An <c>InternalsVisibleTo</c> between two of
+    /// them is the private handshake that rule exists to prevent - two packages understand each other and a
+    /// third cannot join, so whatever the favoured one may do stops being something every package may do.
+    /// </para>
+    /// <para>
+    /// Test assemblies are exempt, and only test assemblies. A suite testing its own package's internals is
+    /// not a second package in the family; it ships with nothing and nobody consumes it. The exemption is by
+    /// name - the grant's target ends in <c>.Tests</c> - because that is the one part of a grant this can
+    /// read without loading the assembly it names.
+    /// </para>
+    /// <para>
+    /// It found two when it was written, both in UI, and neither was doing what it looked like: one was
+    /// entirely unused, and the other existed so a bridge package could set two coupled members on an
+    /// identifier. Those became one public operation, which is what a bridge should have been reaching for -
+    /// the surface was missing, and the grant had papered over the gap.
+    /// </para>
+    /// </remarks>
+    /// <param name="assembly">The assembly to check.</param>
+    /// <returns>What was checked.</returns>
+    /// <exception cref="FrameworkConfigurationException">When the assembly opens its internals to a package.</exception>
+    public static ConventionReport AssertNoPackageSeesAnothersInternals(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        List<string> granted = [];
+
+        foreach (InternalsVisibleToAttribute grant in assembly.GetCustomAttributes<InternalsVisibleToAttribute>())
+        {
+            // The attribute value may carry a public key, which is not part of who is being trusted.
+            string target = grant.AssemblyName.Split(',')[0].Trim();
+
+            if (!target.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase))
+            {
+                granted.Add(target);
+            }
+        }
+
+        if (granted.Count > 0)
+        {
+            throw new FrameworkConfigurationException(
+                $"'{assembly.GetName().Name}' opens its internals to {granted.Count} package(s), so those packages can do things no other package can.",
+                [
+                    "Whatever the favoured package reaches for is a surface this one is missing - add it, and let every package use it.",
+                    "A grant to a test assembly is fine; name it '<package>.Tests' so it is recognised as one.",
+                ],
+                [.. granted]);
+        }
+
+        return new ConventionReport(1, []);
+    }
+
     /// <summary>
     /// Every concrete step in the assembly declares its own <c>Clone()</c>.
     /// </summary>
