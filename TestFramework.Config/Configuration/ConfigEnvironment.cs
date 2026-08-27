@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
@@ -99,11 +99,35 @@ public static class ConfigShapeRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<IConfigShape>(new TShape());
+        return services.AddConfigShape(new TShape());
+    }
+
+    /// <summary>
+    /// Registers a shape that had to be built by its package.
+    /// </summary>
+    /// <remarks>
+    /// A shape usually reads a section by delegating to whatever its package already uses for that, and that
+    /// reader is often supplied by the caller - a custom provider, a different validation. Such a shape cannot
+    /// be constructed by the engine, which is why this overload exists: without it a package's only way in was
+    /// a parameterless shape, so its shape and its own loader would have read the same section by two
+    /// different routes and been free to disagree.
+    /// </remarks>
+    /// <typeparam name="TConfig">The configuration record it reads.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="shape">The shape.</param>
+    /// <returns>The service collection, for chaining.</returns>
+    public static IServiceCollection AddConfigShape<TConfig>(this IServiceCollection services, ConfigShape<TConfig> shape)
+        where TConfig : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(shape);
+
+        services.AddSingleton<IConfigShape>(shape);
 
         // Registered even when the section is empty, so a missing entry reads as "nothing is configured
-        // under that name" rather than as a missing package.
-        services.AddSingleton(implementationFactory: provider => BuildStore<TShape, TConfig>(provider));
+        // under that name" rather than as a missing package. The same instance reads it - a shape built twice
+        // is a shape whose two copies can be configured differently.
+        services.AddSingleton(implementationFactory: provider => BuildStore(shape, provider));
 
         return services.AddConfigRelay();
     }
@@ -128,17 +152,15 @@ public static class ConfigShapeRegistration
         return services;
     }
 
-    private static ConfigStore<TConfig> BuildStore<TShape, TConfig>(IServiceProvider provider)
-        where TShape : ConfigShape<TConfig>, new()
+    private static ConfigStore<TConfig> BuildStore<TConfig>(ConfigShape<TConfig> shape, IServiceProvider provider)
         where TConfig : class
     {
         IConfiguration configuration = provider.GetRequiredService<IConfiguration>();
-        TShape shape = new TShape();
         ConfigStore<TConfig> store = new ConfigStore<TConfig>();
 
         foreach (string identifier in shape.Identifiers(configuration))
         {
-            store.Add(identifier, shape.Read(configuration.GetSection(shape.Section).GetSection(identifier), identifier));
+            store.Add(identifier, shape.Read(configuration, identifier));
         }
 
         // Declarations are complete the moment the file has been read; anything a run discovers later is

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
@@ -88,10 +88,16 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     /// <summary>
     /// Reads one entry.
     /// </summary>
-    /// <param name="section">The entry's own section.</param>
-    /// <param name="identifier">Which entry, for messages.</param>
+    /// <remarks>
+    /// Given the whole configuration rather than the entry's own section, because that is what a package's
+    /// existing reader takes and there is no reason to make it the shape's problem: a reader that validates
+    /// an entry usually wants to name the section it came from, and one that resolves a reference wants to
+    /// look at a sibling. <see cref="Section"/> and the identifier say where to look.
+    /// </remarks>
+    /// <param name="configuration">The run's configuration.</param>
+    /// <param name="identifier">Which entry.</param>
     /// <returns>The record.</returns>
-    public abstract TConfig Read(IConfigurationSection section, string identifier);
+    public abstract TConfig Read(IConfiguration configuration, string identifier);
 
     /// <summary>
     /// The resource values this entry declares.
@@ -106,7 +112,7 @@ public abstract class ConfigShape<TConfig> : IConfigShape
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        return this.Read(configuration.GetSection(this.Section).GetSection(identifier), identifier);
+        return this.Read(configuration, identifier);
     }
 
     /// <inheritdoc />

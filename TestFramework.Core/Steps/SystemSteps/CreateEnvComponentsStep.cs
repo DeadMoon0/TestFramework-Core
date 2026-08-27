@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Environment.Internal;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
@@ -12,7 +13,7 @@ using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Steps.SystemSteps;
 
-internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext components, IReadOnlyCollection<EnvironmentRequirement> requirements) : Step<EmptyStepResultContext>
+internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComponentContext components, IReadOnlyCollection<EnvironmentRequirement> requirements, ResourcePublishing? publishing = null) : Step<EmptyStepResultContext>
 {
     public override StepExecutionPhase Phase => StepExecutionPhase.Prepare;
 
@@ -23,13 +24,13 @@ internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComp
 
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new CreateEnvComponentsStep(environment, components, requirements).WithClonedOptions(this);
+        return new CreateEnvComponentsStep(environment, components, requirements, publishing).WithClonedOptions(this);
     }
 
     public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
         IReadOnlyCollection<EnvComponentIdentifier> resolvedComponents = environment.ResolveComponents(context.Artifacts.GetAll(), requirements);
-        await EnvComponentLifecycleRunner.CreateAsync(environment, resolvedComponents, context, components.SetState);
+        await EnvComponentLifecycleRunner.CreateAsync(environment, resolvedComponents, context, components.SetState, publishing);
 
         return EmptyStepResultContext.Instance;
     }

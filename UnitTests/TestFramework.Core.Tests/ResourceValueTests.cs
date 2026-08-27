@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
@@ -148,5 +148,41 @@ public class ResourceValueTests
         Assert.Equal(
             ["web.site/storefront", "web.stub/payments"],
             store.Snapshot().Select(static value => $"{value.ResourceKind}/{value.Identifier}"));
+    }
+
+    [Fact]
+    public void AReaderCanTellAProducedCoordinateFromADeclaredOne()
+    {
+        // The one question a coordinate alone cannot answer, and the reason it is asked: a produced value is
+        // complete - whatever made it knows the port and the credentials both - while a declared one is
+        // qualified by the rest of somebody's entry. A reader that cannot tell applies those qualifications
+        // to a container's own connection string and strips its user and password out of it.
+        ResourceValueStore store = new ResourceValueStore();
+        ValueKey key = new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host);
+
+        store.Declare(Sql, Orders, key, "Server=deployed", "config");
+
+        ValueResolution resolution = new ValueResolution(store);
+        ValueRef reference = ValueRef.For(Sql, Orders, ValueNames.ConnectionString);
+
+        Assert.True(resolution.TryResolve(reference, ResourceVantage.Host, out ResolvedValue? declared));
+        Assert.Equal(ValueOrigin.Declared, declared!.Origin);
+
+        store.Produce(Sql, Orders, key, "Server=localhost,32771;User Id=sa", "DockerWebEnvironment");
+
+        Assert.True(resolution.TryResolve(reference, ResourceVantage.Host, out ResolvedValue? produced));
+        Assert.Equal(ValueOrigin.Produced, produced!.Origin);
+        Assert.Equal("Server=localhost,32771;User Id=sa", produced.Value);
+    }
+
+    [Fact]
+    public void AskingForAValueTheRunDoesNotHaveSaysSoWithoutThrowing()
+    {
+        // Same contract as TryGet, so the two reads cannot disagree about what "the run does not know it"
+        // looks like.
+        ValueResolution resolution = new ValueResolution(new ResourceValueStore());
+
+        Assert.False(resolution.TryResolve(ValueRef.For(Sql, Orders, ValueNames.ConnectionString), ResourceVantage.Host, out ResolvedValue? missing));
+        Assert.Null(missing);
     }
 }

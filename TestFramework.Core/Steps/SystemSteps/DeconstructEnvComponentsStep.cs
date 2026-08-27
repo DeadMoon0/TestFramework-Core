@@ -24,11 +24,16 @@ internal class DeconstructEnvComponentsStep(IEnvironmentProvider environment, En
 
     public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        await EnvComponentLifecycleRunner.DeconstructAsync(environment, components.GetCreationOrder(), context, identifier =>
+        await EnvComponentLifecycleRunner.DeconstructAsync(
+            environment,
+            components.GetCreationOrder(),
+            context,
+            identifier =>
             {
                 components.TryGetState(identifier, out object? state);
                 return state;
-            });
+            },
+            components.ScopeOf);
 
         return EmptyStepResultContext.Instance;
     }

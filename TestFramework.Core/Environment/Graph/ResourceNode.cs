@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -204,37 +204,10 @@ public sealed class NodeContext
 
     private void Publish(string valueName, ResourceVantage? vantage, string value)
     {
-        // The kind is the promise plan-time validation checked routes against; producing something
-        // outside it would make that validation a promise the run does not keep.
-        if (!this.node.Kind.TryGetValue(valueName, out ResourceValue? offered))
-        {
-            throw new Exceptions.FrameworkConfigurationException(
-                $"{this.node} produced '{valueName}', which {this.node.Kind} does not offer.",
-                ["Declare the value on the kind, so a route to it can be checked before anything starts."],
-                [.. this.node.Kind.Values.Select(static value => value.ToString())]);
-        }
+        // The check is shared with the other way into producing - a component that starts several resources -
+        // because holding both to the same promise means one implementation of it, not two.
+        ValueKey key = ResourceValueContract.KeyFor(this.node.Kind, this.node.ToString(), valueName, vantage);
 
-        if (offered!.PerVantage && vantage is null)
-        {
-            throw new Exceptions.FrameworkConfigurationException(
-                $"{this.node} produced '{valueName}' without a viewpoint, but {this.node.Kind} offers it per viewpoint.",
-                ["Publish it once for each viewpoint: what the test process reaches is not what a peer container reaches."],
-                []);
-        }
-
-        if (!offered.PerVantage && vantage is not null)
-        {
-            throw new Exceptions.FrameworkConfigurationException(
-                $"{this.node} produced '{valueName}' for {vantage}, but {this.node.Kind} offers it as one value for every viewpoint.",
-                ["Publish it once, without a viewpoint."],
-                []);
-        }
-
-        this.values.Produce(
-            this.node.KindName,
-            this.node.Identifier,
-            offered.KeyFor(vantage ?? ResourceVantage.Host),
-            value,
-            this.node.ToString());
+        this.values.Produce(this.node.KindName, this.node.Identifier, key, value, this.node.ToString());
     }
 }

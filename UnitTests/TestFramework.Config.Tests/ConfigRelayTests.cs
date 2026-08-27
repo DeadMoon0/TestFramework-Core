@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
@@ -146,12 +146,16 @@ public class ConfigRelayTests
 
         public override ResourceKind Kind => ApiKind;
 
-        public override ApiEntry Read(IConfigurationSection section, string identifier)
-            => new ApiEntry
+        public override ApiEntry Read(IConfiguration configuration, string identifier)
+        {
+            IConfigurationSection section = configuration.GetSection(this.Section).GetSection(identifier);
+
+            return new ApiEntry
             {
                 BaseUrl = section[nameof(ApiEntry.BaseUrl)],
                 HealthPath = section[nameof(ApiEntry.HealthPath)],
             };
+        }
 
         public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
         {
@@ -181,12 +185,16 @@ public class ConfigRelayTests
 
         public override ResourceKind Kind => ApiKind;
 
-        public override ApiEntry Read(IConfigurationSection section, string identifier)
-            => new ApiEntry
+        public override ApiEntry Read(IConfiguration configuration, string identifier)
+        {
+            IConfigurationSection section = configuration.GetSection(this.Section).GetSection(identifier);
+
+            return new ApiEntry
             {
                 BaseUrl = section[nameof(ApiEntry.BaseUrl)],
                 HealthPath = section[nameof(ApiEntry.HealthPath)],
             };
+        }
 
         public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
             => new Dictionary<ValueKey, string>

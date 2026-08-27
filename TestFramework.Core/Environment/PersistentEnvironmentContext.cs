@@ -25,6 +25,17 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private readonly bool _disposePersistentServiceProvider;
     private readonly IEnvironmentProvider _bootstrapEnvironment;
     private readonly Dictionary<EnvComponentIdentifier, object?> _persistentStates = [];
+
+    /// <summary>
+    /// What the persistent components published while starting, kept per component.
+    /// </summary>
+    /// <remarks>
+    /// A persistent component's body runs once, here. Every later run is handed a stand-in that returns the
+    /// same state without running anything, so the addresses that body worked out - a container's mapped port,
+    /// chosen by the operating system and knowable nowhere else - would exist in this bootstrap and nowhere
+    /// after it. Keeping them is what lets a run be put in the position the bootstrap was in.
+    /// </remarks>
+    private readonly ResourcePublishing _persistentPublishing = new ResourcePublishing(new ResourceValueStore());
     private readonly List<EnvComponentIdentifier> _persistentCreationOrder = [];
     private readonly HashSet<EnvComponentIdentifier> _persistentComponents;
     private readonly IReadOnlyCollection<EnvComponentIdentifier> _persistentRoots;
@@ -137,7 +148,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                 stateSink.SetPersistentState(identifier, state);
         }
 
-        return new PersistentEnvironmentProvider(environment, _persistentComponents, _persistentStates);
+        return new PersistentEnvironmentProvider(environment, _persistentComponents, _persistentStates, _persistentPublishing);
     }
 
     /// <inheritdoc />
@@ -227,18 +238,23 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                 artifactStore,
                 logger,
 
-                // Empty on purpose: a persistent bootstrap declares no resources of its own, and saying so
-                // is better than handing its components a resolution belonging to some later run.
-                ValueResolution.Empty,
+                // The bootstrap's own resolution, not some later run's: it holds what these components
+                // publish as they start, which is how the second one learns where the first ended up.
+                // It carries no declared values, because a bootstrap has no run to declare them.
+                _persistentPublishing.Resolution,
                 cancellationTokenSource.Token,
                 _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);
 
-            await EnvComponentLifecycleRunner.CreateAsync(_bootstrapEnvironment, persistentRoots, context, (identifier, state) =>
+            await EnvComponentLifecycleRunner.CreateAsync(_bootstrapEnvironment, persistentRoots, context, (identifier, state, scope) =>
                 {
+                    // Scope is not recorded here on purpose: a bootstrap creates everything it starts, so
+                    // there is nothing to tell apart. The runs that borrow these are where it matters.
+                    _ = scope;
+
                     _persistentStates[identifier] = state;
                     if (!_persistentCreationOrder.Contains(identifier))
                         _persistentCreationOrder.Add(identifier);
-                });
+                }, _persistentPublishing);
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
@@ -264,7 +280,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
             variableStore,
             artifactStore,
             logger,
-            ValueResolution.Empty);
+            _persistentPublishing.Resolution);
 
         await EnvComponentLifecycleRunner.DeconstructAsync(
             _bootstrapEnvironment,
@@ -276,7 +292,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _persistentStates.Clear();
     }
 
-    private sealed class PersistentEnvironmentProvider(IEnvironmentProvider inner, IReadOnlySet<EnvComponentIdentifier> persistentComponents, IReadOnlyDictionary<EnvComponentIdentifier, object?> persistentStates) : IEnvironmentProviderProxy
+    private sealed class PersistentEnvironmentProvider(IEnvironmentProvider inner, IReadOnlySet<EnvComponentIdentifier> persistentComponents, IReadOnlyDictionary<EnvComponentIdentifier, object?> persistentStates, ResourcePublishing persistentPublishing) : IEnvironmentProviderProxy
     {
         public IEnvironmentProvider InnerEnvironment => inner;
 
@@ -294,20 +310,42 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
             if (!persistentStates.TryGetValue(identifier, out object? state))
                 throw new FrameworkStateException($"Persistent environment component '{identifier}' was not created during bootstrap.");
 
-            return new PersistentStateEnvComponent(innerComponent, state);
+            return new PersistentStateEnvComponent(innerComponent, state, persistentPublishing.PublishedBy(identifier));
         }
     }
 
-    private sealed class PersistentStateEnvComponent(EnvComponent inner, object? state) : EnvComponent
+    /// <summary>
+    /// Stands in for a component that already ran, handing the run what that run would have made itself.
+    /// </summary>
+    /// <remarks>
+    /// Two things, not one. The state is the container, and it is what the run's own steps reach for. The
+    /// published values are where that container ended up, and without them the run resolves a coordinate
+    /// from configuration instead - which for a container is a placeholder, so a step dials a port nothing
+    /// answers on and the failure looks like a hang rather than a mistake.
+    /// </remarks>
+    private sealed class PersistentStateEnvComponent(EnvComponent inner, object? state, IReadOnlyList<ResolvedValue> published) : EnvComponent
     {
         public override EnvComponentIdentifier Id => inner.Id;
 
         public override EnvComponentReuseMode ReuseMode => inner.ReuseMode;
 
+        /// <summary>
+        /// The one place in the family that answers <see cref="EnvComponentScope.Reused"/>, because being
+        /// this stand-in is exactly what "already running when the run started" means.
+        /// </summary>
+        internal override EnvComponentScope Scope => EnvComponentScope.Reused;
+
         public override IReadOnlyList<EnvComponentIdentifier> Dependencies => inner.Dependencies;
 
         public override Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
-            => Task.FromResult(state);
+        {
+            // Produced rather than declared, and that is the point: the bootstrap's real address has to beat
+            // the placeholder an author wrote for the same resource, and only a produced value does.
+            foreach (ResolvedValue value in published)
+                context.Resources?.Republish(value);
+
+            return Task.FromResult(state);
+        }
 
         public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
             => Task.CompletedTask;

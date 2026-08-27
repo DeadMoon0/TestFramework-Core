@@ -1,6 +1,7 @@
 ﻿using System;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
+using TestFramework.Core.Environment;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Runner;
@@ -34,7 +35,8 @@ public sealed class RunContext
         ScopedLogger logger,
         ValueResolution values,
         StepDeadline deadline,
-        StepAttempt? attempt)
+        StepAttempt? attempt,
+        EnvironmentResources? resources = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(variables);
@@ -50,6 +52,7 @@ public sealed class RunContext
         this.Values = values;
         this.Deadline = deadline;
         this.Attempt = attempt;
+        this.Resources = resources;
     }
 
     /// <summary>
@@ -85,6 +88,36 @@ public sealed class RunContext
 
     /// <summary>How long this step has, and the token that fires when it runs out.</summary>
     public StepDeadline Deadline { get; }
+
+    /// <summary>
+    /// Where to publish what an environment component started, or null when this is not that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null for an ordinary step, and that is the guarantee rather than an omission - the same shape as
+    /// <see cref="Attempt"/>. A step that could publish a resource value could point a passing test at a
+    /// different system than the one it was written to prove, so only the contexts the engine builds for
+    /// environment work carry one.
+    /// </para>
+    /// <para>
+    /// It exists because the graph's producer half was unreachable from the socket that actually starts
+    /// things: a component was handed read-only values, so the packages published by writing into somebody
+    /// else's configuration store instead. Reading stays on <see cref="Values"/> for everybody.
+    /// </para>
+    /// </remarks>
+    public EnvironmentResources? Resources { get; }
+
+    /// <summary>
+    /// The same run, with a channel to publish started resources on.
+    /// </summary>
+    /// <remarks>
+    /// Internal: handing this out is what decides who may publish, and the answer is the engine's environment
+    /// lifecycle and nothing else.
+    /// </remarks>
+    /// <param name="resources">The channel.</param>
+    /// <returns>The context an environment component is given.</returns>
+    internal RunContext ForEnvironment(EnvironmentResources resources)
+        => new RunContext(this.Services, this.Variables, this.Artifacts, this.Logger, this.Values, this.Deadline, this.Attempt, resources);
 
     /// <summary>
     /// Which attempt at this step is running, or null outside a step.

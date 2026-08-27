@@ -82,6 +82,43 @@ public sealed class ValueResolution
     }
 
     /// <summary>
+    /// Reads a value together with where it came from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For the one question a coordinate alone cannot answer: whether the run supplied it or a person did.
+    /// It matters because <strong>a produced coordinate is complete</strong> - whatever made it knows the
+    /// whole answer, the port and the credentials and the certificate setting, which is precisely why it
+    /// could produce one. A declared coordinate is a person's best description of something they cannot see,
+    /// and the rest of their entry qualifies it.
+    /// </para>
+    /// <para>
+    /// Without this, a reader cannot tell the two apart and applies the entry's qualifications either way.
+    /// The case that asked for it: a starting database used to write a whole record into a configuration
+    /// store, clearing a declared server and integrated-security flag along with it, because a container owns
+    /// the entire connection - and a produced value replaces one slot and cannot un-declare anything. So a
+    /// database that is both configured and containerised had a developer's integrated security applied on
+    /// top of the container's own connection string, which strips its user and password out.
+    /// </para>
+    /// <para>
+    /// <see cref="TryGet"/> stays the normal call. Reach for this only where the origin changes what the
+    /// caller does with the answer, not to inspect the run.
+    /// </para>
+    /// </remarks>
+    /// <param name="value">What to read.</param>
+    /// <param name="vantage">Whose viewpoint.</param>
+    /// <param name="resolved">The value and its origin, when the run has it.</param>
+    /// <returns>True when the run has it.</returns>
+    public bool TryResolve(ValueRef value, ResourceVantage vantage, out ResolvedValue? resolved)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        resolved = this.Find(value, vantage);
+
+        return resolved is not null;
+    }
+
+    /// <summary>
     /// Everything the run knows, for an assertion, a log line or a failure message.
     /// </summary>
     /// <returns>The values.</returns>

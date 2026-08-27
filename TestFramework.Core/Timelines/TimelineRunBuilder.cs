@@ -32,6 +32,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     private readonly VariableStore _newVariableStore;
     private readonly EnvComponentContext _environmentContext;
 
+    /// <summary>
+    /// Where an environment component publishes what it started. Set when the run composes its resources,
+    /// which happens before the stages are built.
+    /// </summary>
+    private ResourcePublishing? _resourcePublishing;
+
     private readonly DebuggingRunSession _debuggingSession;
 
     /// <summary>
@@ -90,6 +96,10 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // waiting on each other, is a sentence at plan time rather than a step timing out later against an
         // address nobody supplied.
         RunResources resources = RunResources.Compose(runServiceProvider, _environment);
+
+        // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
+        // which is the same values without the ability to write them.
+        _resourcePublishing = new ResourcePublishing(resources.Values);
 
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
@@ -330,7 +340,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         IReadOnlyCollection<EnvironmentRequirement> environmentRequirements = CollectEnvironmentRequirements(bufferedMainSteps, variableStore);
 
         if (_environment is not null)
-            preSetupStage.Steps.Add(new CreateEnvComponentsStep(_environment, _environmentContext, environmentRequirements));
+            preSetupStage.Steps.Add(new CreateEnvComponentsStep(_environment, _environmentContext, environmentRequirements, _resourcePublishing));
 
         foreach (StepGeneric step in bufferedPreSetupSteps)
             preSetupStage.Steps.Add(step);
