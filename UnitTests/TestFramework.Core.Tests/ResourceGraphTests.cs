@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -206,7 +206,7 @@ public class ResourceGraphTests
     {
         // The honesty rule: an undeclared read is a dependency the graph cannot order or validate.
         ResourceValueStore values = new ResourceValueStore();
-        values.Produce(Sql.Name, "orders-db", new ValueKey(ValueNames.ConnectionString, ResourceVantage.Network), "Server=orders-db", "env");
+        values.Produce(Sql.Name, "orders-db", new ValueKey(ValueNames.ConnectionString, ResourceVantage.Network), "Server=orders-db", "env", secret: false);
 
         ConnectionSet connections = new ConnectionSet(
             "web.restapi/orders-api",
@@ -225,7 +225,7 @@ public class ResourceGraphTests
     public void ADeclaredNeighbourThatNeverSuppliedTheValueSaysWhatItDidSupply()
     {
         ResourceValueStore values = new ResourceValueStore();
-        values.Produce(Sql.Name, "orders-db", new ValueKey("DatabaseName"), "orders", "env");
+        values.Produce(Sql.Name, "orders-db", new ValueKey("DatabaseName"), "orders", "env", secret: false);
 
         ConnectionSet connections = new ConnectionSet(
             "web.restapi/orders-api",

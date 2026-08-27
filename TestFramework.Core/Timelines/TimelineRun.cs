@@ -33,6 +33,7 @@ public class TimelineRun : IFreezable
         ArtifactStore.FreezeForRunEnd();
         VariableStore.FreezeForRunEnd();
         EnvironmentContext.Freeze();
+        Values.FreezeForRunEnd();
         Stages.Freeze();
     }
 

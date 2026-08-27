@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,6 +70,31 @@ public sealed class ResourceKind
     }
 
     /// <summary>
+    /// Whether a value of this kind must never be printed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asked of the kind rather than carried on each value, because the kind is where the schema already
+    /// lives: a connection string is a secret for every instance of every SQL database, and nothing that
+    /// publishes one should have to remember that. Declaring it here also means two packages cannot disagree
+    /// about it - interning refuses a second declaration of the same kind whose secrecy differs.
+    /// </para>
+    /// <para>
+    /// A value nobody declared secret is not secret. That is the right default for the same reason the
+    /// schema is an upper bound: a kind lists what it offers, and most of what a resource offers is an
+    /// address or a name.
+    /// </para>
+    /// </remarks>
+    /// <param name="valueName">Which value.</param>
+    /// <returns>True when the value must be redacted wherever values are listed.</returns>
+    public bool IsSecret(string valueName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(valueName);
+
+        return this.values.TryGetValue(valueName, out ResourceValue? value) && value.Secret;
+    }
+
+    /// <summary>
     /// Finds a value this kind offers.
     /// </summary>
     /// <param name="valueName">Which value.</param>
@@ -106,7 +131,35 @@ public sealed class ResourceKindBuilder
     /// <param name="optional">True when an instance may legitimately not have it.</param>
     /// <returns>The builder.</returns>
     public ResourceKindBuilder OffersPerVantage(string valueName, bool optional = false)
-        => this.Add(valueName, perVantage: true, optional);
+        => this.Add(valueName, perVantage: true, optional, secret: false);
+
+    /// <summary>
+    /// Declares a per-viewpoint value, saying whether it must never be printed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A separate overload rather than a third optional parameter, and the reason is worth keeping: an
+    /// optional argument is baked into the <em>call site</em> when it compiles, so widening
+    /// <c>OffersPerVantage(string, bool)</c> in place made every already-compiled package call a method that
+    /// no longer existed. Source-compatible, binary-incompatible - and in a family of independently versioned
+    /// packages that lands on a user holding one new package and one old, as a
+    /// <c>MissingMethodException</c> at runtime rather than an error at build.
+    /// </para>
+    /// <para>
+    /// Found by the suites that consume this package as a package rather than as a project, which is the only
+    /// place it can be found.
+    /// </para>
+    /// </remarks>
+    /// <param name="valueName">Which value.</param>
+    /// <param name="optional">True when an instance may legitimately not have it.</param>
+    /// <param name="secret">
+    /// True when the value must never be printed. A connection string is the usual case: it is a coordinate
+    /// and a credential in one indivisible string, so it travels as a value and is redacted everywhere values
+    /// are listed.
+    /// </param>
+    /// <returns>The builder.</returns>
+    public ResourceKindBuilder OffersPerVantage(string valueName, bool optional, bool secret)
+        => this.Add(valueName, perVantage: true, optional, secret);
 
     /// <summary>
     /// Declares a value every instance may offer, which reads the same from every viewpoint.
@@ -115,7 +168,22 @@ public sealed class ResourceKindBuilder
     /// <param name="optional">True when an instance may legitimately not have it.</param>
     /// <returns>The builder.</returns>
     public ResourceKindBuilder Offers(string valueName, bool optional = false)
-        => this.Add(valueName, perVantage: false, optional);
+        => this.Add(valueName, perVantage: false, optional, secret: false);
+
+    /// <summary>
+    /// Declares a viewpoint-free value, saying whether it must never be printed.
+    /// </summary>
+    /// <remarks>
+    /// An overload rather than a third optional parameter - see
+    /// <see cref="OffersPerVantage(string, bool, bool)"/> for why that distinction is binary rather than
+    /// cosmetic.
+    /// </remarks>
+    /// <param name="valueName">Which value.</param>
+    /// <param name="optional">True when an instance may legitimately not have it.</param>
+    /// <param name="secret">True when the value must never be printed.</param>
+    /// <returns>The builder.</returns>
+    public ResourceKindBuilder Offers(string valueName, bool optional, bool secret)
+        => this.Add(valueName, perVantage: false, optional, secret);
 
     /// <summary>
     /// Completes the kind, or hands back the one already declared under this name.
@@ -137,7 +205,7 @@ public sealed class ResourceKindBuilder
         return builder.Build();
     }
 
-    private ResourceKindBuilder Add(string valueName, bool perVantage, bool optional)
+    private ResourceKindBuilder Add(string valueName, bool perVantage, bool optional, bool secret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(valueName);
 
@@ -146,7 +214,7 @@ public sealed class ResourceKindBuilder
             throw new ArgumentException($"'{this.name}' already offers '{valueName}'.", nameof(valueName));
         }
 
-        this.values.Add(new ResourceValue(this.name, valueName, perVantage, optional));
+        this.values.Add(new ResourceValue(this.name, valueName, perVantage, optional) { Secret = secret });
 
         return this;
     }
@@ -161,6 +229,16 @@ public sealed class ResourceKindBuilder
 /// <param name="Optional">True when an instance may legitimately not have it.</param>
 public sealed record ResourceValue(string KindName, string ValueName, bool PerVantage, bool Optional)
 {
+    /// <summary>
+    /// True when the value must never be printed wherever values are listed.
+    /// </summary>
+    /// <remarks>
+    /// An init property rather than a fifth positional parameter, for the same binary reason the builder has
+    /// overloads: widening a record's primary constructor changes the constructor every compiled caller
+    /// resolved to.
+    /// </remarks>
+    public bool Secret { get; init; }
+
     /// <summary>
     /// How the owning node names this value about itself.
     /// </summary>
@@ -231,5 +309,5 @@ internal static class ResourceKindRegistry
             ", ",
             kind.Values
                 .OrderBy(static value => value.ValueName, StringComparer.Ordinal)
-                .Select(static value => $"{value.ValueName}{(value.PerVantage ? " per-vantage" : string.Empty)}{(value.Optional ? " optional" : string.Empty)}"));
+                .Select(static value => $"{value.ValueName}{(value.PerVantage ? " per-vantage" : string.Empty)}{(value.Optional ? " optional" : string.Empty)}{(value.Secret ? " secret" : string.Empty)}"));
 }

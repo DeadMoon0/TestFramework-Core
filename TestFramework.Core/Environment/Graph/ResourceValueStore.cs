@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -40,6 +40,34 @@ public sealed class ResourceValueStore
     }
 
     /// <summary>
+    /// Whether the run this belongs to has finished.
+    /// </summary>
+    public bool IsFrozen { get; private set; }
+
+    /// <summary>
+    /// Closes the store when its run ends, so what a finished run says it ran against is what it ran against.
+    /// </summary>
+    /// <remarks>
+    /// §2 of the guardrails: everything under a run freezes when its own part is done, and from then on writes
+    /// throw. That made this the one store a finished run exposed which was still writable - a snapshot that
+    /// can be handed around and trusted has to include the coordinates, because those are what the run proved
+    /// something *against*.
+    /// </remarks>
+    /// <remarks>
+    /// Internal, and deliberately not through <c>IFreezable</c>. That interface is public, so implementing it
+    /// here - even explicitly - would let any caller close a *running* run's values and leave its environment
+    /// unable to publish where it had just started something. The other stores can implement it because the
+    /// freezable collections behind them are internal; this one is the public object itself.
+    /// </remarks>
+    internal void Freeze() => this.IsFrozen = true;
+
+    private void EnsureNotFrozen()
+    {
+        if (this.IsFrozen)
+            throw new FrameworkStateException("This instance has been frozen and is read-only.");
+    }
+
+    /// <summary>
     /// Records a value an author wrote. Relayed exactly as declared.
     /// </summary>
     /// <param name="resourceKind">The kind that owns it.</param>
@@ -47,8 +75,9 @@ public sealed class ResourceValueStore
     /// <param name="key">Which value.</param>
     /// <param name="value">The value.</param>
     /// <param name="source">Who declared it, for messages.</param>
-    internal void Declare(string resourceKind, string identifier, ValueKey key, string value, string source)
-        => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Declared, source));
+    /// <param name="secret">Whether the kind declared this value secret. Ask the kind; never decide here.</param>
+    internal void Declare(string resourceKind, string identifier, ValueKey key, string value, string source, bool secret)
+        => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Declared, source) { IsSecret = secret });
 
     /// <summary>
     /// Records a value something this run provisioned produced.
@@ -58,8 +87,9 @@ public sealed class ResourceValueStore
     /// <param name="key">Which value.</param>
     /// <param name="value">The value.</param>
     /// <param name="source">Who produced it, for messages.</param>
-    internal void Produce(string resourceKind, string identifier, ValueKey key, string value, string source)
-        => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Produced, source));
+    /// <param name="secret">Whether the kind declared this value secret. Ask the kind; never decide here.</param>
+    internal void Produce(string resourceKind, string identifier, ValueKey key, string value, string source, bool secret)
+        => this.Set(new ResolvedValue(resourceKind, identifier, key, value, ValueOrigin.Produced, source) { IsSecret = secret });
 
     /// <summary>
     /// Forgets everything a resource produced, at teardown.
@@ -72,6 +102,8 @@ public sealed class ResourceValueStore
     /// <param name="identifier">Which resource.</param>
     internal void WithdrawProduced(string resourceKind, string identifier)
     {
+        this.EnsureNotFrozen();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
@@ -132,17 +164,47 @@ public sealed class ResourceValueStore
     }
 
     /// <summary>
+    /// The redaction that stands in for a secret value in any listing.
+    /// </summary>
+    internal const string Redacted = "(secret)";
+
+    /// <summary>
     /// Everything the run knows, for a log line, an assertion or a failure message.
     /// </summary>
-    /// <returns>The values, ordered so two runs of the same test read the same.</returns>
+    /// <remarks>
+    /// <para>
+    /// <strong>Secrets are redacted here, by construction rather than by whoever is formatting.</strong> This
+    /// is the bulk channel - it feeds failure messages, log lines and the frozen run - so a value whose kind
+    /// declared it secret arrives with its value replaced and <see cref="ResolvedValue.IsSecret"/> set. A
+    /// caller cannot forget to check a flag, because there is nothing left to check.
+    /// </para>
+    /// <para>
+    /// Which is what lets a secret travel as a resource value at all. A connection string is a coordinate and
+    /// a credential in one indivisible string: it has to be in the graph for anything to connect, and it must
+    /// never appear in the "nothing supplies this" list beside it.
+    /// </para>
+    /// <para>
+    /// A package that wants something readable in the listing publishes a second, non-secret value for it - a
+    /// server and database name beside the connection string. That needs nothing from here.
+    /// </para>
+    /// <para>
+    /// Each value carries its own secrecy rather than this asking the kind registry, which is deliberate: the
+    /// registry is process-wide and clearable, so a lookup here would make whether a password gets printed
+    /// depend on global state something else can reset. The writer asks the kind once, when it has it.
+    /// </para>
+    /// </remarks>
+    /// <returns>The values, ordered so two runs of the same test read the same, secrets redacted.</returns>
     public IReadOnlyList<ResolvedValue> Snapshot()
         => [.. this.values.Values
             .OrderBy(static value => value.ResourceKind, StringComparer.Ordinal)
             .ThenBy(static value => value.Identifier, StringComparer.Ordinal)
-            .ThenBy(static value => value.Key.ToString(), StringComparer.Ordinal)];
+            .ThenBy(static value => value.Key.ToString(), StringComparer.Ordinal)
+            .Select(static value => value.IsSecret ? value with { Value = Redacted } : value)];
 
     private void Set(ResolvedValue value)
     {
+        this.EnsureNotFrozen();
+
         ArgumentException.ThrowIfNullOrWhiteSpace(value.ResourceKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(value.Identifier);
         ArgumentException.ThrowIfNullOrWhiteSpace(value.Key.ValueName);

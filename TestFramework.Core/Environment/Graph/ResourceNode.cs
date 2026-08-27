@@ -208,6 +208,6 @@ public sealed class NodeContext
         // because holding both to the same promise means one implementation of it, not two.
         ValueKey key = ResourceValueContract.KeyFor(this.node.Kind, this.node.ToString(), valueName, vantage);
 
-        this.values.Produce(this.node.KindName, this.node.Identifier, key, value, this.node.ToString());
+        this.values.Produce(this.node.KindName, this.node.Identifier, key, value, this.node.ToString(), this.node.Kind.IsSecret(valueName));
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -82,7 +82,7 @@ internal sealed class RunResources
         {
             foreach (KeyValuePair<ValueKey, string> declared in node.DeclaredValues)
             {
-                values.Declare(node.KindName, node.Identifier, declared.Key, declared.Value, graph.ProviderOf(node));
+                values.Declare(node.KindName, node.Identifier, declared.Key, declared.Value, graph.ProviderOf(node), node.Kind.IsSecret(declared.Key.ValueName));
             }
         }
 

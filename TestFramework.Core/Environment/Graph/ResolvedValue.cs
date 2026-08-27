@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace TestFramework.Core.Environment.Graph;
 
@@ -31,6 +31,17 @@ public sealed record ResolvedValue(
     ValueOrigin Origin,
     string Source)
 {
+    /// <summary>
+    /// Whether <see cref="Value"/> has been redacted because its kind declared it secret.
+    /// </summary>
+    /// <remarks>
+    /// Set only on the way out of a snapshot. A caller reading one value deliberately - through
+    /// <c>Require</c> or <c>TryGet</c> - gets the real thing, because asking for a connection string is
+    /// asking for the connection string. What is redacted is the *listing*: everything that ends up in a
+    /// failure message, a log line or the frozen run.
+    /// </remarks>
+    public bool IsSecret { get; init; }
+
     /// <summary>
     /// Reads as <c>web.sql/orders-db ConnectionString (Network) from DockerWebEnvironment</c>.
     /// </summary>

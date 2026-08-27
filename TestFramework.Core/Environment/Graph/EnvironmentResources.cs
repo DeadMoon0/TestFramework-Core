@@ -120,12 +120,16 @@ public sealed class EnvironmentResources
 
         ValueKey key = ResourceValueContract.KeyFor(kind, $"'{identifier}' ({this.source})", valueName, vantage);
 
-        this.Write(new ResolvedValue(kind.Name, identifier, key, value, ValueOrigin.Produced, this.source));
+        // Asked of the kind, which is the only place that knows and the only place it is declared.
+        this.Write(new ResolvedValue(kind.Name, identifier, key, value, ValueOrigin.Produced, this.source)
+        {
+            IsSecret = kind.IsSecret(valueName),
+        });
     }
 
     private void Write(ResolvedValue value)
     {
-        this.values.Produce(value.ResourceKind, value.Identifier, value.Key, value.Value, value.Source);
+        this.values.Produce(value.ResourceKind, value.Identifier, value.Key, value.Value, value.Source, value.IsSecret);
 
         lock (this.published)
             this.published.Add(value);

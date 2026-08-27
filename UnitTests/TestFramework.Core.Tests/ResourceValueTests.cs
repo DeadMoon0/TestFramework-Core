@@ -22,8 +22,8 @@ public class ResourceValueTests
         // is still on record, so a message can say what was overridden.
         ResourceValueStore store = new ResourceValueStore();
 
-        store.Declare(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=deployed", "config");
-        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment");
+        store.Declare(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=deployed", "config", secret: false);
+        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment", secret: false);
 
         Assert.True(store.TryGet(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), out ResolvedValue? resolved));
         Assert.Equal("Server=localhost,32771", resolved!.Value);
@@ -37,8 +37,8 @@ public class ResourceValueTests
         // for a relay node materialized later - so the rule is about origin, not arrival.
         ResourceValueStore store = new ResourceValueStore();
 
-        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment");
-        store.Declare(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=deployed", "config");
+        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment", secret: false);
+        store.Declare(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=deployed", "config", secret: false);
 
         Assert.True(store.TryGet(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), out ResolvedValue? resolved));
         Assert.Equal("Server=localhost,32771", resolved!.Value);
@@ -48,10 +48,10 @@ public class ResourceValueTests
     public void TwoProvidersClaimingOneResourceIsStatedNotRaced()
     {
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString), "Server=first", "FirstEnvironment");
+        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString), "Server=first", "FirstEnvironment", secret: false);
 
         FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(
-            () => store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString), "Server=second", "SecondEnvironment"));
+            () => store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString), "Server=second", "SecondEnvironment", secret: false));
 
         Assert.Contains("FirstEnvironment", failure.Message, StringComparison.Ordinal);
         Assert.Contains("SecondEnvironment", failure.Message, StringComparison.Ordinal);
@@ -63,7 +63,7 @@ public class ResourceValueTests
         // The substitution this prevents is the bug that string-rewriting connection strings existed to
         // paper over: a test handed a container-internal alias it cannot route to.
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Network), "Server=orders-db,1433", "DockerWebEnvironment");
+        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Network), "Server=orders-db,1433", "DockerWebEnvironment", secret: false);
 
         ValueResolution resolution = new ValueResolution(store);
 
@@ -81,7 +81,7 @@ public class ResourceValueTests
     {
         // A database name is a name, whoever is asking.
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce(Sql, Orders, new ValueKey("DatabaseName"), "orders", "DockerWebEnvironment");
+        store.Produce(Sql, Orders, new ValueKey("DatabaseName"), "orders", "DockerWebEnvironment", secret: false);
 
         ValueResolution resolution = new ValueResolution(store);
 
@@ -99,8 +99,8 @@ public class ResourceValueTests
         // Nothing may dial a dead port afterwards; an author's entry does not stop existing because a
         // container stopped.
         ResourceValueStore store = new ResourceValueStore();
-        store.Declare(Sql, Orders, new ValueKey("DatabaseName"), "orders", "config");
-        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment");
+        store.Declare(Sql, Orders, new ValueKey("DatabaseName"), "orders", "config", secret: false);
+        store.Produce(Sql, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Server=localhost,32771", "DockerWebEnvironment", secret: false);
 
         store.WithdrawProduced(Sql, Orders);
 
@@ -112,8 +112,8 @@ public class ResourceValueTests
     public void OneNameOnTwoKindsIsAStatedErrorNotACoinToss()
     {
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "DockerWebEnvironment");
-        store.Produce("web.restapi", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:2/", "DockerWebEnvironment");
+        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "DockerWebEnvironment", secret: false);
+        store.Produce("web.restapi", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:2/", "DockerWebEnvironment", secret: false);
 
         FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(
             () => store.TryGetByIdentifier("storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), out _));
@@ -126,7 +126,7 @@ public class ResourceValueTests
     {
         // The fix should be a copy, not an expedition - the family's standing rule for failures.
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "DockerWebEnvironment");
+        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "DockerWebEnvironment", secret: false);
 
         ValueResolution resolution = new ValueResolution(store);
 
@@ -142,8 +142,8 @@ public class ResourceValueTests
     {
         // Ordered output is what lets the run snapshot be compared across runs at all.
         ResourceValueStore store = new ResourceValueStore();
-        store.Produce("web.stub", "payments", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:2/", "env");
-        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "env");
+        store.Produce("web.stub", "payments", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:2/", "env", secret: false);
+        store.Produce("web.site", "storefront", new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host), "http://localhost:1/", "env", secret: false);
 
         Assert.Equal(
             ["web.site/storefront", "web.stub/payments"],
@@ -160,7 +160,7 @@ public class ResourceValueTests
         ResourceValueStore store = new ResourceValueStore();
         ValueKey key = new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host);
 
-        store.Declare(Sql, Orders, key, "Server=deployed", "config");
+        store.Declare(Sql, Orders, key, "Server=deployed", "config", secret: false);
 
         ValueResolution resolution = new ValueResolution(store);
         ValueRef reference = ValueRef.For(Sql, Orders, ValueNames.ConnectionString);
@@ -168,7 +168,7 @@ public class ResourceValueTests
         Assert.True(resolution.TryResolve(reference, ResourceVantage.Host, out ResolvedValue? declared));
         Assert.Equal(ValueOrigin.Declared, declared!.Origin);
 
-        store.Produce(Sql, Orders, key, "Server=localhost,32771;User Id=sa", "DockerWebEnvironment");
+        store.Produce(Sql, Orders, key, "Server=localhost,32771;User Id=sa", "DockerWebEnvironment", secret: false);
 
         Assert.True(resolution.TryResolve(reference, ResourceVantage.Host, out ResolvedValue? produced));
         Assert.Equal(ValueOrigin.Produced, produced!.Origin);
@@ -184,5 +184,102 @@ public class ResourceValueTests
 
         Assert.False(resolution.TryResolve(ValueRef.For(Sql, Orders, ValueNames.ConnectionString), ResourceVantage.Host, out ResolvedValue? missing));
         Assert.Null(missing);
+    }
+
+    [Fact]
+    public void AFrozenRunsValuesAreReadableAndNoLongerWritable()
+    {
+        // §2: a finished run is a snapshot that can be handed around and trusted. That has to include the
+        // coordinates, because they are what the run proved something *against* - and this was the one store
+        // a finished run exposed that was still open to writes.
+        ResourceValueStore store = new ResourceValueStore();
+        ValueKey key = new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host);
+
+        store.Declare(Sql, Orders, key, "Server=deployed", "config", secret: false);
+        store.Freeze();
+
+        // Reading stays open - that is the point of keeping them.
+        Assert.True(store.TryGet(Sql, Orders, key, out ResolvedValue? kept));
+        Assert.Equal("Server=deployed", kept!.Value);
+        Assert.Single(store.Snapshot());
+
+        Assert.True(store.IsFrozen);
+        Assert.Throws<FrameworkStateException>(() => store.Produce(Sql, Orders, key, "Server=late", "too late", secret: false));
+        Assert.Throws<FrameworkStateException>(() => store.Declare(Sql, Orders, key, "Server=late", "too late", secret: false));
+        Assert.Throws<FrameworkStateException>(() => store.WithdrawProduced(Sql, Orders));
+    }
+
+    [Fact]
+    public void ASecretValueIsRedactedInEveryListingAndReadableWhenAsked()
+    {
+        // The two channels, and why a secret can live in the graph at all. A connection string is a
+        // coordinate and a credential in one indivisible string: it has to be here for anything to connect,
+        // and it must never appear in the list of what the run knows.
+        ResourceKind kind = ResourceKind
+            .Named("test.secretsql")
+            .OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true)
+            .Offers("DatabaseName")
+            .Build();
+
+        ResourceValueStore store = new ResourceValueStore();
+        ValueKey connection = new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host);
+
+        store.Produce(kind.Name, Orders, connection, "Server=localhost,1433;User Id=sa;Password=hunter2", "container", secret: kind.IsSecret(ValueNames.ConnectionString));
+        store.Declare(kind.Name, Orders, new ValueKey("DatabaseName"), "orders", "config", secret: kind.IsSecret("DatabaseName"));
+
+        // The listing - what reaches failure messages, log lines and the frozen run.
+        ResolvedValue listed = store.Snapshot().Single(value => value.Key == connection);
+
+        Assert.True(listed.IsSecret);
+        Assert.DoesNotContain("hunter2", listed.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", listed.ToString(), StringComparison.Ordinal);
+
+        // A value nobody declared secret is untouched, so redaction is not a blanket.
+        ResolvedValue name = store.Snapshot().Single(value => value.Key == new ValueKey("DatabaseName"));
+
+        Assert.False(name.IsSecret);
+        Assert.Equal("orders", name.Value);
+
+        // And the point read still answers, because asking for a connection string is asking for it.
+        Assert.True(store.TryGet(kind.Name, Orders, connection, out ResolvedValue? read));
+        Assert.Equal("Server=localhost,1433;User Id=sa;Password=hunter2", read!.Value);
+    }
+
+    [Fact]
+    public void AMissingValueMessageListsWhatIsKnownWithoutLeakingASecret()
+    {
+        // The exact path that made "the graph cannot hold secrets" true: Require's failure lists everything
+        // the run knows, and that list is built from the snapshot.
+        ResourceKind kind = ResourceKind
+            .Named("test.secretbus")
+            .OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true)
+            .Offers("QueueName", optional: true)
+            .Build();
+
+        ResourceValueStore store = new ResourceValueStore();
+        store.Produce(kind.Name, Orders, new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host), "Endpoint=sb://x/;SharedAccessKey=hunter2", "container", secret: kind.IsSecret(ValueNames.ConnectionString));
+
+        ValueResolution resolution = new ValueResolution(store);
+
+        FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(
+            () => resolution.Require(ValueRef.For(kind.Name, Orders, "QueueName"), ResourceVantage.Host));
+
+        Assert.DoesNotContain("hunter2", failure.ToString(), StringComparison.Ordinal);
+
+        // It still says what it does know, which is the whole point of the list.
+        Assert.Contains(Orders, failure.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TwoPackagesDisagreeingAboutWhetherAValueIsSecretIsRefused()
+    {
+        // Secrecy is part of a kind's schema, so it is held to the same rule as the rest of it: one meaning
+        // per name. Otherwise the package that declared it last would decide whether a password is printed.
+        ResourceKind.Named("test.disputedsecret").OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true).Build();
+
+        FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(
+            () => ResourceKind.Named("test.disputedsecret").OffersPerVantage(ValueNames.ConnectionString).Build());
+
+        Assert.Contains("different values", failure.Message, StringComparison.Ordinal);
     }
 }

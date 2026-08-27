@@ -124,6 +124,15 @@ public sealed class ValueResolution
     /// <returns>The values.</returns>
     public IReadOnlyList<ResolvedValue> Snapshot() => this.store.Snapshot();
 
+    /// <summary>
+    /// Closes the values when the run ends.
+    /// </summary>
+    /// <remarks>
+    /// Reading stays open - that is the point of keeping them - and only writing closes. Internal because a
+    /// caller who could freeze a running run's values could stop its own environment from publishing.
+    /// </remarks>
+    internal void FreezeForRunEnd() => this.store.Freeze();
+
     private ResolvedValue? Find(ValueRef value, ResourceVantage vantage)
     {
         // A value built for one viewpoint is never handed to another - that substitution is exactly how a

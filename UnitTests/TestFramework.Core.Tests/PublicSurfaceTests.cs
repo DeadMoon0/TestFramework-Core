@@ -46,6 +46,13 @@ public class PublicSurfaceTests
         AssertNotPublic<ResourceValueStore>("Produce");
         AssertNotPublic<ResourceValueStore>("WithdrawProduced");
 
+        // A caller who could freeze a running run's values would stop its environment from publishing where
+        // it had just started something, and the run would then fail against a coordinate nobody supplied.
+        // Worth pinning because the obvious way to write this - implementing the public IFreezable - hands
+        // that out by construction.
+        AssertNotPublic<ResourceValueStore>("Freeze");
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(ResourceValueStore)));
+
         // And the store itself is Core's to hand out, not anyone's to make.
         Assert.Empty(typeof(ResourceValueStore).GetConstructors(BindingFlags.Public | BindingFlags.Instance));
     }
