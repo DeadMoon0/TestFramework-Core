@@ -130,6 +130,71 @@ public sealed class ResourceValueStore
         => this.values.TryGetValue(new Slot(resourceKind, identifier, key), out value);
 
     /// <summary>
+    /// Everything the run knows about one resource, as that resource looks from one viewpoint.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Flattened to value names on purpose: a caller asking "what is this resource, from here" does not
+    /// want to think about viewpoints twice. A value built for the asking viewpoint wins, a value with no
+    /// viewpoint answers when there is no specific one, and the result reads like the record it is about
+    /// to become.
+    /// </para>
+    /// <para>
+    /// This is a read <em>for use</em> rather than a listing, so secrets are not redacted - the caller is
+    /// about to connect with them. <see cref="Snapshot"/> is the listing and does redact.
+    /// </para>
+    /// </remarks>
+    /// <param name="resourceKind">The kind that owns it.</param>
+    /// <param name="identifier">Which resource.</param>
+    /// <param name="vantage">Whose viewpoint.</param>
+    /// <returns>The values by name, empty when the run knows nothing about it.</returns>
+    public IReadOnlyDictionary<string, string> ValuesFor(string resourceKind, string identifier, ResourceVantage vantage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        Dictionary<string, string> byName = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (KeyValuePair<Slot, ResolvedValue> entry in this.values)
+        {
+            if (!string.Equals(entry.Key.ResourceKind, resourceKind, StringComparison.Ordinal)
+                || !string.Equals(entry.Key.Identifier, identifier, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            ValueKey key = entry.Key.Key;
+
+            if (key.Vantage == vantage)
+            {
+                byName[key.ValueName] = entry.Value.Value;
+            }
+            else if (key.Vantage is null && !byName.ContainsKey(key.ValueName))
+            {
+                byName[key.ValueName] = entry.Value.Value;
+            }
+        }
+
+        return byName;
+    }
+
+    /// <summary>
+    /// The identifiers of one kind the run knows about, for a failure that has to list them.
+    /// </summary>
+    /// <param name="resourceKind">The kind.</param>
+    /// <returns>The identifiers, ordered so two runs read the same.</returns>
+    public IReadOnlyList<string> IdentifiersOf(string resourceKind)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
+
+        return [.. this.values.Keys
+            .Where(slot => string.Equals(slot.ResourceKind, resourceKind, StringComparison.Ordinal))
+            .Select(static slot => slot.Identifier)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static identifier => identifier, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
     /// Looks a value up by identifier alone, for a consumer that is kind-agnostic by design.
     /// </summary>
     /// <remarks>

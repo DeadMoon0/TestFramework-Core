@@ -124,6 +124,12 @@ public static class ConfigShapeRegistration
 
         services.AddSingleton<IConfigShape>(shape);
 
+        // Also as itself, so a package can ask for the shape that owns its own record and turn the run's
+        // values back into one. A shape is machinery rather than run data - it reads and writes, it holds
+        // nothing about a run - so resolving one from a service provider is what §7 permits, and it is the
+        // configuration *store* that had to stop being resolved that way.
+        services.AddSingleton(shape);
+
         // Registered even when the section is empty, so a missing entry reads as "nothing is configured
         // under that name" rather than as a missing package. The same instance reads it - a shape built twice
         // is a shape whose two copies can be configured differently.

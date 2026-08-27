@@ -119,6 +119,44 @@ public sealed class ValueResolution
     }
 
     /// <summary>
+    /// Everything the run knows about one resource, as it looks from one viewpoint.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The read a package uses to rebuild its own configuration record: one call, values already resolved
+    /// for the asking viewpoint and flattened to names, so the record comes out of the run rather than out
+    /// of a store somebody resolved from a service provider. §7's rule is the reason - configuration a run
+    /// was set up with is run data, and run data arrives on the context.
+    /// </para>
+    /// <para>
+    /// Empty rather than a failure when the run knows nothing about the resource: what to do about that is
+    /// the caller's, and the caller is the one that can name what it was looking for.
+    /// </para>
+    /// </remarks>
+    /// <param name="kind">The kind that owns the resource.</param>
+    /// <param name="identifier">Which resource.</param>
+    /// <param name="vantage">Whose viewpoint.</param>
+    /// <returns>The values by name.</returns>
+    public IReadOnlyDictionary<string, string> ValuesFor(ResourceKind kind, string identifier, ResourceVantage vantage)
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+
+        return this.store.ValuesFor(kind.Name, identifier, vantage);
+    }
+
+    /// <summary>
+    /// Which resources of a kind the run knows about, for a failure that has to list them.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns>The identifiers.</returns>
+    public IReadOnlyList<string> IdentifiersOf(ResourceKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+
+        return this.store.IdentifiersOf(kind.Name);
+    }
+
+    /// <summary>
     /// Everything the run knows, for an assertion, a log line or a failure message.
     /// </summary>
     /// <returns>The values.</returns>

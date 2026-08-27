@@ -106,6 +106,49 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     /// <returns>The values.</returns>
     public abstract IReadOnlyDictionary<ValueKey, string> Values(TConfig config);
 
+    /// <summary>
+    /// The record those values amount to, rebuilt for whoever is asking.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The other direction of <see cref="Values"/>, and the reason configuration no longer has to reach a
+    /// step through a service provider. The run holds what a person declared and what a container produced,
+    /// as values; this turns them back into the record a client factory takes. So a step reads its
+    /// configuration from the run - which is where run data belongs - and still gets a typed record rather
+    /// than a bag of strings.
+    /// </para>
+    /// <para>
+    /// Both directions live on one type on purpose. They have to agree about every value name, and a shape
+    /// that writes a name its reader does not read is a value nothing can ever see; keeping them together
+    /// makes that a round-trip test rather than a hope.
+    /// </para>
+    /// <para>
+    /// <strong>Values, not the section.</strong> The parsing here is from what the run knows, so it must not
+    /// reach for configuration again - by the time this is called a container may have overridden half of
+    /// it, and reading the file would quietly undo that.
+    /// </para>
+    /// <para>
+    /// A value a run does not have is a value the record defaults, which is what keeps §5's "a default is
+    /// documented where the value is introduced" true: the default stays on the record and this leaves it
+    /// alone. A value the record cannot do without and the run does not have is a failure naming it.
+    /// </para>
+    /// <para>
+    /// Virtual only while the packages migrate one resource at a time. It becomes abstract once every shape
+    /// implements it, and the transitional state is deliberately loud rather than silently returning an
+    /// empty record.
+    /// </para>
+    /// </remarks>
+    /// <param name="values">What the run knows about one resource, by value name, from one viewpoint.</param>
+    /// <param name="identifier">Which resource, for failure messages.</param>
+    /// <returns>The record.</returns>
+    public virtual TConfig Read(IReadOnlyDictionary<string, string> values, string identifier)
+        => throw new FrameworkConfigurationException(
+            $"'{this.GetType().Name}' cannot rebuild {typeof(TConfig).Name} from the run's values yet.",
+            [
+                $"Override Read(values, identifier) on {this.GetType().Name} so this resource's configuration can come from the run rather than from a store.",
+                "Until then, whatever reads this record has to keep reading the configuration store.",
+            ]);
+
     /// <inheritdoc />
     object IConfigShape.Read(IConfiguration configuration, string identifier)
     {

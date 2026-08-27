@@ -53,9 +53,12 @@ internal sealed class RunResources
     {
         List<IResourceNodeSource> sources = [];
 
-        // The environment first: when it declares resources, those are the run's own, and a registered
-        // source contributing the same identifier is the one that gets overridden rather than the reverse.
-        Add(sources, environment as IResourceNodeSource);
+        // The environment first, so it loses to a registered source naming the same resource. That is the
+        // order a fallback wants: an environment declares what a resource is when nobody wrote it down -
+        // the database a definition names, say - and somebody who did write it down meant it. Where an
+        // environment does override a file is at run time, by publishing, which is a different mechanism
+        // and answers a different question: not what this resource is, but where it ended up.
+        AddEnvironment(sources, environment);
 
         if (serviceProvider is not null)
         {
@@ -87,6 +90,40 @@ internal sealed class RunResources
         }
 
         return new RunResources(graph, values);
+    }
+
+    /// <summary>
+    /// Adds the environment's own declarations, reaching through any wrappers around it.
+    /// </summary>
+    /// <remarks>
+    /// A run rarely holds the environment somebody wrote: a persistent slice wraps it to hand back
+    /// containers it already started, and a hosted fixture wraps that again to carry the run's services.
+    /// Asking only the outermost object whether it declares resources means the environments that do
+    /// declare them are exactly the ones never asked, and the failure is silent - an empty graph reads
+    /// the same as an environment that declares nothing.
+    /// </remarks>
+    /// <param name="sources">The sources being collected.</param>
+    /// <param name="environment">The run's environment, wrapped or not.</param>
+    private static void AddEnvironment(List<IResourceNodeSource> sources, object? environment)
+    {
+        List<IResourceNodeSource> chain = [];
+
+        for (object? current = environment; current is not null;)
+        {
+            if (current is IResourceNodeSource source)
+            {
+                chain.Add(source);
+            }
+
+            current = current is IEnvironmentProviderProxy proxy ? proxy.InnerEnvironment : null;
+        }
+
+        // Innermost first, so a wrapper that declares something outranks what it wraps - the same rule as
+        // everywhere else here, that the piece closer to this run has the last word.
+        for (int index = chain.Count - 1; index >= 0; index--)
+        {
+            Add(sources, chain[index]);
+        }
     }
 
     private static void Add(List<IResourceNodeSource> sources, IResourceNodeSource? candidate)

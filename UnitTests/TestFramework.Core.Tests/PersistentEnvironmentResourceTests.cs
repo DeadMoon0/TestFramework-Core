@@ -38,6 +38,12 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         .OffersPerVantage(ValueNames.ConnectionString)
         .Build();
 
+    /// <summary>A resource an environment can say something about without starting anything.</summary>
+    private static readonly ResourceKind Declared = ResourceKind
+        .Named("test.declared")
+        .OffersPerVantage(ValueNames.ConnectionString)
+        .Build();
+
     /// <summary>
     /// How many times a component body has actually run. Static because the bootstrap and each run are
     /// handed their own environment instance, which is the very thing being measured.
@@ -145,6 +151,123 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
 
         // Still standing: the run finished and took nothing down, because it created nothing.
         Assert.Equal(0, Volatile.Read(ref teardowns));
+    }
+
+    [Fact]
+    public async Task AnEnvironmentsOwnDeclarationReachesARunThroughTheWrappersAroundIt()
+    {
+        // A run almost never holds the environment somebody wrote: a persistent slice wraps it to hand back
+        // what it already started, and a fixture wraps that again. So an environment that declares resources
+        // is exactly the kind that gets wrapped, and asking only the outermost object would have made this
+        // case fail silently - an environment whose declarations vanish looks like one that declares nothing.
+        await using PersistentEnvironmentContext<DeclaringSetup> persistent =
+            await PersistentEnvironmentContext<DeclaringSetup>.CreateAsync();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+
+        run.EnsureRanToCompletion();
+
+        Assert.Equal("from-the-definition", run.VariableStore.GetVariable<string>("seen"));
+    }
+
+    [Fact]
+    public async Task SomethingWrittenDownBeatsWhatTheEnvironmentDeclares()
+    {
+        // The precedence a default needs, and the opposite of the one a *published* address needs. An
+        // environment declares what a resource is when nobody said - the database a definition names - so
+        // somebody who did say outranks it. Where an environment does win is at run time, by publishing,
+        // which answers a different question: not what this resource is, but where it ended up.
+        SourceProvider services = new SourceProvider(new WrittenDownSource());
+
+        await using PersistentEnvironmentContext<DeclaringSetup> persistent =
+            await PersistentEnvironmentContext<DeclaringSetup>.CreateAsync();
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
+            .Build();
+
+        TimelineRun run = await timeline.SetupRun(services, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+
+        run.EnsureRanToCompletion();
+
+        Assert.Equal("written-down", run.VariableStore.GetVariable<string>("seen"));
+    }
+
+    private sealed class DeclaringSetup : IPersistentEnvironmentSetup
+    {
+        public IEnvironmentProvider CreateEnvironment() => new DeclaringEnvironment();
+
+        public IReadOnlyCollection<EnvComponentIdentifier> GetPersistentComponentIdentifiers() => ["idle"];
+    }
+
+    /// <summary>An environment that says what one of its resources is, the way a definition does.</summary>
+    private sealed class DeclaringEnvironment : EnvironmentProviderBase, IResourceNodeSource
+    {
+        private readonly Defaults defaults = new Defaults();
+
+        public DeclaringEnvironment() => this.AddComponent(new IdleComponent());
+
+        public string SourceName => this.defaults.SourceName;
+
+        public IReadOnlyList<ResourceNode> Nodes => this.defaults.Nodes;
+
+        public override IReadOnlyCollection<EnvComponentIdentifier> ResolveComponents(
+            IEnumerable<ArtifactInstanceGeneric> artifacts,
+            IEnumerable<EnvironmentRequirement> requirements)
+            => ["idle"];
+
+        private sealed class Defaults : DeclaredNodeSource
+        {
+            public override string SourceName => "definition";
+
+            protected override IEnumerable<DeclaredResource> Declarations =>
+            [
+                new DeclaredResource(
+                    Declared,
+                    "named",
+                    new Dictionary<ValueKey, string>
+                    {
+                        [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "from-the-definition",
+                    },
+                    "definition"),
+            ];
+        }
+    }
+
+    /// <summary>Starts nothing; it exists so the environment has a persistent slice to be wrapped for.</summary>
+    private sealed class IdleComponent : EnvComponent
+    {
+        public override EnvComponentIdentifier Id => "idle";
+
+        public override EnvComponentReuseMode ReuseMode => EnvComponentReuseMode.PersistentContext;
+
+        public override Task<object?> CreateAsync(IEnvironmentProvider environment, RunContext context)
+            => Task.FromResult<object?>(null);
+
+        public override Task DeconstructAsync(object? state, IEnvironmentProvider environment, RunContext context)
+            => Task.CompletedTask;
+    }
+
+    /// <summary>The same resource, as somebody actually wrote it down.</summary>
+    private sealed class WrittenDownSource : DeclaredNodeSource
+    {
+        public override string SourceName => "configuration";
+
+        protected override IEnumerable<DeclaredResource> Declarations =>
+        [
+            new DeclaredResource(
+                Declared,
+                "named",
+                new Dictionary<ValueKey, string>
+                {
+                    [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "written-down",
+                },
+                "configuration"),
+        ];
     }
 
     private sealed class EmulatorSetup : IPersistentEnvironmentSetup

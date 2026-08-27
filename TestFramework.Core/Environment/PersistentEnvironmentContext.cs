@@ -30,12 +30,22 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     /// What the persistent components published while starting, kept per component.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A persistent component's body runs once, here. Every later run is handed a stand-in that returns the
     /// same state without running anything, so the addresses that body worked out - a container's mapped port,
     /// chosen by the operating system and knowable nowhere else - would exist in this bootstrap and nowhere
     /// after it. Keeping them is what lets a run be put in the position the bootstrap was in.
+    /// </para>
+    /// <para>
+    /// It starts from what the persistent services declare rather than from nothing. A component reads the
+    /// resources of whatever is driving it, and a bootstrap drives the same components a run does - so a
+    /// bootstrap that knew only what it had published itself could start a database but not learn which
+    /// database it was supposed to create, because the name is the half of the answer no container chooses.
+    /// Only what a component actually publishes is carried into later runs; the declarations seeded here go
+    /// no further, because each run reads them from its own configuration.
+    /// </para>
     /// </remarks>
-    private readonly ResourcePublishing _persistentPublishing = new ResourcePublishing(new ResourceValueStore());
+    private readonly ResourcePublishing _persistentPublishing;
     private readonly List<EnvComponentIdentifier> _persistentCreationOrder = [];
     private readonly HashSet<EnvComponentIdentifier> _persistentComponents;
     private readonly IReadOnlyCollection<EnvComponentIdentifier> _persistentRoots;
@@ -81,6 +91,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _disposePersistentServiceProvider = disposePersistentServiceProvider;
         _persistentSetupTimeout = ValidatePersistentSetupTimeout(_setup.GetPersistentSetupTimeout());
         _bootstrapEnvironment = _setup.CreateEnvironment();
+        _persistentPublishing = new ResourcePublishing(RunResources.Compose(_persistentServiceProvider, _bootstrapEnvironment).Values);
 
         _persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
         ValidatePersistentClosure(_bootstrapEnvironment, _persistentRoots);
@@ -238,9 +249,9 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                 artifactStore,
                 logger,
 
-                // The bootstrap's own resolution, not some later run's: it holds what these components
-                // publish as they start, which is how the second one learns where the first ended up.
-                // It carries no declared values, because a bootstrap has no run to declare them.
+                // The bootstrap's own resolution, not some later run's: what the persistent services
+                // declared, plus what these components publish as they start - which is how the second one
+                // learns where the first ended up.
                 _persistentPublishing.Resolution,
                 cancellationTokenSource.Token,
                 _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);

@@ -160,13 +160,18 @@ public sealed class RunContext
     {
         DebuggingRunSession session = new DebuggingRunSession(debugger ?? new EmptyRunDebugger());
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(session);
+        IServiceProvider resolvedServices = services ?? new EmptyServiceProvider();
 
+        // Composed from whatever the caller registered, the same way a real run composes its own. A detached
+        // context exists to drive a step without a timeline around it, and a step reads the configuration it
+        // was set up with from the run - so one that could hold no resources could not stand in for a run at
+        // all. With nothing registered this is an empty graph, which is what it always was.
         return Ambient(
-            services ?? new EmptyServiceProvider(),
+            resolvedServices,
             new VariableStore(logger, session),
             new ArtifactStore(logger, session),
             logger,
-            ValueResolution.Empty,
+            Environment.Graph.RunResources.Compose(resolvedServices, environment: null).Resolution,
             cancellationToken,
             timeout);
     }
