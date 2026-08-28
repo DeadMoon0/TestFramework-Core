@@ -270,11 +270,23 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             // The step has been told to stop; now it gets a short while to say what it was doing. A step
             // that answers within the grace window has its own account surfaced, which is the whole
             // reason packages used to under-cut their deadlines by hand.
-            Exception? own = executionTask is null
-                ? null
-                : await AwaitGraceAsync(executionTask, StepDeadline.GraceFor(timeout));
+            TimeSpan grace = StepDeadline.GraceFor(timeout);
+            GraceOutcome graced = executionTask is null
+                ? new GraceOutcome(true, null)
+                : await AwaitGraceAsync(executionTask, grace);
 
-            stepResult.Exception = own ?? new TimeoutException($"Step '{step.Step.Name}' timed out after {timeout}.", exception);
+            // When the step never stopped, the generic sentence is true and useless: it reports the
+            // timeout and hides that a better explanation existed and was lost. Saying so turns a silent
+            // loss into the one thing a reader can act on, and it is the only way this stays closed -
+            // "remember to bound every await" is a rule nothing enforces, whereas a failure that names
+            // its own cause needs nobody to remember anything.
+            stepResult.Exception = graced.Own ?? new TimeoutException(
+                graced.Stopped
+                    ? $"Step '{step.Step.Name}' timed out after {timeout}."
+                    : $"Step '{step.Step.Name}' timed out after {timeout} and was still running {grace} later, so whatever it "
+                        + "was going to say about the failure was never heard. A step keeps its own message by stopping inside "
+                        + "that window; the usual cause is an awaited call that does not take the step's deadline.",
+                exception);
 
             if (executionTask is not null && !executionTask.IsCompleted)
             {
@@ -328,11 +340,11 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     /// </remarks>
     /// <param name="executionTask">The attempt.</param>
     /// <param name="grace">How long to wait.</param>
-    /// <returns>What the step said, or null when it said nothing in time.</returns>
-    private static async Task<Exception?> AwaitGraceAsync(Task executionTask, TimeSpan grace)
+    /// <returns>Whether the attempt stopped, and what it said if it said anything.</returns>
+    private static async Task<GraceOutcome> AwaitGraceAsync(Task executionTask, TimeSpan grace)
     {
         if (grace <= TimeSpan.Zero)
-            return null;
+            return new GraceOutcome(executionTask.IsCompleted, null);
 
         // Decided by which task finished, never by what was thrown: a step's own account is very often a
         // TimeoutException itself, so using the wait's own timeout exception as the signal made the two
@@ -340,11 +352,25 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         Task finished = await Task.WhenAny(executionTask, Task.Delay(grace, CancellationToken.None));
 
         if (!ReferenceEquals(finished, executionTask))
-            return null;
+            return new GraceOutcome(false, null);
 
         // A cancellation is not an account of anything; only a real failure is worth surfacing.
-        return executionTask.Exception?.InnerExceptions.FirstOrDefault(static inner => inner is not OperationCanceledException);
+        return new GraceOutcome(
+            true,
+            executionTask.Exception?.InnerExceptions.FirstOrDefault(static inner => inner is not OperationCanceledException));
     }
+
+    /// <summary>
+    /// What the grace window found: whether the attempt stopped, and anything it said on the way out.
+    /// </summary>
+    /// <remarks>
+    /// Both answers come from one observation on purpose. Reading "did it stop" separately afterwards is a
+    /// race the message loses: an attempt that finishes in the moment between the two reads is reported as
+    /// still running, which is the opposite of what happened.
+    /// </remarks>
+    /// <param name="Stopped">Whether the attempt finished inside the window.</param>
+    /// <param name="Own">What the step threw, when it threw something that was not a cancellation.</param>
+    private readonly record struct GraceOutcome(bool Stopped, Exception? Own);
 
     /// <summary>
     /// Keeps an abandoned step attempt from surfacing later as an unobserved task exception, and

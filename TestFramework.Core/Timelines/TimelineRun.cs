@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Runner;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -34,6 +35,7 @@ public class TimelineRun : IFreezable
         VariableStore.FreezeForRunEnd();
         EnvironmentContext.Freeze();
         Values.FreezeForRunEnd();
+        EffectiveSettings.FreezeForRunEnd();
         Stages.Freeze();
     }
 
@@ -51,6 +53,16 @@ public class TimelineRun : IFreezable
     /// Gets the variable store captured during this run.
     /// </summary>
     public VariableStore VariableStore { get; }
+
+    /// <summary>
+    /// What this run decided on your behalf: the browser it found, the image it started.
+    /// </summary>
+    /// <remarks>
+    /// The half of §5 the resource values do not carry. A coordinate is in
+    /// <see cref="Values"/> with its origin and source; this is for what the framework chose where nobody
+    /// stated a choice, so a passing run can still answer "with what".
+    /// </remarks>
+    public EffectiveSettings EffectiveSettings => this.VariableStore.EffectiveSettings;
 
     /// <summary>
     /// Gets the environment-component context produced while preparing and executing this run.

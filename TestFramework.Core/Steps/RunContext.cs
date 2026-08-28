@@ -78,6 +78,16 @@ public sealed class RunContext
     /// </remarks>
     public RunState State => this.Variables.RunState;
 
+    /// <summary>
+    /// Where to record what this run resolved on the caller's behalf.
+    /// </summary>
+    /// <remarks>
+    /// For a value the framework picked because nobody stated one - the browser it found on this machine,
+    /// the image it started a container from. Recording it is what lets the finished run answer "with what",
+    /// which §5 requires of every default and nothing in the family used to do.
+    /// </remarks>
+    public EffectiveSettings EffectiveSettings => this.Variables.EffectiveSettings;
+
     /// <summary>The scoped logger for the run.</summary>
     public ScopedLogger Logger { get; }
 

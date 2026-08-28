@@ -66,6 +66,16 @@ public class VariableStore : IFreezable
     public RunState RunState { get; }
 
     /// <summary>
+    /// What this run decided on the caller's behalf, kept so the finished run can say so.
+    /// </summary>
+    /// <remarks>
+    /// Here for the same reason <see cref="RunState"/> is: this is the one object that already means "this
+    /// run", shared by reference with every per-attempt view, so a step, a retry of it and the cleanup step
+    /// after all record into the same one.
+    /// </remarks>
+    public EffectiveSettings EffectiveSettings { get; }
+
+    /// <summary>
     /// A view of this store that writes on behalf of one attempt at one step.
     /// </summary>
     /// <remarks>
@@ -89,6 +99,7 @@ public class VariableStore : IFreezable
         this.changeTokens = source.changeTokens;
         this.changeTokenLock = source.changeTokenLock;
         this.RunState = source.RunState;
+        this.EffectiveSettings = source.EffectiveSettings;
         this.licence = StepWriteLicence.For(gate, attempt);
     }
 
@@ -101,6 +112,7 @@ public class VariableStore : IFreezable
         this.logger = logger;
         this.debuggingSession = debuggingSession;
         this.RunState = new RunState();
+        this.EffectiveSettings = new EffectiveSettings();
         this.licence = StepWriteLicence.Unrestricted;
     }
 

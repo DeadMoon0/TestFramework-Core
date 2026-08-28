@@ -39,11 +39,18 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         Assert.Contains("waiting for the warehouse to answer", result.Exception!.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A step that never stops is reported as having been abandoned, not merely as having timed out.
+    /// </summary>
+    /// <remarks>
+    /// The generic sentence on its own is true and useless - it reports the timeout and hides that a better
+    /// explanation existed and was lost. Naming it is what keeps this closed without discipline: "bound
+    /// every await against the deadline" is a rule nothing enforces, while a failure that says its own
+    /// account went missing sends the next reader straight at the cause.
+    /// </remarks>
     [Fact]
-    public async Task AStepThatIgnoresItsDeadlineIsAbandonedWithTheGenericMessage()
+    public async Task AStepThatIgnoresItsDeadlineSaysItsOwnAccountWasLost()
     {
-        // Nothing to surface: a step that will not stop has said nothing, so the honest message is that
-        // it timed out.
         using ManualResetEventSlim release = new ManualResetEventSlim(false);
 
         Timeline timeline = Timeline.Create()
@@ -58,6 +65,8 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         Assert.Equal(StepState.Timeout, result.State);
         Assert.IsType<TimeoutException>(result.Exception);
         Assert.Contains("timed out after", result.Exception!.Message, StringComparison.Ordinal);
+        Assert.Contains("still running", result.Exception.Message, StringComparison.Ordinal);
+        Assert.Contains("never heard", result.Exception.Message, StringComparison.Ordinal);
 
         release.Set();
     }
