@@ -1,0 +1,72 @@
+using System;
+using System.Linq;
+using TestFramework.Core.Conventions;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace TestFramework.Simple.Tests;
+
+/// <summary>
+/// The family's rules, checked against this package rather than trusted to have been followed.
+/// </summary>
+/// <remarks>
+/// <para>
+/// These live in Core (<see cref="StepConventions"/>) and every package calls them on its own assembly: a
+/// rule only Core's suite enforces is a rule only Core follows. This package had no such suite until the
+/// release audit looked for one - it ships beside Core rather than as one of the packs that were migrated,
+/// and being off that list quietly meant being off this one.
+/// </para>
+/// <para>
+/// It ships steps, so the clone check has real work to do here: every trigger this package offers is a step
+/// a run clones before it executes, and a trigger that inherited somebody else's clone would run as its base
+/// class and silently lose what it added.
+/// </para>
+/// </remarks>
+public class ConventionTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void EveryStepInThisPackageClonesItself()
+    {
+        // A step that inherits a concrete base class's Clone() runs as that base class and silently loses
+        // whatever it added. The compiler only catches the case where the base is abstract.
+        ConventionReport report = StepConventions.AssertEveryStepClonesItself(typeof(ActionTrigger).Assembly);
+
+        output.WriteLine(report.ToString());
+        Assert.True(report.Checked > 0, "the check found no steps at all, so it proved nothing");
+    }
+
+    [Fact]
+    public void FreezingCascadesThroughThisPackagesParts()
+    {
+        ConventionReport report = StepConventions.AssertFreezingCascades(typeof(ActionTrigger).Assembly);
+
+        output.WriteLine(report.ToString());
+        foreach (string skipped in report.Skipped)
+        {
+            output.WriteLine($"  skipped {skipped}");
+        }
+    }
+
+    [Fact]
+    public void ThisPackageSerialisesWithOneJsonLibrary()
+    {
+        // The family picked Newtonsoft.Json. Two libraries mean two sets of attributes, two notions of
+        // what null means, and values that survive one round trip but not the other - and the seam shows
+        // up as a bug in whichever package sits between them. Checked against the compiled assembly,
+        // because a stray using is invisible in a diff.
+        Assert.DoesNotContain(
+            "System.Text.Json",
+            typeof(ActionTrigger).Assembly.GetReferencedAssemblies().Select(static reference => reference.Name));
+    }
+
+    [Fact]
+    public void ThisPackageKeepsItsInternalsToItself()
+    {
+        // Every package is a stranger to every other. A grant to another package is a private handshake:
+        // two packages understand each other and a third cannot join, so what the favoured one may do stops
+        // being what any of them may do - and the grant hides the fact that a surface is missing.
+        ConventionReport report = StepConventions.AssertNoPackageSeesAnothersInternals(typeof(ActionTrigger).Assembly);
+
+        output.WriteLine(report.ToString());
+    }
+}

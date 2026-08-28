@@ -1,14 +1,8 @@
 ﻿using TestFramework.Core.Steps;
-using TestFramework.Core.Environment.Graph;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core;
-using TestFramework.Core.Artifacts;
-using TestFramework.Core.Debugger;
-using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 using TestFramework.Simple;
@@ -20,14 +14,14 @@ public class ActionTriggerTests
     [Fact]
     public async Task Execute_PassesResolvedVariablesToAction()
     {
-        RuntimeContext runtime = RuntimeContext.Create();
+        RunContext context = RunContext.Detached();
         VariableIdentifier identifier = new("user");
-        runtime.VariableStore.SetVariable(identifier, "Ada");
+        context.Variables.SetVariable(identifier, "Ada");
 
         Dictionary<VariableIdentifier, object?>? captured = null;
         ActionTrigger trigger = SimpleExt.Trigger.Action(vars => captured = vars, Var.Ref<string>(identifier));
 
-        await trigger.Execute(RunContext.Ambient(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, ValueResolution.Empty));
+        await trigger.Execute(context);
 
         Assert.NotNull(captured);
         Assert.Equal("Ada", captured![identifier]);
@@ -36,12 +30,12 @@ public class ActionTriggerTests
     [Fact]
     public async Task ActionFactory_CreatesExecutableTriggerForParameterlessAction()
     {
-        RuntimeContext runtime = RuntimeContext.Create();
+        RunContext context = RunContext.Detached();
         int callCount = 0;
 
         ActionTrigger trigger = SimpleExt.Trigger.Action(() => callCount++);
 
-        await trigger.Execute(RunContext.Ambient(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, ValueResolution.Empty));
+        await trigger.Execute(context);
 
         Assert.Equal(1, callCount);
     }
@@ -49,7 +43,7 @@ public class ActionTriggerTests
     [Fact]
     public async Task ActionFactory_CreatesExecutableTriggerForArtifactAwareAction()
     {
-        RuntimeContext runtime = RuntimeContext.Create();
+        RunContext context = RunContext.Detached();
         bool executed = false;
 
         ActionTrigger trigger = SimpleExt.Trigger.Action(
@@ -62,7 +56,7 @@ public class ActionTriggerTests
             [],
             []);
 
-        await trigger.Execute(RunContext.Ambient(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, ValueResolution.Empty));
+        await trigger.Execute(context);
 
         Assert.True(executed);
     }
@@ -70,22 +64,22 @@ public class ActionTriggerTests
     [Fact]
     public async Task ActionFactory_CreatesExecutableTriggerForFullContextAction()
     {
-        RuntimeContext runtime = RuntimeContext.Create();
+        RunContext context = RunContext.Detached();
         bool executed = false;
 
         ActionTrigger trigger = SimpleExt.Trigger.Action(
             (serviceProvider, logger, vars, artifacts) =>
             {
                 executed = true;
-                Assert.Same(runtime.ServiceProvider, serviceProvider);
-                Assert.Same(runtime.Logger, logger);
+                Assert.Same(context.Services, serviceProvider);
+                Assert.Same(context.Logger, logger);
                 Assert.Empty(vars);
                 Assert.Empty(artifacts);
             },
             [],
             []);
 
-        await trigger.Execute(RunContext.Ambient(runtime.ServiceProvider, runtime.VariableStore, runtime.ArtifactStore, runtime.Logger, ValueResolution.Empty));
+        await trigger.Execute(context);
 
         Assert.True(executed);
     }
@@ -120,20 +114,4 @@ public class ActionTriggerTests
             });
     }
 
-    private sealed class RuntimeContext
-    {
-        public IServiceProvider ServiceProvider { get; } = new EmptyServiceProvider();
-        public ScopedLogger Logger { get; } = new(null);
-        public DebuggingRunSession DebuggingSession { get; } = new(new EmptyRunDebugger());
-        public VariableStore VariableStore { get; }
-        public ArtifactStore ArtifactStore { get; }
-
-        private RuntimeContext()
-        {
-            VariableStore = new VariableStore(Logger, DebuggingSession);
-            ArtifactStore = new ArtifactStore(Logger, DebuggingSession);
-        }
-
-        public static RuntimeContext Create() => new();
-    }
 }

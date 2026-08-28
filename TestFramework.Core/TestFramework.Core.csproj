@@ -30,14 +30,12 @@ Also in 0.3.0, and the only thing its own notes described: debugger protocol v4 
 	</ItemGroup>
 
 	<ItemGroup>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.Config.Tests</_Parameter1>
-		</AssemblyAttribute>
+		<!-- Core's own suite, and nobody else. A grant to another package's suite is the same private
+		     handshake as a grant to the package: whatever that suite may reach for, every other package's
+		     suite may not - and it hides that a surface is missing. Config's suite never used one, and
+		     Simple's hand-built the run's pieces until RunContext.Detached existed to hand them over. -->
 		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
 			<_Parameter1>TestFramework.Core.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>TestFramework.Simple.Tests</_Parameter1>
 		</AssemblyAttribute>
 	</ItemGroup>
 

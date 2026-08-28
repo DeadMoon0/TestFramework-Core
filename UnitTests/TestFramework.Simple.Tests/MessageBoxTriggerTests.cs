@@ -31,7 +31,7 @@ public class MessageBoxTriggerTests
                 return 0;
             };
 
-            await trigger.Execute(RunContext.Ambient(new EmptyServiceProvider(), new VariableStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(new TestFramework.Core.Debugger.EmptyRunDebugger())), new TestFramework.Core.Artifacts.ArtifactStore(new TestFramework.Core.Logging.ScopedLogger(null), new TestFramework.Core.Debugger.DebuggingRunSession(new TestFramework.Core.Debugger.EmptyRunDebugger())), new TestFramework.Core.Logging.ScopedLogger(null), ValueResolution.Empty));
+            await trigger.Execute(RunContext.Detached());
         }
         finally
         {

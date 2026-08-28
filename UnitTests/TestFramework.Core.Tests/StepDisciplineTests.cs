@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -141,6 +142,31 @@ public class StepDisciplineTests(ITestOutputHelper output)
 
         public override Task<EmptyStepResultContext?> Execute(RunContext context)
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
+    }
+
+    [Theory]
+    [InlineData("TestFramework.Core.Tests", false)]
+    [InlineData("testframework.core.tests", false)]
+    [InlineData("TestFramework.Simple.Tests", true)]
+    [InlineData("TestFramework.Core.Tests.Extra", true)]
+    [InlineData("TestFramework.Web", true)]
+    public void OnlyThisPackagesOwnSuiteMaySeeItsInternals(string target, bool isABreach)
+    {
+        // The exempt name is derived from the assembly, not matched against a pattern. It used to be "any
+        // name ending in .Tests", which is wider than the rule: a grant to another package's suite lets that
+        // suite reach what every other suite cannot, which is the same private handshake the rule forbids
+        // between packages. Three of those were found by hand in the release audit because nothing here
+        // could see them, and this is what stops the check widening back.
+        IReadOnlyList<string> granted = StepConventions.GrantsBeyondItsOwnSuite("TestFramework.Core", [target]);
+
+        if (isABreach)
+        {
+            Assert.Equal([target], granted);
+        }
+        else
+        {
+            Assert.Empty(granted);
+        }
     }
 
     /// <summary>Returns itself, the cheapest wrong clone there is.</summary>

@@ -53,10 +53,18 @@ public static class StepConventions
     /// third cannot join, so whatever the favoured one may do stops being something every package may do.
     /// </para>
     /// <para>
-    /// Test assemblies are exempt, and only test assemblies. A suite testing its own package's internals is
-    /// not a second package in the family; it ships with nothing and nobody consumes it. The exemption is by
-    /// name - the grant's target ends in <c>.Tests</c> - because that is the one part of a grant this can
-    /// read without loading the assembly it names.
+    /// One assembly is exempt, and it is derived rather than matched: <c>&lt;this assembly&gt;.Tests</c>, the
+    /// package's own suite. A suite testing its own package's internals is not a second package in the
+    /// family; it ships with nothing and nobody consumes it.
+    /// </para>
+    /// <para>
+    /// <strong>It used to exempt any name ending in <c>.Tests</c>, and that was wider than the rule.</strong>
+    /// A grant to <em>another</em> package's suite is the same private handshake one level down: it lets one
+    /// suite reach what every other suite cannot, and it hides the same missing surface. Three lived in that
+    /// gap until the release audit read them by hand - one dead, one wanting a surface that already existed
+    /// (<c>RunContext.Detached</c>), and one that was simply seven tests sitting in the wrong suite. Deriving
+    /// the exempt name from the assembly instead of accepting a pattern is what closes it: there is one legal
+    /// grant per package and this can name it, so a check nobody can widen replaces a rule nobody enforced.
     /// </para>
     /// <para>
     /// It found two when it was written, both in UI, and neither was doing what it looked like: one was
@@ -72,31 +80,45 @@ public static class StepConventions
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        List<string> granted = [];
+        string owner = assembly.GetName().Name ?? string.Empty;
 
-        foreach (InternalsVisibleToAttribute grant in assembly.GetCustomAttributes<InternalsVisibleToAttribute>())
-        {
-            // The attribute value may carry a public key, which is not part of who is being trusted.
-            string target = grant.AssemblyName.Split(',')[0].Trim();
-
-            if (!target.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase))
-            {
-                granted.Add(target);
-            }
-        }
+        // The attribute value may carry a public key, which is not part of who is being trusted.
+        IReadOnlyList<string> granted = GrantsBeyondItsOwnSuite(
+            owner,
+            assembly.GetCustomAttributes<InternalsVisibleToAttribute>()
+                .Select(static grant => grant.AssemblyName.Split(',')[0].Trim()));
 
         if (granted.Count > 0)
         {
             throw new FrameworkConfigurationException(
-                $"'{assembly.GetName().Name}' opens its internals to {granted.Count} package(s), so those packages can do things no other package can.",
+                $"'{owner}' opens its internals to {granted.Count} assembly(ies) that are not its own suite, so those can do things no other package can.",
                 [
+                    $"The one grant this package may make is to '{owner}.Tests', its own suite.",
                     "Whatever the favoured package reaches for is a surface this one is missing - add it, and let every package use it.",
-                    "A grant to a test assembly is fine; name it '<package>.Tests' so it is recognised as one.",
+                    "A grant to another package's suite is the same handshake one level down. Where those tests are about this package's own behaviour, they belong in this package's own suite - move them rather than opening the door.",
                 ],
                 [.. granted]);
         }
 
         return new ConventionReport(1, []);
+    }
+
+    /// <summary>
+    /// The grants an assembly makes to anything other than its own suite.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the assembly-reading half so the rule itself can be exercised directly: the decision is
+    /// "is this name exactly the owner's suite", and pinning that is what stops it widening back into "does
+    /// this name look like a test assembly".
+    /// </remarks>
+    /// <param name="owner">The assembly making the grants, by simple name.</param>
+    /// <param name="targets">Who it grants to, by simple name.</param>
+    /// <returns>The targets that are not <paramref name="owner"/>'s own suite, in the order given.</returns>
+    internal static IReadOnlyList<string> GrantsBeyondItsOwnSuite(string owner, IEnumerable<string> targets)
+    {
+        string ownSuite = $"{owner}.Tests";
+
+        return [.. targets.Where(target => !string.Equals(target, ownSuite, StringComparison.OrdinalIgnoreCase))];
     }
 
     /// <summary>
