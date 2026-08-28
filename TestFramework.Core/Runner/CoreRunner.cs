@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Environment.Graph;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Steps;
@@ -34,19 +35,30 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     internal async Task RunStage(StageInstance instance, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession)
     {
         StageExecutionPlanner executionPlanner = new StageExecutionPlanner(instance, artifactStore);
+        bool anyLayerFailed = false;
 
         foreach (var layer in executionPlanner.BuildLayers())
         {
             await ExecuteLayerAsync(instance.Stage.Name, layer, serviceProvider, logger, variableStore, artifactStore, debuggingSession, instance.Stage.IsCleanupStage);
 
-            if (LayerFailed(layer))
+            if (!LayerFailed(layer))
+                continue;
+
+            // A failed layer ends an ordinary stage - its later layers depend on what just did not happen.
+            // It must not end the cleanup stage: the layers after a failed cleanup step are the run's own
+            // teardown - deconstructing artifacts, taking the environment down - and skipping those because
+            // a user's cleanup step went red is how one red step leaks somebody's database rows and a fleet
+            // of containers, silently.
+            if (!instance.Stage.IsCleanupStage)
             {
                 instance.Result.State = StageState.Error;
                 return;
             }
+
+            anyLayerFailed = true;
         }
 
-        instance.Result.State = StageState.Complete;
+        instance.Result.State = anyLayerFailed ? StageState.Error : StageState.Complete;
     }
 
     private Task ExecuteLayerAsync(string stageName, IReadOnlyList<StageExecutionPlanner.ScheduledStep> layer, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
@@ -97,8 +109,16 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             using var iterationScope = debuggingSession.BeginStepIterationContext(iteration);
             logger.Log(new EnterStepLogEvent(step, iteration));
 
-            if (iteration > 1)
-                await DelayForRetryAsync(step, iteration, variableStore);
+            // Teardown must not inherit the run's stop signal: after a consumer stops a run, the cleanup
+            // stage is precisely what still has to happen, and a cleanup step handed the fired token would
+            // self-cancel before deconstructing anything - reaching teardown in name only.
+            CancellationToken stopToken = isCleanupStage ? CancellationToken.None : debuggingSession.RunCancellationToken;
+
+            if (iteration > 1 && !await TryDelayForRetryAsync(step, iteration, stageName, stepIndex, variableStore, logger, debuggingSession, stopToken))
+            {
+                step.Freeze();
+                return;
+            }
 
             AttemptScope scope = new AttemptScope(
                 attemptGate,
@@ -107,13 +127,16 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
 
             await observers.StartingAsync(
                 scope.Observation,
-                () => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, debuggingSession.RunCancellationToken),
+                () => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, stopToken),
                 logger);
 
-            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, scope, debuggingSession.RunCancellationToken);
+            StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, scope, debuggingSession, stopToken);
             step.RetryResults.Add(stepResult);
 
-            willRetry = ShouldRetry(step, variableStore, iteration, stepResult);
+            // A cancelled run gets no further attempts: retrying against a fired token is a string of
+            // instant no-ops that reads like the step failing repeatedly. Teardown keeps its retries.
+            willRetry = ShouldRetry(step, variableStore, iteration, stepResult)
+                && (isCleanupStage || !debuggingSession.IsCancellationRequested);
             logger.Log(new StepResultLogEvent(
                 step.Step.Name,
                 step.Step.LabelOptions.Label,
@@ -199,32 +222,118 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             runCancellationToken,
             StepObservers.EvidenceBudget);
 
-    private static async Task DelayForRetryAsync(StepInstanceGeneric step, int iteration, VariableStore variableStore)
+    /// <summary>
+    /// Waits out the retry backoff, or says why the retry is not happening.
+    /// </summary>
+    /// <remarks>
+    /// Two exits besides the normal one, and neither is allowed to crash the run. A backoff cut short by
+    /// the run being stopped simply ends the wait - the next attempt then reports the stop honestly. A
+    /// <c>CalcDelay</c> that throws (or resolves to null) used to escape the runner entirely, which aborted
+    /// the run with no teardown and no run object; it now records an error result on the step, so the run
+    /// fails with the author's exception where the author can see it.
+    /// </remarks>
+    /// <returns>True to proceed with the retry attempt; false when the step is finished.</returns>
+    private static async Task<bool> TryDelayForRetryAsync(
+        StepInstanceGeneric step,
+        int iteration,
+        string stageName,
+        int stepIndex,
+        VariableStore variableStore,
+        ScopedLogger logger,
+        DebuggingRunSession debuggingSession,
+        CancellationToken stopToken)
     {
-        await Task.Delay(step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration) ?? throw new ArgumentNullException(nameof(step.Step.RetryOptions.CalcDelay), "RetryOptions.CalcDelay cannot be null."));
+        try
+        {
+            TimeSpan delay = step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration)
+                ?? throw new FrameworkConfigurationException(
+                    $"Step '{step.Step.Name}' cannot retry: RetryOptions.CalcDelay resolved to null.",
+                    ["Set CalcDelay to a function of the attempt number, or leave the default in place."],
+                    []);
+
+            await Task.Delay(delay, stopToken);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
+        {
+            // The run was stopped mid-backoff. The attempt still runs, so the step's record says it was
+            // stopped rather than trailing off in a WaitingForRetry state nothing ever leaves.
+            return true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError("Step '{0}' could not compute its retry delay, so it keeps its last result and does not retry.\n{1}", step.Step.Name, exception.ToString());
+
+            StepResultGeneric refused = new StepResultGeneric { State = StepState.Error, Exception = exception };
+            refused.Freeze();
+            step.RetryResults.Add(refused);
+
+            await debuggingSession.TransitionStepAsync(
+                stageName,
+                stepIndex,
+                DebugLifecycleState.Error,
+                DebugLifecycleState.WaitingForRetry,
+                DebugLifecycleState.Error,
+                DebugFailureDetail.Capture(exception, iteration, willRetry: false, wasSuppressed: false));
+
+            return false;
+        }
     }
 
-    private async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, AttemptScope scope, CancellationToken runCancellationToken)
+    private async Task<StepResultGeneric> ExecuteAttemptAsync(StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, AttemptScope scope, DebuggingRunSession debuggingSession, CancellationToken stopToken)
     {
         var stopwatch = Stopwatch.StartNew();
         StepResultGeneric stepResult = new StepResultGeneric();
-        TimeSpan timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+
+        // What an observer is handed, built only if one is watching. Deliberately not the attempt's
+        // context: an observer photographing a step that just died must not have its own writes thrown
+        // away with that attempt, and must not inherit the budget that just ran out.
+        RunContext Evidence() => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, stopToken);
+
+        // Read and refused here rather than trusted: the timeout may come from a variable, so plan time
+        // cannot see it, and this used to be the last unguarded line before the try - a timeout variable
+        // that was never set, or a zero or negative value, escaped the runner entirely and aborted the
+        // run with no teardown. Zero is refused rather than read as "no deadline" because it would arm a
+        // token that fires instantly under a deadline reporting unbounded - the exact disagreement
+        // StepDeadline exists to prevent.
+        TimeSpan timeout;
+
+        try
+        {
+            timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+
+            if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero)
+            {
+                throw new FrameworkConfigurationException(
+                    $"Step '{step.Step.Name}' has a timeout of {timeout}, which no step can run under.",
+                    ["State a positive timeout, or Timeout.InfiniteTimeSpan for a step with no deadline."],
+                    []);
+            }
+        }
+        catch (Exception exception)
+        {
+            stepResult.Exception = exception;
+            stepResult.State = StepState.Error;
+            await observers.FailedAsync(scope.Observation, exception, Evidence, logger);
+
+            scope.Gate.End(scope.Attempt);
+            stopwatch.Stop();
+            stepResult.TimeSpent = stopwatch.Elapsed;
+            stepResult.Freeze();
+            return stepResult;
+        }
 
         // What the step writes through: the same stores, but able to say which attempt is writing, so an
         // attempt the run has stopped waiting for cannot reach the next test.
         VariableStore attemptVariables = variableStore.ForAttempt(scope.Gate, scope.Attempt);
         ArtifactStore attemptArtifacts = artifactStore.ForAttempt(scope.Gate, scope.Attempt);
 
-        // What an observer is handed, built only if one is watching. Deliberately not the attempt's
-        // context: an observer photographing a step that just died must not have its own writes thrown
-        // away with that attempt, and must not inherit the budget that just ran out.
-        RunContext Evidence() => EvidenceContext(serviceProvider, logger, variableStore, artifactStore, runCancellationToken);
-
         // One source of truth for the timeout. There used to be two — a CTS *and* a WaitAsync(timeout)
         // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
         // was never told to stop, its exception went unobserved, and the retry started immediately
         // alongside the attempt it was supposedly replacing.
-        CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(runCancellationToken);
+        CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stopToken);
         // The deadline is built before the cancellation is armed, so the moment it says the time is up is
         // never later than the moment the token fires. The other order leaves a step cancelled while its
         // own deadline still reports time remaining - which is exactly the disagreement this type exists
@@ -257,15 +366,24 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             // step returned, and it happens once the attempt is over.
             ApplyResultBindings(step, result, variableStore);
         }
-        catch (TimeoutException exception)
+        catch (TimeoutException exception) when (deadline.HasExpired)
         {
+            // Guarded on the deadline, not the exception type alone: a TimeoutException thrown while the
+            // step still had time is a dependency's timeout - an HTTP client's, a driver's - and calling
+            // that a step timeout misfiles the failure and books the wrong evidence hook. It lands in the
+            // ordinary failure path below instead.
             stepResult.Exception = exception;
             stepResult.State = StepState.Timeout;
             await observers.TimedOutAsync(scope.Observation, Evidence, logger);
         }
         catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested)
         {
-            stepResult.State = StepState.Timeout;
+            // Two very different things arrive here through one token: the step's own deadline firing,
+            // and a consumer stopping the whole run. The deadline is built before the cancellation is
+            // armed, so at a genuine timeout HasExpired is already true - which makes "not expired" a
+            // reliable reading of "the run was stopped", and the frozen record can say what actually
+            // happened instead of claiming a timeout that never occurred.
+            bool runStopped = !deadline.HasExpired && stopToken.IsCancellationRequested;
 
             // The step has been told to stop; now it gets a short while to say what it was doing. A step
             // that answers within the grace window has its own account surfaced, which is the whole
@@ -275,22 +393,9 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 ? new GraceOutcome(true, null)
                 : await AwaitGraceAsync(executionTask, grace);
 
-            // When the step never stopped, the generic sentence is true and useless: it reports the
-            // timeout and hides that a better explanation existed and was lost. Saying so turns a silent
-            // loss into the one thing a reader can act on, and it is the only way this stays closed -
-            // "remember to bound every await" is a rule nothing enforces, whereas a failure that names
-            // its own cause needs nobody to remember anything.
-            stepResult.Exception = graced.Own ?? new TimeoutException(
-                graced.Stopped
-                    ? $"Step '{step.Step.Name}' timed out after {timeout}."
-                    : $"Step '{step.Step.Name}' timed out after {timeout} and was still running {grace} later, so whatever it "
-                        + "was going to say about the failure was never heard. A step keeps its own message by stopping inside "
-                        + "that window; the usual cause is an awaited call that does not take the step's deadline.",
-                exception);
-
             if (executionTask is not null && !executionTask.IsCompleted)
             {
-                logger.LogWarning($"Step '{step.Step.Name}' did not stop when it timed out after {timeout}. Its writes to this run's stores are refused from here on.");
+                logger.LogWarning($"Step '{step.Step.Name}' did not stop when it was cancelled. Its writes to this run's stores are refused from here on.");
 
                 // Hand ownership of the CTS to the continuation: disposing it here would race the
                 // still-running attempt, and someone has to observe that attempt's exception.
@@ -298,7 +403,34 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 ObserveAbandonedAttempt(executionTask, cancellationTokenSource);
             }
 
-            await observers.TimedOutAsync(scope.Observation, Evidence, logger);
+            if (runStopped)
+            {
+                stepResult.State = StepState.Error;
+                stepResult.Exception = graced.Own ?? new OperationCanceledException(
+                    $"Step '{step.Step.Name}' was stopped because the run was cancelled{ReasonSuffix(debuggingSession)}.",
+                    exception);
+
+                await observers.FailedAsync(scope.Observation, stepResult.Exception, Evidence, logger);
+            }
+            else
+            {
+                stepResult.State = StepState.Timeout;
+
+                // When the step never stopped, the generic sentence is true and useless: it reports the
+                // timeout and hides that a better explanation existed and was lost. Saying so turns a silent
+                // loss into the one thing a reader can act on, and it is the only way this stays closed -
+                // "remember to bound every await" is a rule nothing enforces, whereas a failure that names
+                // its own cause needs nobody to remember anything.
+                stepResult.Exception = graced.Own ?? new TimeoutException(
+                    graced.Stopped
+                        ? $"Step '{step.Step.Name}' timed out after {timeout}."
+                        : $"Step '{step.Step.Name}' timed out after {timeout} and was still running {grace} later, so whatever it "
+                            + "was going to say about the failure was never heard. A step keeps its own message by stopping inside "
+                            + "that window; the usual cause is an awaited call that does not take the step's deadline.",
+                    exception);
+
+                await observers.TimedOutAsync(scope.Observation, Evidence, logger);
+            }
         }
         catch (Exception exception)
         {
@@ -371,6 +503,12 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     /// <param name="Stopped">Whether the attempt finished inside the window.</param>
     /// <param name="Own">What the step threw, when it threw something that was not a cancellation.</param>
     private readonly record struct GraceOutcome(bool Stopped, Exception? Own);
+
+    /// <summary>
+    /// The cancellation reason, when the consumer gave one, formatted for the step's own record.
+    /// </summary>
+    private static string ReasonSuffix(DebuggingRunSession debuggingSession)
+        => debuggingSession.CancellationReason is { Length: > 0 } reason ? $" ({reason})" : string.Empty;
 
     /// <summary>
     /// Keeps an abandoned step attempt from surfacing later as an unobserved task exception, and

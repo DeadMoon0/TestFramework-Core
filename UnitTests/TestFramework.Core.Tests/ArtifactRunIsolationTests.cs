@@ -64,7 +64,10 @@ public class ArtifactRunIsolationTests
             "pinned",
             reference,
             RunContext.Ambient(new EmptyServiceProvider(), variables, store, logger, ValueResolution.Empty));
-        ((IFreezable)reference).Freeze();
+
+        // The internal call, because the public route is gone on purpose: a reference is settled by its
+        // run ending, and nothing else - not even through an interface cast - may do it.
+        reference.FreezeForRunEnd();
 
         Assert.True(reference.IsFrozen);
         Assert.True(reference.IsPinned);

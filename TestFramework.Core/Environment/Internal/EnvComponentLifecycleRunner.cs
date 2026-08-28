@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment.Graph;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
 
@@ -39,11 +40,44 @@ internal static class EnvComponentLifecycleRunner
         IReadOnlyList<IReadOnlyList<EnvComponent>> componentLayers = EnvComponentGraph.Layers(environment, rootComponents);
         foreach (IReadOnlyList<EnvComponent> componentLayer in componentLayers)
         {
-            (EnvComponentIdentifier Id, object? State, EnvComponentScope Scope)[] creationResults = await Task.WhenAll(componentLayer
-                .Select(async component => (component.Id, State: await component.CreateAsync(environment, Publishing(context, publishing, component)), component.Scope)));
+            // Started together, recorded one by one. Task.WhenAll would throw away the successful
+            // siblings' states when one component in the layer fails - containers that started, that
+            // nothing recorded, and that teardown therefore can never see. Every state that exists is
+            // recorded before the layer's failure is rethrown, so what did start is what gets torn down.
+            // Starting is guarded too: a component that throws synchronously from CreateAsync would
+            // otherwise take the layer down before its already-started siblings were even collected.
+            List<(EnvComponent Component, Task<object?> Creation)> creations = [];
+            List<Exception> failures = [];
 
-            foreach ((EnvComponentIdentifier componentId, object? state, EnvComponentScope scope) in creationResults)
-                setState(componentId, state, scope);
+            foreach (EnvComponent component in componentLayer)
+            {
+                try
+                {
+                    creations.Add((component, component.CreateAsync(environment, Publishing(context, publishing, component))));
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
+            }
+
+            foreach ((EnvComponent component, Task<object?> creation) in creations)
+            {
+                try
+                {
+                    setState(component.Id, await creation, component.Scope);
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
+            }
+
+            if (failures.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+
+            if (failures.Count > 1)
+                throw new AggregateException($"{failures.Count} environment components in one layer failed to create.", failures);
         }
     }
 
@@ -75,6 +109,7 @@ internal static class EnvComponentLifecycleRunner
         Func<EnvComponentIdentifier, EnvComponentScope>? scopeOf = null)
     {
         List<EnvComponentIdentifier> reused = [];
+        List<(EnvComponentIdentifier Identifier, Exception Failure)> failed = [];
 
         for (int i = creationOrder.Count - 1; i >= 0; i--)
         {
@@ -85,15 +120,38 @@ internal static class EnvComponentLifecycleRunner
                 continue;
             }
 
-            EnvComponent component = environment.GetComponent(identifier);
-            object? state = getState(identifier);
-            await component.DeconstructAsync(state, environment, context);
+            // Isolated per component, the way the artifact teardown next door already is: one component
+            // that cannot come down must not stop the ones created before it from being taken down - they
+            // are the remaining teardown, and skipping them is how a single failure leaks a whole
+            // environment while the cleanup step reads as done.
+            try
+            {
+                EnvComponent component = environment.GetComponent(identifier);
+                object? state = getState(identifier);
+                await component.DeconstructAsync(state, environment, context);
+            }
+            catch (Exception exception)
+            {
+                failed.Add((identifier, exception));
+                context.Logger.LogError("Could not deconstruct environment component '{0}'; continuing with the components before it.\n{1}", identifier, exception.ToString());
+            }
         }
 
         if (reused.Count > 0)
         {
             reused.Reverse();
             context.Logger.LogInformation($"Left {reused.Count} reused environment component(s) standing, because this run did not create them: {string.Join(", ", reused)}.");
+        }
+
+        // Every component got its chance; now the failures surface as one account instead of the first
+        // one hiding the rest. The cleanup step ignores exceptions by design, so this reaches the log and
+        // the debugger's record rather than failing the run - but it is a real exception, not a warning,
+        // because resources this run created are still standing.
+        if (failed.Count > 0)
+        {
+            throw new FrameworkStateException(
+                $"{failed.Count} of {creationOrder.Count} environment component(s) could not be deconstructed and may still be running: "
+                + $"{string.Join(", ", failed.Select(static entry => $"'{entry.Identifier}'"))}. Each failure is logged above.");
         }
     }
 }

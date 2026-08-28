@@ -123,13 +123,21 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 [.. _newArtifactStore.GetAll().Select(instance => (instance.Identifier, instance))],
                 newRun.Stages,
                 mainStageSteps));
+            bool anEarlierStageFailed = false;
+
             foreach (var stage in newRun.Stages)
             {
-                // A cancelled run skips the work it has not started but always reaches teardown:
-                // deconstructing artifacts and tearing down environment components is precisely what
-                // killing the process would have skipped.
-                if (_debuggingSession.IsCancellationRequested && !stage.Stage.IsCleanupStage)
+                // A cancelled run skips the work it has not started, and so does a run whose earlier stage
+                // failed: a Pre-Setup that could not build the environment makes every Main Stage step fail
+                // against something that is not there, and that cascade of downstream errors is what buries
+                // the one failure worth reading. Both always reach teardown - deconstructing artifacts and
+                // tearing down environment components is precisely what killing the process would have
+                // skipped.
+                if ((_debuggingSession.IsCancellationRequested || anEarlierStageFailed) && !stage.Stage.IsCleanupStage)
                 {
+                    if (anEarlierStageFailed)
+                        logger.LogWarning("Stage '{0}' was skipped because an earlier stage failed.", stage.Stage.Name);
+
                     await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
                     continue;
                 }
@@ -143,6 +151,9 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 stageStopwatch.Stop();
                 logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
+
+                if (stage.Result.State != StageState.Complete)
+                    anEarlierStageFailed = true;
             }
             DebugLifecycleState finalRunState = newRun.Stages.Any(stage => stage.Result.State == StageState.Error)
                 ? DebugLifecycleState.Error

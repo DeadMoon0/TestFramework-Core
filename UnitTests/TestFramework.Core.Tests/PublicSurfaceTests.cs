@@ -61,7 +61,11 @@ public class PublicSurfaceTests
     public void NobodyCanFreezeTheRunsVariablesMidRun()
     {
         // Damage: every later write in the run throws. The run freezes its own variables when it ends.
+        // Both routes are pinned: the method, and the interface - an explicit IFreezable implementation
+        // passes the first check while ((IFreezable)store).Freeze() still compiles in any package, which
+        // is how this guard held in name only for a while.
         Assert.Null(typeof(VariableStore).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(VariableStore)));
     }
 
     [Fact]
@@ -69,9 +73,19 @@ public class PublicSurfaceTests
     {
         // Damage: the same, one store over - every later capture, registration or cleanup throws. Freezing
         // a single artifact is worse than freezing the store, because it fails only the test that touches
-        // that one artifact and looks like a problem with the artifact.
+        // that one artifact and looks like a problem with the artifact. The interface route is pinned for
+        // every part of an artifact, because freezing a reference before its setup pins it fails that step
+        // for reasons the step cannot explain.
         Assert.Null(typeof(ArtifactStore).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
         Assert.Null(typeof(ArtifactInstanceGeneric).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(ArtifactStore)));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(ArtifactInstanceGeneric)));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(ArtifactReferenceGeneric)));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(ArtifactDescriberGeneric)));
+
+        // The run's component record is settled the same way, by the run and nobody else.
+        Assert.Null(typeof(Core.Environment.EnvComponentContext).GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(Core.Environment.EnvComponentContext)));
     }
 
     [Fact]

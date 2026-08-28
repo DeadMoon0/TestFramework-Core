@@ -41,7 +41,7 @@ public abstract class ArtifactDescriber<TArtifactDescriber, TArtifactData, TArti
 /// <summary>
 /// Represents the non-generic base contract for artifact describers.
 /// </summary>
-public abstract class ArtifactDescriberGeneric : IFreezable
+public abstract class ArtifactDescriberGeneric
 {
     /// <summary>
     /// Gets a value indicating whether the describer has been frozen against further mutation.
@@ -49,14 +49,15 @@ public abstract class ArtifactDescriberGeneric : IFreezable
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the describer.
+    /// Freezes the describer when its run ends, like every other part of an artifact.
     /// </summary>
     /// <remarks>
-    /// Reached through <see cref="IFreezable"/> like every other part of an artifact. A describer is
-    /// behaviour rather than state, so this settles nothing today - it is here so that "a frozen artifact
-    /// is frozen all the way down" stays true if a describer ever holds something.
+    /// Internal for the same reason the reference's is - the public <see cref="IFreezable"/> hands the
+    /// call out to any package through a cast. A describer is behaviour rather than state, so this settles
+    /// nothing today - it is here so that "a frozen artifact is frozen all the way down" stays true if a
+    /// describer ever holds something.
     /// </remarks>
-    void IFreezable.Freeze() { IsFrozen = true; }
+    internal void FreezeForRunEnd() { IsFrozen = true; }
 
     /// <summary>
     /// Gets how setup for this artifact kind may be parallelized.

@@ -13,7 +13,7 @@ namespace TestFramework.Core.Artifacts;
 /// <summary>
 /// Stores artifact instances for a timeline run and reports updates to logging and debugging surfaces.
 /// </summary>
-public class ArtifactStore : IFreezable
+public class ArtifactStore
 {
     private readonly object syncRoot;
 
@@ -23,16 +23,26 @@ public class ArtifactStore : IFreezable
     public bool IsFrozen => _artifacts.IsFrozen;
 
     /// <summary>
-    /// Freezes the artifact store against further mutation.
+    /// Freezes the artifact store and everything it holds when its run ends.
     /// </summary>
     /// <remarks>
-    /// Reached through <see cref="IFreezable"/> rather than offered on the store itself: the run freezes
-    /// its own artifacts when it ends, and anything else doing it mid-run would turn every later capture
-    /// into a failure.
+    /// Internal, and the store deliberately does not implement the public <see cref="IFreezable"/>: that
+    /// interface's <c>Freeze</c> is reachable through a cast from any package, and a caller able to freeze
+    /// a <em>running</em> run's artifacts would turn every later capture into a failure. Each held
+    /// instance settles here too - its versions, its reference and its describer - because the instances
+    /// stopped implementing the public interface for the same reason, and a frozen store whose artifacts
+    /// could still be re-pinned would be frozen in name only.
     /// </remarks>
-    void IFreezable.Freeze() { lock (syncRoot) { _artifacts.Freeze(); } }
+    internal void FreezeForRunEnd()
+    {
+        lock (syncRoot)
+        {
+            foreach (ArtifactInstanceGeneric instance in _artifacts.Values)
+                instance.FreezeForRunEnd();
 
-    internal void FreezeForRunEnd() { lock (syncRoot) { _artifacts.Freeze(); } }
+            _artifacts.Freeze();
+        }
+    }
 
     private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts;
     private readonly ScopedLogger logger;
@@ -233,6 +243,20 @@ public class ArtifactStore : IFreezable
 
         lock (syncRoot)
         {
+            // Replacing is allowed - a retried registration legitimately re-adds its identifier - but it
+            // is never silent: teardown deconstructs what the store holds, so an artifact replaced while
+            // its resource exists loses its cleanup along with its entry. Refusing outright was
+            // considered and would break retries; whether a replaced artifact's resource is the same one
+            // is something only the resource's own identity could settle, and nothing carries that yet.
+            if (_artifacts.TryGetValue(instance.Identifier, out ArtifactInstanceGeneric? existing)
+                && !ReferenceEquals(existing, instance)
+                && existing.State == ArtifactState.Setup)
+            {
+                logger.LogWarning(
+                    "Artifact '{0}' is being replaced while its resource is set up. The previous instance's cleanup no longer runs; whatever it created is now this run's responsibility to explain.",
+                    instance.Identifier.Identifier);
+            }
+
             _artifacts[instance.Identifier] = instance;
         }
     }

@@ -19,7 +19,7 @@ namespace TestFramework.Core.Environment;
 /// and tears down exactly that.
 /// </para>
 /// </remarks>
-public class EnvComponentContext : IFreezable
+public class EnvComponentContext
 {
     private readonly FreezableDictionary<EnvComponentIdentifier, object?> _states = [];
     private readonly FreezableDictionary<EnvComponentIdentifier, EnvComponentScope> _scopes = [];
@@ -31,9 +31,14 @@ public class EnvComponentContext : IFreezable
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the component context.
+    /// Freezes the component context when its run ends.
     /// </summary>
-    public void Freeze()
+    /// <remarks>
+    /// Internal: a caller able to freeze a <em>running</em> run's component context would make every later
+    /// component creation fail, which is the same damage the stores are protected from and closed the
+    /// same way - the run settles its own record when it ends, and nothing else may.
+    /// </remarks>
+    internal void Freeze()
     {
         IsFrozen = true;
         _states.Freeze();
@@ -43,7 +48,7 @@ public class EnvComponentContext : IFreezable
 
     internal void SetState(EnvComponentIdentifier identifier, object? state, EnvComponentScope scope)
     {
-        ((IFreezable)this).EnsureNotFrozen();
+        if (IsFrozen) throw new Exceptions.FrameworkStateException("This instance has been frozen and is read-only.");
         _states[identifier] = state;
         _scopes[identifier] = scope;
 

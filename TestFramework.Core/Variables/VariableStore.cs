@@ -12,7 +12,7 @@ namespace TestFramework.Core.Variables;
 /// <summary>
 /// Stores resolved runtime variables for a timeline run and reports changes to logging and debugging surfaces.
 /// </summary>
-public class VariableStore : IFreezable
+public class VariableStore
 {
     private readonly object syncRoot;
 
@@ -22,17 +22,20 @@ public class VariableStore : IFreezable
     public bool IsFrozen => _variables.IsFrozen;
 
     /// <summary>
-    /// Freezes the variable store against further mutation.
+    /// Freezes the variable store when its run ends.
     /// </summary>
     /// <remarks>
-    /// Reached through <see cref="IFreezable"/> rather than offered on the store itself: the run freezes
-    /// its own variables when it ends, and anything else doing it mid-run would turn every later write
-    /// into a failure. Explicit implementation keeps it out of reach of ordinary code without pretending
-    /// a determined cast is impossible.
+    /// Internal, and the store deliberately does not implement the public <see cref="IFreezable"/>: that
+    /// interface's <c>Freeze</c> is reachable through a cast from any package, and a caller able to freeze
+    /// a <em>running</em> run's variables would turn every later write into a failure. The run freezes its
+    /// own variables when it ends, and nothing else may - the same shape the resource values use.
     /// </remarks>
-    void IFreezable.Freeze() { lock (syncRoot) { _variables.Freeze(); } }
-
     internal void FreezeForRunEnd() { lock (syncRoot) { _variables.Freeze(); } }
+
+    private void EnsureNotFrozen()
+    {
+        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
+    }
 
     private readonly FreezableDictionary<VariableIdentifier, object?> _variables;
     private readonly ScopedLogger logger;
@@ -133,7 +136,7 @@ public class VariableStore : IFreezable
         // expensive, and it used to happen up to three times per write with the lock held.
         lock (syncRoot)
         {
-            ((IFreezable)this).EnsureNotFrozen();
+            EnsureNotFrozen();
             _variables[identifier] = value;
         }
 

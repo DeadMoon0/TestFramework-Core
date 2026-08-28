@@ -2,6 +2,7 @@
 using System;
 using System.Threading.Tasks;
 using TestFramework.Core;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
@@ -73,7 +74,7 @@ public abstract class ArtifactReference<TArtifactReference, TArtifactDescriber, 
 /// <summary>
 /// Represents the non-generic base contract for artifact references.
 /// </summary>
-public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGeneric
+public abstract class ArtifactReferenceGeneric : IArtifactGettableGeneric
 {
     /// <summary>
     /// Gets a value indicating whether the reference has been frozen against further mutation.
@@ -81,14 +82,15 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the artifact reference against further pinning.
+    /// Freezes the artifact reference against further pinning, when its run ends.
     /// </summary>
     /// <remarks>
-    /// Reached through <see cref="IFreezable"/> rather than offered here: the run settles its artifacts
-    /// when it ends, and freezing a reference before its setup step pins it would fail that step for
-    /// reasons the step cannot explain.
+    /// Internal, and the reference deliberately does not implement the public <see cref="IFreezable"/>:
+    /// that interface's <c>Freeze</c> is reachable through a cast from any package, and freezing a
+    /// reference before its setup step pins it would fail that step for reasons the step cannot explain.
+    /// The run settles its artifacts when it ends, and nothing else may.
     /// </remarks>
-    void IFreezable.Freeze() { IsFrozen = true; }
+    internal void FreezeForRunEnd() { IsFrozen = true; }
 
     /// <summary>
     /// Gets a value indicating whether the reference has already been pinned.
@@ -109,7 +111,8 @@ public abstract class ArtifactReferenceGeneric : IFreezable, IArtifactGettableGe
     internal void Pin(RunContext context, ArtifactWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-        ((IFreezable)this).EnsureNotFrozen();
+
+        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
 
         if (IsPinned) return;
         IsPinned = true;

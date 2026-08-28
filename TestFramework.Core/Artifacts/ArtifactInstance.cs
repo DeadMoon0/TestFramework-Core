@@ -97,7 +97,7 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
 /// <summary>
 /// Represents an untyped artifact instance and its versioned data payloads.
 /// </summary>
-public class ArtifactInstanceGeneric : IFreezable
+public class ArtifactInstanceGeneric
 {
     /// <summary>
     /// Gets a value indicating whether the artifact instance has been frozen against further mutation.
@@ -105,20 +105,21 @@ public class ArtifactInstanceGeneric : IFreezable
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the artifact instance against further mutation.
+    /// Freezes the artifact instance when its run ends.
     /// </summary>
     /// <remarks>
-    /// Reached through <see cref="IFreezable"/> rather than offered on the instance: the run freezes its
-    /// artifacts when it ends, and anything else doing it mid-run would turn every later capture of that
-    /// artifact into a failure. The reference and the describer are settled with it - a frozen artifact
-    /// whose reference could still be re-pinned would be frozen in name only.
+    /// Internal, and the instance deliberately does not implement the public <see cref="IFreezable"/>:
+    /// that interface's <c>Freeze</c> is reachable through a cast from any package, and freezing a single
+    /// artifact mid-run is worse than freezing the store - it fails only the test that touches this one
+    /// artifact and reads as a problem with the artifact. The reference and the describer are settled
+    /// with it - a frozen artifact whose reference could still be re-pinned would be frozen in name only.
     /// </remarks>
-    void IFreezable.Freeze()
+    internal void FreezeForRunEnd()
     {
         IsFrozen = true;
         _dataVersions.Freeze();
-        ((IFreezable)Reference).Freeze();
-        ((IFreezable)Artifact).Freeze();
+        Reference.FreezeForRunEnd();
+        Artifact.FreezeForRunEnd();
     }
 
     private readonly FreezableCollection<ArtifactDataGeneric> _dataVersions = [];
@@ -193,9 +194,14 @@ public class ArtifactInstanceGeneric : IFreezable
     internal void SetState(ArtifactState state, ArtifactWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-        ((IFreezable)this).EnsureNotFrozen();
+        EnsureNotFrozen();
 
         _state = state;
+    }
+
+    private void EnsureNotFrozen()
+    {
+        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
     }
 
     /// <summary>
@@ -257,7 +263,7 @@ public class ArtifactInstanceGeneric : IFreezable
     internal void AddVersionGeneric(ArtifactDataGeneric data, ArtifactWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-        ((IFreezable)this).EnsureNotFrozen();
+        EnsureNotFrozen();
 
         _dataVersions.Add(data);
     }
