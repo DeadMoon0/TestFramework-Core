@@ -25,10 +25,21 @@ namespace TestFramework.Core.Debugger;
 /// </remarks>
 internal sealed class DebugValueFileStore
 {
-    private const string ValuesFolderName = "values";
+    /// <summary>The folder values are written into, unless a store is told otherwise.</summary>
+    internal const string ValuesFolderName = "values";
+
+    /// <summary>The folder widgets are written into.</summary>
+    /// <remarks>
+    /// Beside the values rather than among them, because the two are read differently: a value is
+    /// looked up by the name the run gave it, and a widget is browsed. A folder of screenshots mixed
+    /// into a folder of spilled JSON is neither.
+    /// </remarks>
+    internal const string WidgetsFolderName = "widgets";
+
     private const int MaxKeyLength = 60;
 
     private readonly Func<string> resolveRunDirectory;
+    private readonly string folderName;
     private readonly object gate = new();
 
     /// <summary>
@@ -43,9 +54,10 @@ internal sealed class DebugValueFileStore
     private string? runDirectory;
     private bool unusable;
 
-    internal DebugValueFileStore(Func<string> resolveRunDirectory)
+    internal DebugValueFileStore(Func<string> resolveRunDirectory, string folderName = ValuesFolderName)
     {
         this.resolveRunDirectory = resolveRunDirectory;
+        this.folderName = folderName;
     }
 
     /// <summary>
@@ -99,7 +111,7 @@ internal sealed class DebugValueFileStore
             return new DebugValueBody
             {
                 Path = path,
-                RelativePath = $"{ValuesFolderName}/{name}",
+                RelativePath = $"{folderName}/{name}",
                 SizeInBytes = bytes.LongLength,
                 ContentHash = hash
             };
@@ -120,17 +132,22 @@ internal sealed class DebugValueFileStore
         // behind for a build to publish.
         runDirectory ??= resolveRunDirectory();
 
-        string values = Path.Combine(runDirectory, ValuesFolderName);
+        string folder = Path.Combine(runDirectory, folderName);
 
-        Directory.CreateDirectory(values);
+        Directory.CreateDirectory(folder);
 
-        return values;
+        return folder;
     }
 
     private static string Extension(DebugPreviewForm form) => form switch
     {
         DebugPreviewForm.Json => "json",
         DebugPreviewForm.Binary => "bin",
+
+        // Named for what it is, so the shell opens it in an image viewer. A screenshot written as
+        // ".bin" is a screenshot nobody can look at without renaming it first.
+        DebugPreviewForm.Image => "png",
+        DebugPreviewForm.Markup => "html",
         _ => "txt"
     };
 

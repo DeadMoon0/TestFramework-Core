@@ -50,6 +50,7 @@ internal class DebuggingRunSession
         this.sourceFilePath = sourceFilePath;
         this.sourceLineNumber = sourceLineNumber;
         ValueFiles = new DebugValueFileStore(ResolveRunOutputDirectory);
+        WidgetFiles = new DebugValueFileStore(ResolveRunOutputDirectory, DebugValueFileStore.WidgetsFolderName);
 
         if (debugger is ISupportsRunCancellation cancellable)
             cancellable.CancellationRequested += OnCancellationRequested;
@@ -134,6 +135,16 @@ internal class DebuggingRunSession
     /// </remarks>
     internal DebugValueFileStore ValueFiles { get; }
 
+    /// <summary>
+    /// Where evidence a run produced is written.
+    /// </summary>
+    /// <remarks>
+    /// A second store rather than a second folder inside the first, because the two dedupe separately:
+    /// two steps that take an identical screenshot should each have theirs, filed under their own
+    /// names, while an artifact republished unchanged should not be written twice under one.
+    /// </remarks>
+    internal DebugValueFileStore WidgetFiles { get; }
+
     private string ResolveRunOutputDirectory()
         => Path.Combine(RunOutput.Root, RunOutput.FolderNameFor(Identity?.DisplayName, SessionId));
 
@@ -206,6 +217,45 @@ internal class DebuggingRunSession
         string? stage = currentExecutionContext.Value?.Stage;
         int? stepId = currentExecutionContext.Value?.StepId;
         Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, stage, stepId, state.Envelope));
+    }
+
+    /// <summary>
+    /// Reports a piece of evidence, attributing it to whatever is running.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one place the whole triple is read. A value update carries the stage and the step because
+    /// that is all a value needs; a widget also carries the attempt, because a step that retried
+    /// produced one picture per attempt and the interesting one is rarely the last.
+    /// </para>
+    /// <para>
+    /// Attribution is read here rather than passed in, so a producer cannot get it wrong or leave it
+    /// out. What a producer does know and this cannot — which component it is — is the one thing it
+    /// states for itself.
+    /// </para>
+    /// </remarks>
+    internal void PublishWidget(string kind, string name, string? component, DebugValueDescription description)
+    {
+        if (!sessionInitialized)
+            return;
+
+        ExecutionContextInfo? context = currentExecutionContext.Value;
+        IterationContextInfo? iteration = currentIterationContext.Value;
+
+        DebugWidgetEntry entry = new()
+        {
+            Stage = context?.Stage,
+            StepId = context?.StepId,
+            Attempt = iteration?.Iteration,
+            Component = component,
+            Kind = kind,
+            Name = name,
+            OccurredAtUtc = DateTimeOffset.UtcNow,
+            Description = description
+        };
+
+        if (Debugger is ISupportsWidgets widgets)
+            Enqueue(() => widgets.SignalWidgetAsync(SessionId, entry));
     }
 
     /// <summary>

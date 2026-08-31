@@ -36,5 +36,8 @@ public enum PipeSignalKind : ushort
     BreakpointHitContinue,
 
     /// <summary>Consumer to producer: stop this run cooperatively.</summary>
-    CancelRun
+    CancelRun,
+
+    /// <summary>A step or component produced a piece of evidence.</summary>
+    Widget
 }

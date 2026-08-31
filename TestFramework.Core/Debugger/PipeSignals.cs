@@ -142,6 +142,20 @@ public sealed record PipeLogEntrySignal : IPipeSignal
     public required DebugLogEntry Entry { get; init; }
 }
 
+/// <summary>Carries a piece of evidence a step or component produced.</summary>
+public sealed record PipeWidgetSignal : IPipeSignal
+{
+    /// <inheritdoc />
+    [JsonProperty]
+    public PipeSignalKind Kind => PipeSignalKind.Widget;
+
+    /// <inheritdoc />
+    public required string SessionId { get; init; }
+
+    /// <summary>Gets the widget.</summary>
+    public required DebugWidgetEntry Entry { get; init; }
+}
+
 /// <summary>Carries a structured assertion result.</summary>
 public sealed record PipeAssertionSignal : IPipeSignal
 {

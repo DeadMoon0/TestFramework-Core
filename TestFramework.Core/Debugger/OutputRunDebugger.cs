@@ -11,7 +11,7 @@ using Xunit.Abstractions;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
+internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, ISupportsWidgets
 {
     private const string DisableUnicodeOutEnvironmentVariable = "TestFramework_Disable_Unicode_Out";
     private const int PanelWidth = 95;
@@ -56,6 +56,9 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
     private readonly Dictionary<string, DebugValue> artifactsByKey = new(System.StringComparer.Ordinal);
     private readonly List<string> runLogLines = [];
     private readonly List<string> assertionLines = [];
+
+    /// <summary>The evidence this run produced, in the order it was produced.</summary>
+    private readonly List<string> widgetLines = [];
     private string? runName;
     private string? projectPath;
 
@@ -93,6 +96,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         artifactsByKey.Clear();
         runLogLines.Clear();
         assertionLines.Clear();
+        widgetLines.Clear();
 
         foreach (DebugValue variable in runStructure.Variables.Values)
             variablesByKey[variable.Key] = variable;
@@ -379,9 +383,62 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         if (lines.Count == 0)
             return;
 
-        BoxPrefix prefix = CreateBoxPrefix(string.Empty, assertionLines.Count > 0);
+        BoxPrefix prefix = CreateBoxPrefix(string.Empty, widgetLines.Count > 0 || assertionLines.Count > 0);
         WriteGapLine(prefix.Gap);
         RenderSection("Value Files", lines, prefix);
+    }
+
+    /// <summary>
+    /// Lists the evidence the run produced, once, at the end.
+    /// </summary>
+    /// <remarks>
+    /// The same manifest idea as the value files above, and the reason this debugger carries evidence
+    /// at all: on a build agent there is no window to open, and a screenshot nobody can find is a
+    /// screenshot that was not taken. What this prints is what the published artifacts contain.
+    /// </remarks>
+    private void RenderWidgets()
+    {
+        if (widgetLines.Count == 0)
+            return;
+
+        BoxPrefix prefix = CreateBoxPrefix(string.Empty, assertionLines.Count > 0);
+        WriteGapLine(prefix.Gap);
+        RenderSection("Widgets", widgetLines, prefix);
+    }
+
+    /// <summary>
+    /// Records a piece of evidence for the manifest.
+    /// </summary>
+    /// <remarks>
+    /// Named by where it came from as well as by what it is: "checkout · attempt 2 · page" is what
+    /// makes one of four screenshots the one worth opening.
+    /// </remarks>
+    public Task SignalWidgetAsync(string sessionId, DebugWidgetEntry entry)
+    {
+        if (entry?.Description.Body is not { } body)
+            return Task.CompletedTask;
+
+        lock (renderGate)
+        {
+            widgetLines.Add($"{Where(entry)}{entry.Name}  {Size(body.SizeInBytes)}  {body.RelativePath}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string Where(DebugWidgetEntry entry)
+    {
+        List<string> parts = [];
+
+        if (entry.Component is { Length: > 0 } component)
+            parts.Add(component);
+        else if (entry.Stage is { Length: > 0 } stage)
+            parts.Add(entry.StepId is { } stepId ? $"{stage} step {stepId}" : stage);
+
+        if (entry.Attempt is > 1)
+            parts.Add($"attempt {entry.Attempt}");
+
+        return parts.Count == 0 ? string.Empty : string.Join(" · ", parts) + " · ";
     }
 
     private void RenderRunSummary()
@@ -396,7 +453,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         // Worked out up front because the box drawing needs to know whether anything follows: a
         // section that decides for itself whether to appear leaves the one before it drawn as last.
         List<string> valueFileLines = ValueFileLines();
-        bool tail = valueFileLines.Count > 0 || assertionLines.Count > 0;
+        bool tail = valueFileLines.Count > 0 || widgetLines.Count > 0 || assertionLines.Count > 0;
 
         if (runLogLines.Count > 0)
         {
@@ -414,6 +471,7 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog
         }
 
         RenderValueFiles(valueFileLines);
+        RenderWidgets();
 
         if (assertionLines.Count > 0)
         {

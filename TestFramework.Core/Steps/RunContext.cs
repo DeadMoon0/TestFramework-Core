@@ -79,6 +79,16 @@ public sealed class RunContext
     public RunState State => this.Variables.RunState;
 
     /// <summary>
+    /// Where to put the evidence this run produces: a screenshot, a log, a generated file.
+    /// </summary>
+    /// <remarks>
+    /// Read from the variables for the reason <see cref="State"/> is: what a step holds is a per-attempt
+    /// view, and a widget has to be filed against the attempt that produced it rather than against
+    /// whichever view happened to be passed around.
+    /// </remarks>
+    public WidgetStore Widgets => new(this.Variables.DebuggingSession);
+
+    /// <summary>
     /// Where to record what this run resolved on the caller's behalf.
     /// </summary>
     /// <remarks>

@@ -42,6 +42,16 @@ public class VariableStore
     private readonly DebuggingRunSession debuggingSession;
 
     /// <summary>
+    /// The run's debugging session, for the one other store that needs it.
+    /// </summary>
+    /// <remarks>
+    /// Exposed here rather than threaded through the context's constructors because every view of the
+    /// store already carries it, and a per-attempt view carries the same one — which is exactly the
+    /// property a widget needs, since it is filed against the attempt rather than against a store.
+    /// </remarks>
+    internal DebuggingRunSession DebuggingSession => debuggingSession;
+
+    /// <summary>
     /// Last published content fingerprint per variable. Only populated while something is capturing.
     /// </summary>
     private readonly Dictionary<VariableIdentifier, string> changeTokens;

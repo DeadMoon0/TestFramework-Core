@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog
+internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog, ISupportsWidgets
 {
     /// <summary>One interested consumer is enough to make producing the signals worthwhile.</summary>
     public bool IsCapturing => debuggers.Any(debugger => debugger.IsCapturing);
@@ -82,6 +83,26 @@ internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellat
 
     public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
         => SignalAllAsync(debugger => debugger.SignalAssertionAsync(sessionId, entry));
+
+    /// <summary>
+    /// Passes evidence to the children that can carry it, and to no others.
+    /// </summary>
+    /// <remarks>
+    /// The same shape as the rendered log above: asked for rather than required, so a debugger built
+    /// against a Core that had never heard of widgets keeps working and simply does not receive them.
+    /// </remarks>
+    public Task SignalWidgetAsync(string sessionId, DebugWidgetEntry entry)
+    {
+        List<Task> tasks = [];
+
+        foreach (IRunDebugger debugger in debuggers)
+        {
+            if (debugger is ISupportsWidgets widgets)
+                tasks.Add(widgets.SignalWidgetAsync(sessionId, entry));
+        }
+
+        return tasks.Count == 0 ? Task.CompletedTask : Task.WhenAll(tasks);
+    }
 
     public Task SignalTimelineRunFinishedAsync(string sessionId)
         => SignalAllAsync(debugger => debugger.SignalTimelineRunFinishedAsync(sessionId));

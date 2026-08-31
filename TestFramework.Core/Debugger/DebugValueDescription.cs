@@ -160,7 +160,20 @@ public enum DebugPreviewForm
     Json,
 
     /// <summary>Bytes, which a consumer may render as hex.</summary>
-    Binary
+    Binary,
+
+    /// <summary>
+    /// A picture, which a consumer should draw rather than describe.
+    /// </summary>
+    /// <remarks>
+    /// Appended rather than inserted: these travel by name, but a consumer built against an older
+    /// version has never heard of this one and will fall back to whatever it does for text — which is
+    /// why the content of an image never rides in the preview, only in the body beside it.
+    /// </remarks>
+    Image,
+
+    /// <summary>Markup, which a consumer may render as source or as a page.</summary>
+    Markup
 }
 
 /// <summary>

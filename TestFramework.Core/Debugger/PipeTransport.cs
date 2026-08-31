@@ -226,6 +226,7 @@ public static class PipeSignalFactory
             PipeSignalKind.BreakpointHitContinue => JsonConvert.DeserializeObject<PipeBreakpointHitContinueSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize breakpoint continue signal."),
             PipeSignalKind.TimelineRunFinished => JsonConvert.DeserializeObject<PipeTimelineRunFinishedSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize timeline-finished signal."),
             PipeSignalKind.CancelRun => JsonConvert.DeserializeObject<PipeCancelRunSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize cancel-run signal."),
+            PipeSignalKind.Widget => JsonConvert.DeserializeObject<PipeWidgetSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize widget signal."),
             _ => throw new ArgumentOutOfRangeException(nameof(signalKind), signalKind, "Unsupported pipe signal kind.")
         };
     }

@@ -24,7 +24,7 @@ namespace TestFramework.Core.Debugger;
 /// </para>
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class JournalRunDebugger : IRunDebugger, IDisposable
+public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWidgets
 {
     private readonly object writeLock = new();
     private readonly bool enabled;
@@ -107,6 +107,17 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable
     /// </summary>
     public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
         => AppendAsync(new PipeAssertionSignal { SessionId = sessionId, Entry = entry });
+
+    /// <summary>
+    /// Records a piece of evidence a step or component produced.
+    /// </summary>
+    /// <remarks>
+    /// The entry, not the file: the file is already in the run's own output, and the journal records
+    /// where it is. That is what lets a recorded run be reopened weeks later with its screenshots
+    /// still attached, and what keeps the journal from growing by a megabyte per picture.
+    /// </remarks>
+    public Task SignalWidgetAsync(string sessionId, DebugWidgetEntry entry)
+        => AppendAsync(new PipeWidgetSignal { SessionId = sessionId, Entry = entry });
 
     /// <summary>
     /// Signals that the run finished, closing and finalizing the journal.

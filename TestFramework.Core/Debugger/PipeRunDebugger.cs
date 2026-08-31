@@ -8,7 +8,7 @@ namespace TestFramework.Core.Debugger;
 /// Sends timeline debug signals over the built-in named-pipe transport to an attached debugger UI.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation
+public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation, ISupportsWidgets
 {
     private readonly PipeClient client = new(PipeTransport.GetPipeName());
 
@@ -85,6 +85,18 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCan
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
     {
         return client.SignalAsync(new PipeLogEntrySignal
+        {
+            SessionId = sessionId,
+            Entry = entry
+        });
+    }
+
+    /// <summary>
+    /// Signals a piece of evidence a step or component produced.
+    /// </summary>
+    public Task SignalWidgetAsync(string sessionId, DebugWidgetEntry entry)
+    {
+        return client.SignalAsync(new PipeWidgetSignal
         {
             SessionId = sessionId,
             Entry = entry
