@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,8 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 namespace TestFramework.Core.Debugger;
@@ -40,6 +43,24 @@ internal class DebuggingRunSession
     private Task? drainTask;
     private int writerCompleted;
     private bool sessionInitialized;
+
+    /// <summary>The steps currently asking, or waiting, at a breakpoint.</summary>
+    private readonly List<ExecutionContextInfo> pausedSteps = [];
+    private readonly object pauseGate = new();
+
+    /// <summary>
+    /// How many widgets this run has recorded.
+    /// </summary>
+    /// <remarks>
+    /// Only ever read as a difference across a capture, so what it counts is "widgets recorded while
+    /// that was happening" — which is what the answer to a capture request claims, rather than a
+    /// number a capture source reported about itself.
+    /// </remarks>
+    private int widgetsPublished;
+
+    /// <summary>What can be asked for fresh evidence, and how to build the context to ask with.</summary>
+    private WidgetCaptureSources captureSources = WidgetCaptureSources.None;
+    private Func<RunContext>? captureContext;
 
     private readonly string? sourceFilePath;
     private readonly int sourceLineNumber;
@@ -239,7 +260,10 @@ internal class DebuggingRunSession
         if (!sessionInitialized)
             return;
 
-        ExecutionContextInfo? context = currentExecutionContext.Value;
+        // Whatever is running, else whatever is standing still. The fallback is what makes a capture
+        // asked for over the wire land on the step a reader is looking at: it is served on the
+        // transport's thread, which is inside no step and can see no execution context.
+        ExecutionContextInfo? context = currentExecutionContext.Value ?? SinglePausedStep;
         IterationContextInfo? iteration = currentIterationContext.Value;
 
         DebugWidgetEntry entry = new()
@@ -254,9 +278,98 @@ internal class DebuggingRunSession
             Description = description
         };
 
+        Interlocked.Increment(ref widgetsPublished);
+
         if (Debugger is ISupportsWidgets widgets)
             Enqueue(() => widgets.SignalWidgetAsync(SessionId, entry));
     }
+
+    /// <summary>
+    /// Lets an attached consumer ask this run for fresh evidence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Installed by the run once it knows both halves: what a caller registered to capture with, and
+    /// how to build the context to capture into. Neither is knowable when this session is
+    /// constructed, which is well before the run has resolved its services or its stores.
+    /// </para>
+    /// <para>
+    /// Nothing is installed when there is nothing to install — a run with no capture source asks its
+    /// debugger for nothing, so the debugger answers a request by saying so rather than by calling
+    /// through to an empty list.
+    /// </para>
+    /// </remarks>
+    /// <param name="sources">What can be asked.</param>
+    /// <param name="context">Builds the context a source captures into, once per source.</param>
+    /// <param name="logger">The run's logger, for anything a source throws.</param>
+    internal void EnableWidgetCapture(WidgetCaptureSources sources, Func<RunContext> context, ScopedLogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        if (sources.IsEmpty || Debugger is not ISupportsWidgetCaptureRequests askable)
+            return;
+
+        captureSources = sources;
+        captureContext = context;
+
+        askable.OnCaptureRequested = () => CaptureWidgetsAsync(logger);
+    }
+
+    /// <summary>
+    /// Captures what the run can show right now, and reports what came of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The count is a difference across the capture rather than anything a source claimed, so it
+    /// states what the run actually recorded. Everything captured travels as an ordinary widget: the
+    /// file is written to the run's output and the signal goes out through the same queue, which is
+    /// why a journal replays a paused capture with no special case at all.
+    /// </para>
+    /// <para>
+    /// Which is also why this waits for the queue before answering. The answer leaves by a different
+    /// road than the widgets it counts - a transport replies on its own - so without the wait an
+    /// asker can be told "one captured" and find nothing where it was told to look, having been
+    /// answered before the picture it is about was ever sent.
+    /// </para>
+    /// </remarks>
+    private async Task<WidgetCaptureOutcome> CaptureWidgetsAsync(ScopedLogger logger)
+    {
+        Func<RunContext>? context = captureContext;
+
+        if (context is null)
+            return new WidgetCaptureOutcome(0, "This run has nothing registered that can capture evidence.");
+
+        // A finished run is a snapshot, and it stays one. The signal for anything captured now would
+        // be dropped - the queue is closed - while the file was still written, leaving evidence in the
+        // run's output that the run itself says nothing about. Refusing says so instead.
+        if (Volatile.Read(ref writerCompleted) == 1)
+            return new WidgetCaptureOutcome(0, "This run has finished, so there is nothing left to look at.");
+
+        int before = Volatile.Read(ref widgetsPublished);
+
+        string? problem = await captureSources.CaptureAsync(context, logger).ConfigureAwait(false);
+
+        int captured = Volatile.Read(ref widgetsPublished) - before;
+
+        await DeliveredSoFarAsync().ConfigureAwait(false);
+
+        return new WidgetCaptureOutcome(
+            captured,
+            problem ?? (captured == 0 ? "There was nothing to capture." : null));
+    }
+
+    /// <summary>
+    /// Waits until everything queued up to this point has reached the run's debuggers.
+    /// </summary>
+    /// <remarks>
+    /// A single reader drains the queue in order, so an empty item queued behind a batch of signals
+    /// cannot run until every one of them has been delivered. Nothing is waiting for it when the
+    /// queue is already closed, and it completes at once rather than waiting for a drain that will
+    /// never come.
+    /// </remarks>
+    private Task DeliveredSoFarAsync() => EnqueueAndAwait(() => Task.CompletedTask);
 
     /// <summary>
     /// Queues a log event for delivery. The caller is not blocked, but the event keeps its place in the
@@ -359,9 +472,49 @@ internal class DebuggingRunSession
     /// draining, coupling the run's progress to logging throughput. On a machine with few cores
     /// that turns into seconds of delay per step.
     /// </remarks>
-    internal Task WaitWhenBreakpointHit(string stage, int index)
+    internal async Task WaitWhenBreakpointHit(string stage, int index)
     {
-        return Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index);
+        ExecutionContextInfo waiting = new ExecutionContextInfo(stage, index);
+
+        lock (pauseGate)
+            pausedSteps.Add(waiting);
+
+        try
+        {
+            await Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (pauseGate)
+                pausedSteps.Remove(waiting);
+        }
+    }
+
+    /// <summary>
+    /// The step a capture asked for from outside the run should be filed against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A request arriving over the transport is served on the transport's own thread, where the
+    /// execution context — an <see cref="AsyncLocal{T}"/> — is empty. So the one flow that most wants
+    /// to know which step it is looking at is the only one that cannot read it the usual way, and
+    /// this is where it reads it instead.
+    /// </para>
+    /// <para>
+    /// Answers only when exactly one step is waiting. Every step passes through the list on its way
+    /// in, held or not, so two entries mean the run either has two steps genuinely paused or one
+    /// paused and one merely asking — and in neither case is there a single right answer. Guessing
+    /// would file a picture on a step that has nothing to do with it, which is worse than filing it
+    /// against the run.
+    /// </para>
+    /// </remarks>
+    private ExecutionContextInfo? SinglePausedStep
+    {
+        get
+        {
+            lock (pauseGate)
+                return pausedSteps.Count == 1 ? pausedSteps[0] : null;
+        }
     }
 
     private void Enqueue(Func<Task> work) => Enqueue(new SignalWorkItem(work, null));

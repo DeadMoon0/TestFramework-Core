@@ -39,5 +39,11 @@ public enum PipeSignalKind : ushort
     CancelRun,
 
     /// <summary>A step or component produced a piece of evidence.</summary>
-    Widget
+    Widget,
+
+    /// <summary>Consumer to producer: take a fresh look at what the run is showing now.</summary>
+    CaptureWidgetRequest,
+
+    /// <summary>Answers a capture request, saying what came of it.</summary>
+    CaptureWidgetAck
 }

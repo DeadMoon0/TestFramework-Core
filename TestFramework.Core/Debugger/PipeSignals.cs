@@ -235,3 +235,69 @@ public sealed record PipeCancelRunSignal : IPipeSignal
     /// <summary>Gets an optional human-readable reason, surfaced in the run's log.</summary>
     public string? Reason { get; init; }
 }
+
+/// <summary>
+/// Asks a run for a fresh look at whatever it is holding. Consumer to producer.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The one message that asks a run to <em>do</em> something rather than to stop doing it. A run held
+/// at a breakpoint has a browser sitting on a page, and the last picture of that page was taken
+/// before the step that got there finished — so a reader stepping through a run is looking at
+/// evidence that is always one step stale. This asks for it now.
+/// </para>
+/// <para>
+/// Nothing about the evidence itself travels in the answer. What is captured arrives as an ordinary
+/// <see cref="PipeWidgetSignal"/> and is written to the run's output like any other widget, which is
+/// why a journal recording a paused capture replays it with no special case. The reply below exists
+/// only so the asker learns whether anything happened.
+/// </para>
+/// </remarks>
+public sealed record PipeCaptureWidgetRequestSignal : IPipeSignal
+{
+    /// <inheritdoc />
+    [JsonProperty]
+    public PipeSignalKind Kind => PipeSignalKind.CaptureWidgetRequest;
+
+    /// <summary>
+    /// Gets the run to ask.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted rather than required, for the reason
+    /// <see cref="PipeBreakpointHitContinueSignal.SessionId"/> gives: the request travels down the
+    /// one connection that run owns, so naming the session is courtesy rather than routing.
+    /// </remarks>
+    public string SessionId { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Answers a capture request. Producer to consumer.
+/// </summary>
+/// <remarks>
+/// An answer rather than a delivery, and the difference matters when nothing can be captured: a run
+/// with no capture source registered would otherwise leave the asker waiting on a picture that was
+/// never coming. <see cref="Detail"/> is what turns that into a sentence a reader can act on.
+/// </remarks>
+public sealed record PipeCaptureWidgetAckSignal : IPipeSignal
+{
+    /// <inheritdoc />
+    [JsonProperty]
+    public PipeSignalKind Kind => PipeSignalKind.CaptureWidgetAck;
+
+    /// <inheritdoc />
+    public required string SessionId { get; init; }
+
+    /// <summary>
+    /// Gets how many widgets the run recorded while serving the request.
+    /// </summary>
+    /// <remarks>
+    /// Counted by the run rather than reported by whatever did the capturing, so it states what was
+    /// actually recorded instead of what an implementation believes it recorded. It counts every
+    /// widget published during the window, so a step publishing one of its own at that moment is
+    /// counted too — which is the honest reading of "what the run recorded just now".
+    /// </remarks>
+    public int Captured { get; init; }
+
+    /// <summary>Gets why nothing was captured, when nothing was.</summary>
+    public string? Detail { get; init; }
+}

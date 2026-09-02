@@ -112,6 +112,23 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // would be a different instance per stage if the caller registered it as transient, and evidence
         // it gathered in one stage would be lost by the next.
         var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), resources.Resolution);
+
+        // What lets a watching consumer ask this run for a fresh look at itself. Installed here
+        // because this is the first point both halves exist: what the caller registered to capture
+        // with, and the stores to capture into. The evidence budget is the observers', deliberately -
+        // a capture is the same act as the one an observer performs, and two numbers for one thing
+        // would be two numbers to keep in agreement.
+        _debuggingSession.EnableWidgetCapture(
+            WidgetCaptureSources.For(runServiceProvider),
+            () => RunContext.Ambient(
+                runServiceProvider,
+                newRun.VariableStore,
+                newRun.ArtifactStore,
+                logger,
+                resources.Resolution,
+                _debuggingSession.RunCancellationToken,
+                StepObservers.EvidenceBudget),
+            logger);
         var totalStopwatch = Stopwatch.StartNew();
         bool runTransitionCompleted = false;
         try

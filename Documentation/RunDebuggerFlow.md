@@ -139,6 +139,44 @@ Each assertion carries:
 - `FailureReason`
 - `AssertionScope`
 
+### 6b. Widgets — what the run produced that is a file
+
+Evidence a run gathers about itself: a screenshot, the markup behind it, a container's log, a
+generated config. Published through `RunContext.Widgets`, which writes the file into
+`<run-output>/widgets/` and then reports it with `SignalWidgetAsync(...)`.
+
+Two properties decide the shape:
+
+- **The file is written whether or not anything is watching.** It lives in the run's own output,
+  where a person opens it and a build publishes it as an artifact. Only the *signal* is conditional
+  on a debugger being attached, and on that debugger implementing `ISupportsWidgets` — the side
+  interface exists so a debugger compiled against an older Core keeps working and simply is not told.
+- **Attribution is read, not supplied.** Stage, step and attempt come from the run's own execution
+  scope, so a producer cannot get them wrong or leave them out. The one thing a producer states is
+  `Component`, because every environment component is built during the same step and nothing else
+  tells four of their widgets apart.
+
+Each entry carries `Kind` (a `tf.widget.*` string, which is what a consumer picks a renderer by),
+`Name`, `OccurredAtUtc`, and a `DebugValueDescription` — the same shape a value is described with, so
+widgets travel through bundling, hash comparison and cross-machine path resolution with no code of
+their own. Unlike a value, a widget's `Body` is always present: a widget *is* a file.
+
+### 6c. Asking a run for fresh evidence
+
+The only message that arrives from outside and asks the run to act. A consumer sends
+`CaptureWidgetRequest`; the run asks every registered `IWidgetCaptureSource`, and answers with
+`CaptureWidgetAck` carrying how many widgets it recorded and, when it recorded none, why.
+
+- Anything captured travels as an ordinary widget signal, not in the reply.
+- The count is a difference measured by the run, not a number a source reported about itself.
+- It is served off the transport's receive loop, which is the only thing that can hear the continue
+  releasing the breakpoint the request came from.
+- Attribution falls back to the step a breakpoint is holding, because the transport's thread is inside
+  no step. With two steps waiting there is no single right answer, so the widget is filed against the
+  run rather than guessed onto one of them.
+- A finished run refuses. Its signal queue is closed, so capturing would leave a file in the output
+  that the frozen run says nothing about.
+
 ### 7. Run completion
 
 After all stages finish, `TimelineRunBuilder` emits:

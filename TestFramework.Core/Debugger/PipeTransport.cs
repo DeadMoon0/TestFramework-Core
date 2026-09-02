@@ -227,6 +227,8 @@ public static class PipeSignalFactory
             PipeSignalKind.TimelineRunFinished => JsonConvert.DeserializeObject<PipeTimelineRunFinishedSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize timeline-finished signal."),
             PipeSignalKind.CancelRun => JsonConvert.DeserializeObject<PipeCancelRunSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize cancel-run signal."),
             PipeSignalKind.Widget => JsonConvert.DeserializeObject<PipeWidgetSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize widget signal."),
+            PipeSignalKind.CaptureWidgetRequest => JsonConvert.DeserializeObject<PipeCaptureWidgetRequestSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize widget capture request."),
+            PipeSignalKind.CaptureWidgetAck => JsonConvert.DeserializeObject<PipeCaptureWidgetAckSignal>(json, DebugJson.Settings) ?? throw new FrameworkStateException("Could not deserialize widget capture acknowledgement."),
             _ => throw new ArgumentOutOfRangeException(nameof(signalKind), signalKind, "Unsupported pipe signal kind.")
         };
     }
@@ -353,6 +355,15 @@ internal sealed class PipeClient : IDisposable
     /// Raised when the consumer asks this run to stop. Delivered on the receive loop.
     /// </summary>
     internal event Action<string?>? CancellationRequested;
+
+    /// <summary>
+    /// Answers the consumer's request for fresh evidence, when the run has anything to answer with.
+    /// </summary>
+    /// <remarks>
+    /// One handler rather than an event, because this request has a reply: the consumer is told what
+    /// came of it, and an event returning a value to a multicast list has no honest answer to give.
+    /// </remarks>
+    internal Func<Task<WidgetCaptureOutcome>>? OnCaptureRequested { get; set; }
 
     internal PipeClient(string pipeName)
     {
@@ -484,8 +495,73 @@ internal sealed class PipeClient : IDisposable
             return;
         }
 
+        if (signal.Kind == PipeSignalKind.CaptureWidgetRequest)
+        {
+            AnswerCaptureRequest(signal.SessionId);
+            return;
+        }
+
         if (waiters.TryRemove(signal.Kind, out TaskCompletionSource<IPipeSignal>? completion))
             completion.TrySetResult(signal);
+    }
+
+    /// <summary>
+    /// Captures what the consumer asked for, and answers with what came of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately off the receive loop. A capture photographs a live page — I/O measured in
+    /// hundreds of milliseconds — and this loop is the only thing that can hear the continue
+    /// releasing the very breakpoint the request was sent from. Serving the picture on it would hold
+    /// the run to get a look at the run.
+    /// </para>
+    /// <para>
+    /// The answer is sent whatever happened, including when nothing here can capture anything. A
+    /// consumer that pressed a button is owed a reply; one that gets silence has to wait out its own
+    /// timeout to learn that the run was never going to answer.
+    /// </para>
+    /// </remarks>
+    private void AnswerCaptureRequest(string sessionId)
+    {
+        Func<Task<WidgetCaptureOutcome>>? capture = OnCaptureRequested;
+
+        _ = Task.Run(async () =>
+        {
+            WidgetCaptureOutcome outcome = capture is null
+                ? new WidgetCaptureOutcome(0, "This run has nothing registered that can capture evidence.")
+                : await CaptureSafelyAsync(capture);
+
+            try
+            {
+                await SignalAsync(new PipeCaptureWidgetAckSignal
+                {
+                    SessionId = sessionId,
+                    Captured = outcome.Captured,
+                    Detail = outcome.Detail
+                });
+            }
+            catch (Exception e)
+            {
+                // The consumer went away while its own picture was being taken. It will time out,
+                // which is the same outcome it would have had, and the run carries on regardless.
+                Debug.WriteLine(e);
+            }
+        });
+    }
+
+    private static async Task<WidgetCaptureOutcome> CaptureSafelyAsync(Func<Task<WidgetCaptureOutcome>> capture)
+    {
+        try
+        {
+            return await capture();
+        }
+        catch (Exception e)
+        {
+            // Evidence gathering must not be able to take a run down, and least of all one a person
+            // is standing at a breakpoint watching.
+            Debug.WriteLine(e);
+            return new WidgetCaptureOutcome(0, e.Message);
+        }
     }
 
     private void FailPendingWaiters()

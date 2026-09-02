@@ -8,9 +8,22 @@ namespace TestFramework.Core.Debugger;
 /// Sends timeline debug signals over the built-in named-pipe transport to an attached debugger UI.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation, ISupportsWidgets
+public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation, ISupportsWidgets, ISupportsWidgetCaptureRequests
 {
     private readonly PipeClient client = new(PipeTransport.GetPipeName());
+
+    /// <summary>
+    /// What answers the UI when it asks for fresh evidence.
+    /// </summary>
+    /// <remarks>
+    /// Implemented explicitly because the socket is internal — a run installs its handler, and the
+    /// public surface of a debugger is signals out, not requests in.
+    /// </remarks>
+    Func<Task<WidgetCaptureOutcome>>? ISupportsWidgetCaptureRequests.OnCaptureRequested
+    {
+        get => client.OnCaptureRequested;
+        set => client.OnCaptureRequested = value;
+    }
 
     /// <summary>
     /// Raised when the attached UI asks this run to stop.

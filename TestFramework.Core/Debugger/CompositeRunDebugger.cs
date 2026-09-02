@@ -5,8 +5,40 @@ using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog, ISupportsWidgets
+internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog, ISupportsWidgets, ISupportsWidgetCaptureRequests
 {
+    /// <summary>
+    /// Hands the run's capture handler to whichever child can be asked for evidence.
+    /// </summary>
+    /// <remarks>
+    /// In practice exactly one can — a journal cannot be asked anything and neither can a console —
+    /// so this looks like a fan-out and is really a search. Written as a fan-out anyway, because
+    /// "the pipe is the only one" is a fact about today's debuggers rather than a rule, and a second
+    /// live consumer would otherwise silently be the one that never gets asked. The getter answers
+    /// from the first child holding one, which is the same handler every one of them was given.
+    /// </remarks>
+    Func<Task<WidgetCaptureOutcome>>? ISupportsWidgetCaptureRequests.OnCaptureRequested
+    {
+        get
+        {
+            foreach (IRunDebugger debugger in debuggers)
+            {
+                if (debugger is ISupportsWidgetCaptureRequests askable && askable.OnCaptureRequested is { } handler)
+                    return handler;
+            }
+
+            return null;
+        }
+        set
+        {
+            foreach (IRunDebugger debugger in debuggers)
+            {
+                if (debugger is ISupportsWidgetCaptureRequests askable)
+                    askable.OnCaptureRequested = value;
+            }
+        }
+    }
+
     /// <summary>One interested consumer is enough to make producing the signals worthwhile.</summary>
     public bool IsCapturing => debuggers.Any(debugger => debugger.IsCapturing);
 
