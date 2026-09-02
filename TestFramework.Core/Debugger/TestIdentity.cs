@@ -237,12 +237,19 @@ internal static class TestIdentityResolver
 
         foreach (object attribute in attributes)
         {
-            string name = attribute.GetType().Name;
-
-            foreach ((string candidate, TestFrameworkKind framework) in TestAttributes)
+            // The attribute's own type and everything it derives from. Deriving from a test attribute
+            // is ordinary practice rather than an exotic case — a suite that skips itself when a
+            // browser is missing writes `BrowserFact : FactAttribute`, and xUnit's own theory
+            // attribute is a subclass too. Matching the exact name alone made every test in such a
+            // suite unidentifiable: the run reported the host process instead of the test, which
+            // silently cost it its breakpoints, its baseline comparison and its re-run filter.
+            for (Type? type = attribute.GetType(); type is not null; type = type.BaseType)
             {
-                if (string.Equals(name, candidate, StringComparison.Ordinal))
-                    return framework;
+                foreach ((string candidate, TestFrameworkKind framework) in TestAttributes)
+                {
+                    if (string.Equals(type.Name, candidate, StringComparison.Ordinal))
+                        return framework;
+                }
             }
         }
 

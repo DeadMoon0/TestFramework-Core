@@ -40,6 +40,30 @@ public sealed class TestIdentityTests
         Assert.Equal(typeof(TestIdentityTests).Assembly.GetName().Name, identity.AssemblyName);
     }
 
+    [SuiteFact]
+    public async Task ATestMarkedWithADerivedAttributeIsStillIdentified()
+    {
+        // Deriving from a test attribute is ordinary practice, not an exotic case: a suite that skips
+        // itself when a browser is missing writes exactly this, and xUnit's own theory attribute is a
+        // subclass too. Matching the attribute's exact name left every test in such a suite reporting
+        // the host process as its identity - and a run with no identity quietly loses its breakpoints,
+        // its comparison against the last passing run, and the filter that re-runs it.
+        IdentityRecordingDebugger debugger = new();
+
+        await RunAsync(debugger);
+
+        TestIdentity identity = Assert.IsType<TestIdentity>(debugger.Identity);
+
+        Assert.Equal(TestFrameworkKind.XUnit, identity.Framework);
+        Assert.Equal(nameof(ATestMarkedWithADerivedAttributeIsStillIdentified), identity.MethodName);
+        Assert.Equal($"{typeof(TestIdentityTests).FullName}.{nameof(ATestMarkedWithADerivedAttributeIsStillIdentified)}", identity.FullyQualifiedName);
+    }
+
+    /// <summary>A fact attribute of a suite's own, the way a real suite writes one.</summary>
+    private sealed class SuiteFactAttribute : FactAttribute
+    {
+    }
+
     [Fact]
     public async Task TheSourceLocationComesFromTheCallSite()
     {
