@@ -143,7 +143,8 @@ Each assertion carries:
 
 Evidence a run gathers about itself: a screenshot, the markup behind it, a container's log, a
 generated config. Published through `RunContext.Widgets`, which writes the file into
-`<run-output>/widgets/` and then reports it with `SignalWidgetAsync(...)`.
+`<run output>/<test name>-<id>/widgets/` - beside the `values/` folder described in section 9, and
+resolved the same way - and then reports it with `SignalWidgetAsync(...)`.
 
 Two properties decide the shape:
 

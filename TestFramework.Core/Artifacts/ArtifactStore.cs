@@ -161,10 +161,55 @@ public class ArtifactStore
     /// <summary>
     /// Adds a version to an artifact this store holds.
     /// </summary>
-    /// <param name="instance">The artifact.</param>
-    /// <param name="data">The new version's data.</param>
-    internal void CaptureVersion(ArtifactInstanceGeneric instance, ArtifactDataGeneric data)
-        => this.Write(instance.Identifier, ticket => instance.AddVersionGeneric(data, ticket), instance);
+    /// <remarks>
+    /// <para>
+    /// Public since 0.5.0, for the same reason <see cref="Add"/> is: a package's own step can hold the
+    /// new version's data already — captured at a boundary the run drove, with no reference to re-resolve
+    /// it through — and until this was reachable there was no way to record that version at all, only to
+    /// replace the whole instance and lose its history. The timeline's version verb keeps its place for
+    /// data a reference can resolve; this is for data a step brings.
+    /// </para>
+    /// <para>
+    /// The write still goes through the one funnel — an abandoned attempt's capture is refused by the
+    /// licence, and a finished run's store refuses outright — and being public adds two refusals the
+    /// internal callers never needed. An instance this store does not hold is refused, because the
+    /// licence and freeze judged here are <em>this</em> run's: accepted, a caller could version another
+    /// run's artifact past that run's own gates. And data of a foreign artifact kind is refused, because
+    /// the typed version reads cast — a foreign payload would surface as an
+    /// <see cref="InvalidCastException"/> at whichever read touches it first, far from the mistake.
+    /// </para>
+    /// </remarks>
+    /// <param name="instance">The artifact, as this store holds it.</param>
+    /// <param name="data">The new version's data, of the artifact's own kind.</param>
+    /// <exception cref="FrameworkConfigurationException">The instance is not held by this store, or the
+    /// data belongs to a different artifact kind.</exception>
+    public void CaptureVersion(ArtifactInstanceGeneric instance, ArtifactDataGeneric data)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(data);
+
+        lock (syncRoot)
+        {
+            if (!_artifacts.TryGetValue(instance.Identifier, out ArtifactInstanceGeneric? held)
+                || !ReferenceEquals(held, instance))
+            {
+                throw new FrameworkConfigurationException(
+                    $"Artifact '{instance.Identifier.Identifier}' is not held by this run's store, so this run may not version it.",
+                    ["Capture the version through the store of the run that holds the artifact - context.Artifacts inside that run's own step."]);
+            }
+        }
+
+        Type expectedKind = instance.Artifact.GetType();
+        Type actualKind = data.GetArtifactDescriberGeneric().GetType();
+        if (expectedKind != actualKind)
+        {
+            throw new FrameworkConfigurationException(
+                $"'{instance.Identifier.Identifier}' is a {instance.Artifact} artifact, and the version data belongs to '{actualKind.Name}'.",
+                [$"Build the version's data as the artifact's own type; its describer is '{expectedKind.Name}'."]);
+        }
+
+        this.Write(instance.Identifier, ticket => instance.AddVersionGeneric(data, ticket), instance);
+    }
 
     /// <summary>
     /// Moves an artifact to a new lifecycle state.
