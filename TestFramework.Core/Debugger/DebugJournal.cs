@@ -18,14 +18,29 @@ namespace TestFramework.Core.Debugger;
 /// no configuration step — installing the tool is what switches on the durability the tool needs.
 /// </para>
 /// <para>
-/// Local application data, not roaming. Run journals are large, are about what happened on this
-/// machine, and sit beside the launcher's cached application versions; roaming them would push all
-/// of that across a domain profile for no benefit to anyone.
+/// The profile root, deliberately not <c>AppData</c>. Writes under <c>AppData</c> are the ones
+/// Windows virtualizes for a packaged application: the launcher ships as an MSIX, so a folder it
+/// created there would land in its own per-package store and this check — which runs unpackaged, in
+/// the test host — would never see it. The gate would read as off on every machine, with nothing
+/// reporting a failure. Outside <c>AppData</c> both processes see the same folder, which is the
+/// whole point of using one as a handshake.
+/// </para>
+/// <para>
+/// What that costs: a classic roaming profile excludes <c>AppData\Local</c> and does not exclude the
+/// profile root, so journals can follow a user between machines where they previously would not.
+/// They are large and are about one machine, so that is a loss, not a feature — but a handshake that
+/// cannot work is worse, and <c>TESTFRAMEWORK_DEBUG_JOURNAL_DIR</c> is the way out for anyone it
+/// actually bites.
 /// </para>
 /// </remarks>
 public static class DebugJournal
 {
-    private const string RootFolderName = "TestFramework";
+    /// <remarks>
+    /// A dot folder beside <c>.nuget</c> and <c>.dotnet</c>: the same kind of thing, kept out of the
+    /// way of anyone browsing their own profile.
+    /// </remarks>
+    private const string RootFolderName = ".testframework";
+
     private const string JournalFolderName = "Debug";
     private const string RunsFolderName = "runs";
     private const int DefaultRetainedRuns = 50;
@@ -93,7 +108,7 @@ public static class DebugJournal
             return configured;
 
         return Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),
             RootFolderName,
             JournalFolderName);
     }
