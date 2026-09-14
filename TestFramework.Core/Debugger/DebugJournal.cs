@@ -18,19 +18,27 @@ namespace TestFramework.Core.Debugger;
 /// no configuration step — installing the tool is what switches on the durability the tool needs.
 /// </para>
 /// <para>
-/// The profile root, deliberately not <c>AppData</c>. Writes under <c>AppData</c> are the ones
-/// Windows virtualizes for a packaged application: the launcher ships as an MSIX, so a folder it
-/// created there would land in its own per-package store and this check — which runs unpackaged, in
-/// the test host — would never see it. The gate would read as off on every machine, with nothing
-/// reporting a failure. Outside <c>AppData</c> both processes see the same folder, which is the
-/// whole point of using one as a handshake.
+/// The profile root, deliberately not <c>AppData</c>, because the gate is a handshake between two
+/// processes that know nothing about each other: the tool creates the folder, and this check runs in
+/// somebody's test host. Writes under <c>AppData</c> are the ones Windows virtualizes for a
+/// <em>packaged</em> application, into a per-package store no unpackaged process can see — so a
+/// packaged tool would create the folder, this check would go on finding nothing, and run recording
+/// would read as switched off on every machine with nothing reporting a failure. Outside
+/// <c>AppData</c> that cannot happen to it.
+/// </para>
+/// <para>
+/// Today neither side is packaged — the tool ships as a per-user installer, having rejected MSIX
+/// over code signing — so <c>AppData\Local</c> would in fact work right now. It is not chosen
+/// anyway, because which folder the handshake uses would then depend on how the other side happens
+/// to be packaged, and the failure that choice breaks with is a silent one. The path is also one a
+/// person is asked to look in, and a profile folder is one they can find.
 /// </para>
 /// <para>
 /// What that costs: a classic roaming profile excludes <c>AppData\Local</c> and does not exclude the
 /// profile root, so journals can follow a user between machines where they previously would not.
-/// They are large and are about one machine, so that is a loss, not a feature — but a handshake that
-/// cannot work is worse, and <c>TESTFRAMEWORK_DEBUG_JOURNAL_DIR</c> is the way out for anyone it
-/// actually bites.
+/// They are large and are about one machine, so that is a loss, not a feature — it is accepted to
+/// keep the handshake independent of packaging, and <c>TESTFRAMEWORK_DEBUG_JOURNAL_DIR</c> is the way
+/// out for anyone it actually bites.
 /// </para>
 /// </remarks>
 public static class DebugJournal

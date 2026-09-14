@@ -135,6 +135,16 @@
     Artifact model:
     - Artifacts are first-class tracked objects with describers, data, and references.
     - Core expects explicit artifact lifecycle operations instead of hidden file or database handling.
+
+    Evidence model:
+    - run.Widgets.Publish(new Widget { Kind, Name, Form, Bytes or Text, Summary }) records a file the run
+      produced - a screenshot, a document, a log - attributed to the step and attempt that produced it.
+    - WidgetKinds.Screenshot / Document / LogStream are the kinds the family produces; Kind is a string,
+      so a package may introduce its own.
+    - Publish returns the written path or null, and never throws.
+    - Register an IWidgetCaptureSource to answer a paused run's request for a current picture.
+    - Never write evidence into a package-chosen folder instead. That is a private arrangement between
+      one package and one tool, and it is the thing this replaced.
 </runtime_behavior>
 
 <sample_patterns>

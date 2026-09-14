@@ -107,6 +107,33 @@ The recommended debugging path depends on what you need to see:
 For most users, that post-run inspection path is the supported debugging workflow.
 The lower-level debugger integration seam (`IRunDebugger` and related state types) remains available for custom tooling, but it is an advanced integration surface rather than the primary learning path.
 
+## Run Evidence (Widgets)
+
+Post-run inspection tells you what a run did. `run.Widgets` is where it says what things looked like:
+
+```csharp
+run.Widgets.Publish(new Widget
+{
+    Kind = WidgetKinds.Screenshot,
+    Name = "after-login",
+    Form = DebugPreviewForm.Image,
+    Bytes = png,
+    Summary = "The dashboard, logged in"
+});
+```
+
+The file lands in the run's own output and is attributed to the step and the attempt that produced it, so
+retries keep every attempt rather than only the last. `Publish` hands back where it wrote the file, or
+`null` if it could not, and never throws - failing to gather evidence must not add a second failure. `WidgetKinds` names the three the family produces -
+`Screenshot`, `Document`, `LogStream` - and the kind is a plain string, so a package can introduce one
+without waiting on a Core release.
+
+For a run that is *held* at a breakpoint, register an `IWidgetCaptureSource`: the engine asks it for a
+current picture while the run is stopped, which the last captured one no longer is.
+
+This is the supported place for evidence. A package that writes screenshots into a folder of its own
+making has an arrangement only it and one tool understand.
+
 ## Typical Pattern
 
 1. Build timeline once (usually static in test classes or other reusable class scope).

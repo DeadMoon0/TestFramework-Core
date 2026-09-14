@@ -143,6 +143,40 @@ Teardown deletes every artifact that was set up, whichever path declared it. Cha
 `RegisterArtifact` / `FindArtifact` / `FindArtifacts` / `FindArtifactsAs` for a resource the run only
 reads - it is the test author's decision, and no reference type or finder can overrule it.
 
+### Evidence
+
+A run records what happened - steps, variables, assertions, log lines - but not what anything *looked
+like*. Widgets are that second half: a file the run produced, described, and attributed to the step and
+the attempt that produced it, so a step that retried three times has one picture per attempt instead of
+only the last.
+
+```csharp
+run.Widgets.Publish(new Widget
+{
+    Kind = WidgetKinds.Screenshot,
+    Name = "after-login",
+    Form = DebugPreviewForm.Image,
+    Bytes = png,
+    Summary = "The dashboard, logged in"
+});
+```
+
+`Publish` returns where the file was written, or `null` when it could not be - useful when a failure
+message names the file, ignorable otherwise. It never throws: a run that failed to take a screenshot has
+one problem, not two.
+
+Widget files are written into the run's own output whether or not any tool is listening, because that is
+where a person can open them and a build can publish them. `Kind` is a string from the `tf.widget.*`
+family rather than an enum, so a package can add a kind without Core shipping first - a reader that does
+not recognise one still has a description and a file.
+
+A run that is paused can also be asked for a *fresh* look at itself. Register an `IWidgetCaptureSource`
+and the engine will ask it while the run is held, which is exactly the moment the last picture taken is
+out of date. This is how the browser package photographs the page a breakpoint stopped on.
+
+Do not hand-roll this. Writing evidence into a folder of your own package's choosing is a private
+arrangement between your package and one tool, which a third package cannot join.
+
 ## Public Contract Layers
 
 Treat the Core surface in this order:
