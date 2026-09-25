@@ -22,12 +22,19 @@ namespace TestFramework.Core.Environment.Graph;
 /// </remarks>
 internal sealed class RunResources
 {
-    private RunResources(ResourceGraph graph, ResourceValueStore values)
+    private RunResources(ResourceGraph graph, ResourceValueStore values, IReadOnlyList<IResourceNodeSource> environmentSources)
     {
         this.Graph = graph;
         this.Values = values;
         this.Resolution = new ValueResolution(values);
+        this.EnvironmentSources = environmentSources;
     }
+
+    /// <summary>
+    /// The sources the run's environment declares resources through - the environment and whatever it
+    /// wraps. A requirement for a resource one of these declared is the environment's to provide.
+    /// </summary>
+    internal IReadOnlyList<IResourceNodeSource> EnvironmentSources { get; }
 
     /// <summary>What this run declared, validated.</summary>
     internal ResourceGraph Graph { get; }
@@ -59,6 +66,7 @@ internal sealed class RunResources
         // environment does override a file is at run time, by publishing, which is a different mechanism
         // and answers a different question: not what this resource is, but where it ended up.
         AddEnvironment(sources, environment);
+        IReadOnlyList<IResourceNodeSource> environmentSources = [.. sources];
 
         if (serviceProvider is not null)
         {
@@ -89,7 +97,7 @@ internal sealed class RunResources
             }
         }
 
-        return new RunResources(graph, values);
+        return new RunResources(graph, values, environmentSources);
     }
 
     /// <summary>

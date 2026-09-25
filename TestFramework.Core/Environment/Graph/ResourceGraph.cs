@@ -25,11 +25,13 @@ public sealed class ResourceGraph
 {
     private readonly Dictionary<NodeId, ResourceNode> nodes;
     private readonly Dictionary<NodeId, string> providers;
+    private readonly Dictionary<NodeId, List<IResourceNodeSource>> declarers;
 
-    private ResourceGraph(Dictionary<NodeId, ResourceNode> nodes, Dictionary<NodeId, string> providers)
+    private ResourceGraph(Dictionary<NodeId, ResourceNode> nodes, Dictionary<NodeId, string> providers, Dictionary<NodeId, List<IResourceNodeSource>> declarers)
     {
         this.nodes = nodes;
         this.providers = providers;
+        this.declarers = declarers;
     }
 
     /// <summary>
@@ -43,6 +45,7 @@ public sealed class ResourceGraph
 
         Dictionary<NodeId, ResourceNode> nodes = [];
         Dictionary<NodeId, string> providers = [];
+        Dictionary<NodeId, List<IResourceNodeSource>> declarers = [];
 
         foreach (IResourceNodeSource source in sources)
         {
@@ -51,10 +54,21 @@ public sealed class ResourceGraph
                 NodeId id = NodeId.Of(node);
                 nodes[id] = node;
                 providers[id] = source.SourceName;
+
+                // Every source that declared it, not only the one whose values won: an environment that
+                // provisions a resource still provisions it when a configuration entry names it too - the
+                // entry then only supplies the values the environment does not produce.
+                if (!declarers.TryGetValue(id, out List<IResourceNodeSource>? declaredBy))
+                {
+                    declaredBy = [];
+                    declarers[id] = declaredBy;
+                }
+
+                declaredBy.Add(source);
             }
         }
 
-        return new ResourceGraph(nodes, providers);
+        return new ResourceGraph(nodes, providers, declarers);
     }
 
     /// <summary>Every node in the run, ordered so two runs of one test read the same.</summary>
@@ -82,6 +96,32 @@ public sealed class ResourceGraph
     /// <returns>True when the graph has it.</returns>
     public bool TryGetNode(string resourceKind, string identifier, out ResourceNode? node)
         => this.nodes.TryGetValue(new NodeId(resourceKind, identifier), out node);
+
+    /// <summary>
+    /// Every node carrying a name, whatever its kind - for a piece that has to choose between them itself,
+    /// such as one looking for the resource that holds the address of a name.
+    /// </summary>
+    /// <param name="identifier">Which name.</param>
+    /// <returns>The nodes, ordered by kind so two runs read the same.</returns>
+    public IReadOnlyList<ResourceNode> NodesNamed(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        return [.. this.nodes
+            .Where(entry => string.Equals(entry.Key.Identifier, identifier, StringComparison.Ordinal))
+            .Select(static entry => entry.Value)
+            .OrderBy(static node => node.KindName, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// Whether any of the given sources declared the node - which environment a requirement belongs to.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="sources">The sources to ask about.</param>
+    /// <returns>True when one of them declared it.</returns>
+    internal bool IsDeclaredByAny(ResourceNode node, IReadOnlyCollection<IResourceNodeSource> sources)
+        => this.declarers.TryGetValue(NodeId.Of(node), out List<IResourceNodeSource>? declaredBy)
+            && declaredBy.Any(sources.Contains);
 
     /// <summary>
     /// Finds a node named without its kind, for a consumer that is kind-agnostic by design.

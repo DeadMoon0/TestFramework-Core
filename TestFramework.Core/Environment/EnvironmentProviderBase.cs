@@ -13,6 +13,7 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
     private readonly Dictionary<EnvComponentIdentifier, EnvComponent> _components = [];
     private readonly Dictionary<Type, HashSet<EnvComponentIdentifier>> _artifactMappings = [];
     private readonly Dictionary<string, HashSet<EnvComponentIdentifier>> _resourceKindMappings = [];
+    private readonly Dictionary<string, HashSet<EnvComponentIdentifier>> _declaredResourceMappings = [];
 
     /// <summary>
     /// Gets a value indicating whether dependency-ready environment components may be created in parallel.
@@ -51,14 +52,46 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
     }
 
     /// <summary>
-    /// Maps a resource kind string to an environment component.
+    /// Maps a resource kind to the component that stands in for <em>every</em> resource of that kind in a
+    /// run - an emulator taking the place of a whole service. Every requirement of the kind reaches this
+    /// environment, whoever declared the resource.
     /// </summary>
     protected void MapResourceKind(string resourceKind, EnvComponentIdentifier componentIdentifier)
     {
-        if (!_resourceKindMappings.TryGetValue(resourceKind, out HashSet<EnvComponentIdentifier>? mappedComponents))
+        Map(_resourceKindMappings, resourceKind, componentIdentifier);
+    }
+
+    /// <summary>
+    /// Maps a resource kind to the component that provides the resources of that kind <em>this environment
+    /// declares</em> - one container per declared definition. A requirement for a resource of the kind that
+    /// something else declared never reaches this environment, so a run can reach one API in a container
+    /// and another deployed somewhere.
+    /// </summary>
+    /// <remarks>
+    /// The environment declares those resources by implementing <see cref="Graph.IResourceNodeSource"/>, so
+    /// they are on the run's resource list before anything starts.
+    /// </remarks>
+    protected void MapDeclaredResources(string resourceKind, EnvComponentIdentifier componentIdentifier)
+    {
+        Map(_declaredResourceMappings, resourceKind, componentIdentifier);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Yes exactly for the kinds mapped with <see cref="MapResourceKind"/>; a kind mapped with
+    /// <see cref="MapDeclaredResources"/> is served only for what this environment declares.
+    /// </remarks>
+    public virtual bool ProvidesEveryResourceOf(string resourceKind)
+    {
+        return _resourceKindMappings.ContainsKey(resourceKind);
+    }
+
+    private static void Map(Dictionary<string, HashSet<EnvComponentIdentifier>> mappings, string resourceKind, EnvComponentIdentifier componentIdentifier)
+    {
+        if (!mappings.TryGetValue(resourceKind, out HashSet<EnvComponentIdentifier>? mappedComponents))
         {
             mappedComponents = [];
-            _resourceKindMappings[resourceKind] = mappedComponents;
+            mappings[resourceKind] = mappedComponents;
         }
 
         mappedComponents.Add(componentIdentifier);
@@ -85,9 +118,13 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
 
         foreach (EnvironmentRequirement requirement in requirements)
         {
+#pragma warning disable CS0618 // still honoured for an environment written against an earlier engine
             OnRequirementResolved(requirement);
+#pragma warning restore CS0618
             if (_resourceKindMappings.TryGetValue(requirement.ResourceKind, out HashSet<EnvComponentIdentifier>? mappedComponents))
                 resolved.UnionWith(mappedComponents);
+            if (_declaredResourceMappings.TryGetValue(requirement.ResourceKind, out HashSet<EnvComponentIdentifier>? declaredComponents))
+                resolved.UnionWith(declaredComponents);
         }
 
         return [.. resolved];
@@ -124,6 +161,13 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
     /// <summary>
     /// Allows derived providers to react when a requirement is resolved.
     /// </summary>
+    /// <remarks>
+    /// Obsolete because it made an environment learn what a run needs by remembering it on the instance -
+    /// state one run left for the next, and two runs sharing an instance would race over. What a run needs
+    /// from an environment now arrives with each component's context, as
+    /// <see cref="Graph.EnvironmentResources.Required"/>.
+    /// </remarks>
+    [Obsolete("Read what the run needs from EnvironmentResources.Required in the component's context instead of remembering it on the environment.")]
     protected virtual void OnRequirementResolved(EnvironmentRequirement requirement)
     {
     }

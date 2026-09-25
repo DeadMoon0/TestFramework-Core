@@ -30,7 +30,7 @@ internal class CreateEnvComponentsStep(IEnvironmentProvider environment, EnvComp
     public override async Task<EmptyStepResultContext?> Execute(RunContext context)
     {
         IReadOnlyCollection<EnvComponentIdentifier> resolvedComponents = environment.ResolveComponents(context.Artifacts.GetAll(), requirements);
-        await EnvComponentLifecycleRunner.CreateAsync(environment, resolvedComponents, context, components.SetState, publishing);
+        await EnvComponentLifecycleRunner.CreateAsync(environment, resolvedComponents, context, components.SetState, publishing, requirements);
 
         return EmptyStepResultContext.Instance;
     }

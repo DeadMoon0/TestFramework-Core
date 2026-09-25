@@ -9,4 +9,11 @@ public interface IEnvironmentProviderProxy : IEnvironmentProvider
     /// Gets the wrapped environment provider.
     /// </summary>
     IEnvironmentProvider InnerEnvironment { get; }
+
+    /// <summary>
+    /// A wrapper serves what the environment it wraps serves.
+    /// </summary>
+    /// <param name="resourceKind">The kind.</param>
+    /// <returns>The wrapped environment's answer.</returns>
+    bool IEnvironmentProvider.ProvidesEveryResourceOf(string resourceKind) => this.InnerEnvironment.ProvidesEveryResourceOf(resourceKind);
 }

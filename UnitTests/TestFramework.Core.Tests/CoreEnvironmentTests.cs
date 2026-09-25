@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Environment;
+using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
@@ -254,14 +255,34 @@ public class CoreEnvironmentTests
         }
     }
 
-    private sealed class RequirementEnvironment : EnvironmentProviderBase
+    /// <summary>
+    /// Declares the bus it provides, so the requirement names a resource on the run's list - an environment
+    /// mapping a kind is no longer enough on its own for a requirement to be met.
+    /// </summary>
+    private sealed class RequirementEnvironment : EnvironmentProviderBase, IResourceNodeSource
     {
+        private static readonly ResourceKind ServiceBusKind = ResourceKind.Named("test.servicebus").Build();
+
+        private readonly BusDeclaration _declaration = new();
+
         public CallLog Calls { get; } = [];
 
         public RequirementEnvironment()
         {
             AddComponent(new LoggingEnvComponent("servicebus-component", Calls));
-            MapResourceKind("test.servicebus", "servicebus-component");
+            MapDeclaredResources("test.servicebus", "servicebus-component");
+        }
+
+        public string SourceName => "requirement environment";
+
+        public IReadOnlyList<ResourceNode> Nodes => _declaration.Nodes;
+
+        private sealed class BusDeclaration : DeclaredNodeSource
+        {
+            public override string SourceName => "requirement environment";
+
+            protected override IEnumerable<DeclaredResource> Declarations
+                => [new DeclaredResource(ServiceBusKind, "bus", new Dictionary<ValueKey, string>(), this.SourceName)];
         }
     }
 

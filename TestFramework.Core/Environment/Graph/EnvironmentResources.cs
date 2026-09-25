@@ -40,6 +40,25 @@ public sealed class EnvironmentResources
     }
 
     /// <summary>
+    /// What this run needs from the environment: every requirement of the run that is this environment's to
+    /// provide - a resource it declared itself, or one of a kind it stands in for entirely.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Handed over with each run rather than remembered by the environment. An environment used to collect
+    /// the names a run used on its own instance while resolving components, and its components read them
+    /// back from there - state one run left behind for the next. Reading it here, from the component's own
+    /// context, makes what a component starts a function of the run it was started for.
+    /// </para>
+    /// <para>
+    /// Every entry names a resource on the run's list: the engine checked each one before anything started,
+    /// and a requirement named without its kind arrives with the kind it resolved to. Empty outside a run,
+    /// such as while a persistent environment is bootstrapped.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyCollection<EnvironmentRequirement> Required { get; internal set; } = [];
+
+    /// <summary>
     /// Publishes a value a resource now holds, for one viewpoint.
     /// </summary>
     /// <remarks>

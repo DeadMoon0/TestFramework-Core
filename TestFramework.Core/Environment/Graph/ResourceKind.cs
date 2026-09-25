@@ -104,6 +104,19 @@ public sealed class ResourceKind
         => this.values.TryGetValue(valueName, out value);
 
     /// <summary>
+    /// Requires one resource of this kind - the typed way to state a requirement, so it cannot name a kind
+    /// nobody declared.
+    /// </summary>
+    /// <param name="identifier">Which resource.</param>
+    /// <returns>The requirement.</returns>
+    public EnvironmentRequirement Requirement(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        return new EnvironmentRequirement(this.Name, identifier);
+    }
+
+    /// <summary>
     /// Reads as the kind's name.
     /// </summary>
     /// <returns>The name.</returns>

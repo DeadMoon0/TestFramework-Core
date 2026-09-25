@@ -101,7 +101,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // which is the same values without the ability to write them.
         _resourcePublishing = new ResourcePublishing(resources.Values);
 
-        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
+        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
         TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, logger);
 
@@ -316,7 +316,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         return layers;
     }
 
-    private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker trackedVariables)
+    private FreezableCollection<StageInstance> PreProcessStages(ArtifactStore artifactStore, VariableStore variableStore, RunResources resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker trackedVariables)
     {
         Stage preSetupStage = new Stage()
         {
@@ -365,10 +365,15 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             }
         }
 
-        IReadOnlyCollection<EnvironmentRequirement> environmentRequirements = CollectEnvironmentRequirements(bufferedMainSteps, variableStore);
+        // Checked here, while nothing has started: a requirement naming a resource the run does not declare
+        // is a sentence now rather than a step failing later against an address nobody supplied.
+        IReadOnlyList<PlannedRequirement> requirements = EnvironmentRequirementPlan.Check(bufferedMainSteps, variableStore, resources.Graph);
 
         if (_environment is not null)
+        {
+            IReadOnlyCollection<EnvironmentRequirement> environmentRequirements = EnvironmentRequirementPlan.RoutedTo(_environment, requirements, resources.Graph, resources.EnvironmentSources);
             preSetupStage.Steps.Add(new CreateEnvComponentsStep(_environment, _environmentContext, environmentRequirements, _resourcePublishing));
+        }
 
         foreach (StepGeneric step in bufferedPreSetupSteps)
             preSetupStage.Steps.Add(step);
@@ -407,17 +412,6 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         return stageInstances;
     }
 
-    private static IReadOnlyCollection<EnvironmentRequirement> CollectEnvironmentRequirements(IEnumerable<StepGeneric> steps, VariableStore variableStore)
-    {
-        List<EnvironmentRequirement> requirements = [];
-        foreach (StepGeneric step in steps)
-        {
-            if (step is IHasEnvironmentRequirements provider)
-                requirements.AddRange(provider.GetEnvironmentRequirements(variableStore));
-        }
-
-        return requirements;
-    }
     public ITimelineRunBuilder AddArtifact<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference, ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference> data)
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
