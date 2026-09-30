@@ -173,7 +173,7 @@ public class TimelineRun : IFreezable
     public VariableHandle<T> Variable<T>(VariableIdentifier identifier)
     {
         bool exists = VariableStore.TryGetVariable<T>(identifier, out T? value);
-        return new VariableHandle<T>(value, exists, identifier.ToString(), _logger);
+        return new VariableHandle<T>(value, exists, identifier.ToString(), _logger, () => VariableStore.Missing(identifier));
     }
 
     /// <summary>

@@ -267,7 +267,7 @@ public class VariableStore
     /// </remarks>
     /// <param name="identifier">The variable that is not there.</param>
     /// <returns>The exception to throw.</returns>
-    private MissingVariableException Missing(VariableIdentifier identifier)
+    internal MissingVariableException Missing(VariableIdentifier identifier)
     {
         Dictionary<string, object?> available = [];
 

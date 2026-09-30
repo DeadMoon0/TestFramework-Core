@@ -13,13 +13,15 @@ public class VariableHandle<T>
     private readonly bool _exists;
     private readonly string _name;
     private readonly ScopedLogger? _logger;
+    private readonly Func<Exception> _missing;
 
-    internal VariableHandle(T? value, bool exists, string name, ScopedLogger? logger)
+    internal VariableHandle(T? value, bool exists, string name, ScopedLogger? logger, Func<Exception> missing)
     {
         _value = value;
         _exists = exists;
         _name = name;
         _logger = logger;
+        _missing = missing;
     }
 
     /// <summary>
@@ -32,6 +34,9 @@ public class VariableHandle<T>
     /// </summary>
     /// <typeparam name="TNew">The projected value type.</typeparam>
     /// <param name="selector">Maps the resolved variable value to a new value.</param>
+    /// <exception cref="Exceptions.MissingVariableException">The variable was never set, so there is nothing to project.</exception>
     public ValueHandle<TNew> Select<TNew>(Func<T, TNew> selector)
-        => new ValueHandle<TNew>(selector(_value!), _name, _logger);
+        => _exists
+            ? new ValueHandle<TNew>(selector(_value!), _name, _logger)
+            : throw _missing();
 }

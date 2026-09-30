@@ -66,29 +66,47 @@ public class VariableAsserter<T>
     // ── Value — delegates to ValueAsserter ───────────────────────────────────
     // This keeps one source of truth for all assertion logic.
 
-    private ValueAsserter<T?> ValueAsserter() => new ValueAsserter<T?>(_value, _display, _logger);
+    /// <summary>
+    /// The asserter for the variable's value, or a failed assertion when there is no value to assert on.
+    /// </summary>
+    /// <remarks>
+    /// A variable that was never set has no value, and handing <c>default</c> on as if it were one is how
+    /// <c>Be(0)</c>, <c>Be(false)</c> and <c>BeNull()</c> used to pass for data that did not exist. Only
+    /// <see cref="NotExist"/> passes for a missing variable; every assertion about its value fails first,
+    /// with the reason <see cref="Exist"/> gives.
+    /// </remarks>
+    /// <param name="assertion">The assertion being made, for the failure message.</param>
+    /// <returns>The value asserter, or <see langword="null"/> once the missing value has been reported.</returns>
+    private ValueAsserter<T?>? ValueOrFail([System.Runtime.CompilerServices.CallerMemberName] string assertion = "")
+    {
+        if (_exists)
+            return new ValueAsserter<T?>(_value, _display, _logger);
+
+        Fail(assertion, "variable was not set");
+        return null;
+    }
 
     /// <summary>
     /// Asserts that the variable value is <see langword="null"/>.
     /// </summary>
-    public VariableAsserter<T> BeNull() { ValueAsserter().BeNull(); return this; }
+    public VariableAsserter<T> BeNull() { ValueOrFail()?.BeNull(); return this; }
 
     /// <summary>
     /// Asserts that the variable value is not <see langword="null"/>.
     /// </summary>
-    public VariableAsserter<T> NotBeNull() { ValueAsserter().NotBeNull(); return this; }
+    public VariableAsserter<T> NotBeNull() { ValueOrFail()?.NotBeNull(); return this; }
 
     /// <summary>
     /// Asserts that the variable value equals the expected value.
     /// </summary>
     /// <param name="expected">The expected value.</param>
-    public VariableAsserter<T> Be(T expected) { ValueAsserter().Be(expected); return this; }
+    public VariableAsserter<T> Be(T expected) { ValueOrFail()?.Be(expected); return this; }
 
     /// <summary>
     /// Asserts that the variable value does not equal the expected value.
     /// </summary>
     /// <param name="expected">The value that must not match.</param>
-    public VariableAsserter<T> NotBe(T expected) { ValueAsserter().NotBe(expected); return this; }
+    public VariableAsserter<T> NotBe(T expected) { ValueOrFail()?.NotBe(expected); return this; }
 
     /// <summary>
     /// Asserts that the variable value satisfies the provided predicate.
@@ -96,7 +114,7 @@ public class VariableAsserter<T>
     /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
     public VariableAsserter<T> Match(System.Func<T?, bool> predicate, string description = "custom predicate")
-    { ValueAsserter().Match(predicate, description); return this; }
+    { ValueOrFail()?.Match(predicate, description); return this; }
 
     /// <summary>
     /// Asserts that the variable value does not satisfy the provided predicate.
@@ -104,95 +122,95 @@ public class VariableAsserter<T>
     /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
     public VariableAsserter<T> NotMatch(System.Func<T?, bool> predicate, string description = "custom predicate")
-    { ValueAsserter().NotMatch(predicate, description); return this; }
+    { ValueOrFail()?.NotMatch(predicate, description); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation contains the specified substring.
     /// </summary>
     /// <param name="substring">The substring that must be present.</param>
-    public VariableAsserter<T> Contain(string substring) { ValueAsserter().Contain(substring); return this; }
+    public VariableAsserter<T> Contain(string substring) { ValueOrFail()?.Contain(substring); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation does not contain the specified substring.
     /// </summary>
     /// <param name="substring">The substring that must not be present.</param>
-    public VariableAsserter<T> NotContain(string substring) { ValueAsserter().NotContain(substring); return this; }
+    public VariableAsserter<T> NotContain(string substring) { ValueOrFail()?.NotContain(substring); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation starts with the specified prefix.
     /// </summary>
     /// <param name="prefix">The required prefix.</param>
-    public VariableAsserter<T> StartWith(string prefix) { ValueAsserter().StartWith(prefix); return this; }
+    public VariableAsserter<T> StartWith(string prefix) { ValueOrFail()?.StartWith(prefix); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation ends with the specified suffix.
     /// </summary>
     /// <param name="suffix">The required suffix.</param>
-    public VariableAsserter<T> EndWith(string suffix) { ValueAsserter().EndWith(suffix); return this; }
+    public VariableAsserter<T> EndWith(string suffix) { ValueOrFail()?.EndWith(suffix); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation is empty.
     /// </summary>
-    public VariableAsserter<T> BeEmpty() { ValueAsserter().BeEmpty(); return this; }
+    public VariableAsserter<T> BeEmpty() { ValueOrFail()?.BeEmpty(); return this; }
 
     /// <summary>
     /// Asserts that the variable value's string representation is not empty.
     /// </summary>
-    public VariableAsserter<T> NotBeEmpty() { ValueAsserter().NotBeEmpty(); return this; }
+    public VariableAsserter<T> NotBeEmpty() { ValueOrFail()?.NotBeEmpty(); return this; }
 
     /// <summary>
     /// Asserts that the variable value is greater than the provided threshold.
     /// </summary>
     /// <param name="threshold">The lower exclusive bound.</param>
-    public VariableAsserter<T> BeGreaterThan(T threshold) { ValueAsserter().BeGreaterThan(threshold); return this; }
+    public VariableAsserter<T> BeGreaterThan(T threshold) { ValueOrFail()?.BeGreaterThan(threshold); return this; }
 
     /// <summary>
     /// Asserts that the variable value is greater than or equal to the provided threshold.
     /// </summary>
     /// <param name="threshold">The lower inclusive bound.</param>
-    public VariableAsserter<T> BeGreaterThanOrEqualTo(T threshold) { ValueAsserter().BeGreaterThanOrEqualTo(threshold); return this; }
+    public VariableAsserter<T> BeGreaterThanOrEqualTo(T threshold) { ValueOrFail()?.BeGreaterThanOrEqualTo(threshold); return this; }
 
     /// <summary>
     /// Asserts that the variable value is less than the provided threshold.
     /// </summary>
     /// <param name="threshold">The upper exclusive bound.</param>
-    public VariableAsserter<T> BeLessThan(T threshold) { ValueAsserter().BeLessThan(threshold); return this; }
+    public VariableAsserter<T> BeLessThan(T threshold) { ValueOrFail()?.BeLessThan(threshold); return this; }
 
     /// <summary>
     /// Asserts that the variable value is less than or equal to the provided threshold.
     /// </summary>
     /// <param name="threshold">The upper inclusive bound.</param>
-    public VariableAsserter<T> BeLessThanOrEqualTo(T threshold) { ValueAsserter().BeLessThanOrEqualTo(threshold); return this; }
+    public VariableAsserter<T> BeLessThanOrEqualTo(T threshold) { ValueOrFail()?.BeLessThanOrEqualTo(threshold); return this; }
 
     /// <summary>
     /// Asserts that the variable value falls within the inclusive range.
     /// </summary>
     /// <param name="min">The inclusive lower bound.</param>
     /// <param name="max">The inclusive upper bound.</param>
-    public VariableAsserter<T> BeInRange(T min, T max) { ValueAsserter().BeInRange(min, max); return this; }
+    public VariableAsserter<T> BeInRange(T min, T max) { ValueOrFail()?.BeInRange(min, max); return this; }
 
     /// <summary>
     /// Asserts that the variable value falls outside the inclusive range.
     /// </summary>
     /// <param name="min">The inclusive lower bound.</param>
     /// <param name="max">The inclusive upper bound.</param>
-    public VariableAsserter<T> NotBeInRange(T min, T max) { ValueAsserter().NotBeInRange(min, max); return this; }
+    public VariableAsserter<T> NotBeInRange(T min, T max) { ValueOrFail()?.NotBeInRange(min, max); return this; }
 
     /// <summary>
     /// Asserts that the variable value has the expected number of items.
     /// </summary>
     /// <param name="expected">The expected item count.</param>
-    public VariableAsserter<T> HaveCount(int expected) { ValueAsserter().HaveCount(expected); return this; }
+    public VariableAsserter<T> HaveCount(int expected) { ValueOrFail()?.HaveCount(expected); return this; }
 
     /// <summary>
     /// Asserts that the variable value contains no items.
     /// </summary>
-    public VariableAsserter<T> HaveNoItems() { ValueAsserter().HaveNoItems(); return this; }
+    public VariableAsserter<T> HaveNoItems() { ValueOrFail()?.HaveNoItems(); return this; }
 
     /// <summary>
     /// Asserts that the variable value contains at least one item.
     /// </summary>
-    public VariableAsserter<T> HaveItems() { ValueAsserter().HaveItems(); return this; }
+    public VariableAsserter<T> HaveItems() { ValueOrFail()?.HaveItems(); return this; }
 
     // ── Chaining ────────────────────────────────────────────────────────────
 
