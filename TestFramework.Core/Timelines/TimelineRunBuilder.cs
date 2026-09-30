@@ -164,7 +164,18 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
                 using var _ = logger.EnterIndentScope();
                 var stageStopwatch = Stopwatch.StartNew();
-                await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
+                try
+                {
+                    await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
+                }
+                catch (Exception exception)
+                {
+                    // The runner records every step's own failure as that step's result, so reaching this
+                    // means the runner itself failed. The stage is over either way; what must not happen is
+                    // the loop ending with it, because the stage after the last one is the run's teardown.
+                    logger.LogError("Stage '{0}' ended because the runner failed, so the run goes straight to its Cleanup stage.\n{1}", stage.Stage.Name, exception.ToString());
+                    stage.Result.State = StageState.Error;
+                }
                 stageStopwatch.Stop();
                 logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
@@ -183,11 +194,42 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             totalStopwatch.Stop();
             if (!runTransitionCompleted)
                 await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Error, DebugLifecycleState.Running);
+
+            (int failures, Exception? firstFailure) = _debuggingSession.DebuggerFailures;
+            if (failures > 0)
+                logger.LogWarning("A debugger failed {0} time(s) while watching this run, and the run carried on without it. The first failure:\n{1}", failures, firstFailure!.ToString());
+
             await _debuggingSession.FinishSessionAsync();
             _ownedDebuggerResources?.Dispose();
+
+            // Inside the finally: a run that did not come back normally is still over, and what it
+            // hands out must still be a snapshot rather than stores that take writes.
+            newRun.Freeze();
         }
-        newRun.Freeze();
         return newRun;
+    }
+
+    /// <summary>
+    /// Declares the variables a step's retry settings read as inputs of that step.
+    /// </summary>
+    /// <remarks>
+    /// The runner reads them after an attempt fails, which is the latest possible moment to learn that one
+    /// names a variable nothing sets. As declared inputs they are checked with every other input, while the
+    /// run is planned and before anything has been set up.
+    /// </remarks>
+    private static void DeclareRetryInputs(StepGeneric step)
+    {
+        DeclareInput(step, step.RetryOptions.MaxRetryCount, typeof(int));
+        DeclareInput(step, step.RetryOptions.CalcDelay, typeof(CalcDelay));
+
+        static void DeclareInput(StepGeneric step, VariableReferenceGeneric reference, Type type)
+        {
+            if (reference.Identifier is not { } identifier)
+                return;
+
+            if (!step.IOContract.Inputs.Any(input => input.Key == identifier.Identifier && input.Kind == StepIOKind.Variable))
+                step.IOContract.Inputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Variable, true, type));
+        }
     }
 
     /// <summary>
@@ -350,6 +392,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, null))
                 {
                     step.Step.DeclareIO(step.Step.IOContract);
+                    DeclareRetryInputs(step.Step);
                     foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
                     {
                         if (!step.Step.IOContract.Outputs.Any(output => output.Key == binding.Variable.Identifier && output.Kind == StepIOKind.Variable))

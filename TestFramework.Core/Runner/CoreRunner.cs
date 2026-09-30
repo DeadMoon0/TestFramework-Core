@@ -75,6 +75,24 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     {
         using var _ = debuggingSession.BeginStepExecutionContext(stageName, stepIndex);
 
+        try
+        {
+            await ExecuteStepAttemptsAsync(stageName, stepIndex, step, serviceProvider, logger, variableStore, artifactStore, debuggingSession, isCleanupStage);
+        }
+        catch (Exception exception) when (!step.IsFrozen)
+        {
+            // What a step throws is already its result; reaching this means the runner failed around it -
+            // deciding whether to retry, for instance. The step still gets an outcome, and the exception
+            // goes with it, so the layer fails the ordinary way instead of taking the stage loop down and
+            // the Cleanup stage with it.
+            logger.LogError("The runner failed while handling step '{0}', so the step is recorded as failed.\n{1}", LabelOf(step), exception.ToString());
+            step.RetryResults.Add(new StepResultGeneric { State = StepState.Error, Exception = exception });
+            step.Freeze();
+        }
+    }
+
+    private async Task ExecuteStepAttemptsAsync(string stageName, int stepIndex, StepInstanceGeneric step, IServiceProvider serviceProvider, ScopedLogger logger, VariableStore variableStore, ArtifactStore artifactStore, DebuggingRunSession debuggingSession, bool isCleanupStage)
+    {
         // Checked per step, not only per stage: a run cancelled midway through a stage must not keep
         // working through the rest of that stage's steps.
         // Teardown is exempt: skipping cleanup steps because the run was cancelled would strand

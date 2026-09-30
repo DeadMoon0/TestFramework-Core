@@ -145,6 +145,27 @@ internal class DebuggingRunSession
     internal string SessionId { get; } = Guid.NewGuid().ToString();
     internal IRunDebugger Debugger { get; }
 
+    private int debuggerFailureCount;
+    private Exception? firstDebuggerFailure;
+
+    /// <summary>
+    /// How often a debugger threw while this run was signalling it, and the first thing it threw.
+    /// </summary>
+    /// <remarks>
+    /// A debugger watches a run; it has no say in how the run goes. So what it throws is recorded here
+    /// instead of reaching the step it was told about - a consumer that went away mid-run used to take
+    /// the step with it, and the stage loop after it, and the run never reached its Cleanup stage. The
+    /// run reads this once at the end and says so, so the failure is still visible, once.
+    /// </remarks>
+    internal (int Count, Exception? First) DebuggerFailures => (Volatile.Read(ref debuggerFailureCount), Volatile.Read(ref firstDebuggerFailure));
+
+    private void RecordDebuggerFailure(Exception exception)
+    {
+        Interlocked.CompareExchange(ref firstDebuggerFailure, exception, null);
+        Interlocked.Increment(ref debuggerFailureCount);
+        Debug.WriteLine(exception);
+    }
+
     /// <summary>
     /// Where values too big to send are written for this run.
     /// </summary>
@@ -483,6 +504,12 @@ internal class DebuggingRunSession
         {
             await Debugger.SignalAndWaitBreakpointHitAsync(SessionId, stage, index).ConfigureAwait(false);
         }
+        catch (Exception exception)
+        {
+            // The consumer holding the step went away - its window closed, its pipe broke. The step goes
+            // on, exactly as it does when the wait times out: nobody is left to release it any other way.
+            RecordDebuggerFailure(exception);
+        }
         finally
         {
             lock (pauseGate)
@@ -582,10 +609,10 @@ internal class DebuggingRunSession
             }
             catch (Exception exception)
             {
-                if (item.Completion is null)
-                    Debug.WriteLine(exception);
-                else
-                    item.Completion.TrySetException(exception);
+                // Awaited or not, a signal a debugger could not take is the debugger's problem and not
+                // the run's: the run waits for delivery, never for the debugger to agree.
+                RecordDebuggerFailure(exception);
+                item.Completion?.TrySetResult(true);
             }
         }
     }
