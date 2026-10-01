@@ -25,17 +25,22 @@ public sealed class StepDeadline
 {
     private readonly Func<TimeSpan> elapsed;
     private readonly bool bounded;
+    private CancellationTokenSource? budget;
 
     /// <summary>
     /// Starts a deadline that fires its own token when it runs out, and also when <paramref name="stop"/> fires.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The one place a deadline is armed, so no caller repeats the arithmetic or gets the order wrong: the
-    /// deadline is built first and the cancellation armed after it, so the moment the deadline says the time is
-    /// up is never later than the moment its token fires. A deadline built over somebody else's token and never
-    /// armed - which is what a context with a budget used to get - reports the time as gone while its token
-    /// stays silent, and whatever awaits that token is never cut off.
+    /// The one place a deadline is armed, so no caller repeats the arithmetic. A deadline built over somebody
+    /// else's token and never armed - which is what a context with a budget used to get - reports the time as
+    /// gone while its token stays silent, and whatever awaits that token is never cut off.
+    /// </para>
+    /// <para>
+    /// The budget's own timer is the one clock: it fires the token, and once it has, <see cref="HasExpired"/>
+    /// says so. Building the deadline before arming the timer was meant to keep a stopwatch and the timer in
+    /// step, and cannot - the timer runs on the system's coarse tick and can fire a tick before the stopwatch
+    /// reaches the total, so a step woken by its own deadline could ask whether its time was up and be told no.
     /// </para>
     /// <para>
     /// The deadline owns the token source behind it. Whoever started it ends it with <see cref="Release"/> once
@@ -47,11 +52,17 @@ public sealed class StepDeadline
     /// <returns>The armed deadline.</returns>
     internal static StepDeadline Start(TimeSpan total, CancellationToken stop)
     {
-        CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(stop);
-        StepDeadline deadline = new(total, source.Token) { Source = source };
+        if (!IsBounded(total))
+        {
+            CancellationTokenSource unbounded = CancellationTokenSource.CreateLinkedTokenSource(stop);
+            return new StepDeadline(total, unbounded.Token) { Source = unbounded };
+        }
 
-        if (IsBounded(total))
-            source.CancelAfter(total);
+        CancellationTokenSource budget = new();
+        CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(stop, budget.Token);
+        StepDeadline deadline = new(total, source.Token) { Source = source, budget = budget };
+
+        budget.CancelAfter(total);
 
         return deadline;
     }
@@ -64,7 +75,11 @@ public sealed class StepDeadline
     /// <summary>
     /// Ends a started deadline: its timer stops and it no longer listens to the token it was linked to.
     /// </summary>
-    internal void Release() => this.Source?.Dispose();
+    internal void Release()
+    {
+        this.Source?.Dispose();
+        this.budget?.Dispose();
+    }
 
     /// <summary>
     /// Starts the clock for a step's deadline.
@@ -112,13 +127,14 @@ public sealed class StepDeadline
     /// true of the first and misleading about the second - and a step cannot tell them apart from the
     /// token alone.
     /// <para>
-    /// Reading <c>Remaining == TimeSpan.Zero</c> instead looks equivalent and is not: the runner arms the
-    /// cancellation and builds this from the same timeout, so the two can only agree if the deadline is
-    /// created first. It is, and this is the property that says so out loud rather than leaving every
-    /// caller to do the arithmetic and get the edge wrong.
+    /// True from the moment the budget's timer fires the token, so a step woken by its own deadline is never
+    /// told its time is not up; before that, true once the full budget has elapsed. Reading
+    /// <c>Remaining == TimeSpan.Zero</c> instead looks equivalent and is not, for the same reason.
     /// </para>
     /// </remarks>
-    public bool HasExpired => this.bounded && this.elapsed() >= this.Total;
+    public bool HasExpired => this.bounded && (this.BudgetFired || this.elapsed() >= this.Total);
+
+    private bool BudgetFired => this.budget?.IsCancellationRequested == true;
 
     /// <summary>
     /// How long is left, floored at zero. <see cref="Timeout.InfiniteTimeSpan"/> when unbounded.
@@ -134,6 +150,11 @@ public sealed class StepDeadline
             if (!this.bounded)
             {
                 return Timeout.InfiniteTimeSpan;
+            }
+
+            if (this.BudgetFired)
+            {
+                return TimeSpan.Zero;
             }
 
             TimeSpan remaining = this.Total - this.elapsed();
