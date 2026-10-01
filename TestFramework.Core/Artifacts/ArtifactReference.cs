@@ -6,6 +6,7 @@ using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -77,22 +78,6 @@ public abstract class ArtifactReference<TArtifactReference, TArtifactDescriber, 
 public abstract class ArtifactReferenceGeneric : IArtifactGettableGeneric
 {
     /// <summary>
-    /// Gets a value indicating whether the reference has been frozen against further mutation.
-    /// </summary>
-    public bool IsFrozen { get; private set; }
-
-    /// <summary>
-    /// Freezes the artifact reference against further pinning, when its run ends.
-    /// </summary>
-    /// <remarks>
-    /// Internal, and the reference deliberately does not implement the public <see cref="IFreezable"/>:
-    /// that interface's <c>Freeze</c> is reachable through a cast from any package, and freezing a
-    /// reference before its setup step pins it would fail that step for reasons the step cannot explain.
-    /// The run settles its artifacts when it ends, and nothing else may.
-    /// </remarks>
-    internal void FreezeForRunEnd() { IsFrozen = true; }
-
-    /// <summary>
     /// Gets a value indicating whether the reference has already been pinned.
     /// </summary>
     public bool IsPinned { get; private set; }
@@ -108,11 +93,9 @@ public abstract class ArtifactReferenceGeneric : IArtifactGettableGeneric
     /// </remarks>
     /// <param name="context">What the pinning code is given, including the variables to resolve against.</param>
     /// <param name="ticket">Proof the store allowed this write.</param>
-    internal void Pin(RunContext context, ArtifactWriteTicket ticket)
+    internal void Pin(RunContext context, RunWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-
-        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
 
         if (IsPinned) return;
         IsPinned = true;
@@ -131,7 +114,6 @@ public abstract class ArtifactReferenceGeneric : IArtifactGettableGeneric
     {
         ArtifactReferenceGeneric clone = (ArtifactReferenceGeneric)MemberwiseClone();
         clone.IsPinned = false;
-        clone.IsFrozen = false;
         return clone;
     }
 

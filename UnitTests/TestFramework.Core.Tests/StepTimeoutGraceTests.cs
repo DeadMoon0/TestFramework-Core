@@ -11,6 +11,7 @@ using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
 using Xunit;
 using Xunit.Abstractions;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -96,7 +97,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     {
         // The suspected mechanism behind a suite that fails differently under load: a step abandoned in
         // one test still writing while the next one reads.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         StepAttempt abandoned = gate.Begin("slow-step", 1);
@@ -120,7 +121,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     public void WritesThatBelongToNoAttemptStillLand()
     {
         // A fixture seeding a variable, or the run publishing its own summary.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         gate.Begin("some-step", 1);
@@ -134,7 +135,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     {
         // The expensive half of the same bug: a variable holds a value, an artifact holds a row in
         // somebody's database and a promise to clean it up.
-        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         StepAttempt abandoned = gate.Begin("find-the-row", 1);
@@ -155,7 +156,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     {
         // Registering is not the only write. A version captured by a zombie would show the next test data
         // from the previous one, and a state moved to Cleaned would have the run skip a cleanup it owes.
-        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         ArtifactInstanceGeneric instance = Instance("row");
@@ -179,7 +180,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         // Pinning resolves the reference's variables and keeps the answer, so a pin from an attempt the
         // run has stopped waiting for would aim this artifact - and the cleanup that deletes it - at
         // whatever that attempt's stale values pointed to.
-        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         ArtifactInstanceGeneric instance = Instance("row");
@@ -200,7 +201,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
     {
         // The positive half. A quarantine that also stops the live attempt would be a worse bug than the
         // one it replaces.
-        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        ArtifactStore store = new ArtifactStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
         StepAttemptGate gate = new StepAttemptGate();
 
         StepAttempt live = gate.Begin("setup", 1);

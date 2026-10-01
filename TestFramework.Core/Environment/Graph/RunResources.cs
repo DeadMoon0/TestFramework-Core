@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Environment.Graph;
 
@@ -55,8 +57,10 @@ internal sealed class RunResources
     /// </remarks>
     /// <param name="serviceProvider">The run's services, which may register sources.</param>
     /// <param name="environment">The run's environment, when it is also a source.</param>
+    /// <param name="writer">Who writes the run's values: the run itself, through its one gate.</param>
+    /// <param name="logger">Where a refused value write is reported.</param>
     /// <returns>The run's resources.</returns>
-    internal static RunResources Compose(IServiceProvider? serviceProvider, object? environment)
+    internal static RunResources Compose(IServiceProvider? serviceProvider, object? environment, RunWriter writer, ScopedLogger logger)
     {
         List<IResourceNodeSource> sources = [];
 
@@ -87,7 +91,7 @@ internal sealed class RunResources
         // wait for each other, is a sentence rather than a hang.
         graph.Validate();
 
-        ResourceValueStore values = new ResourceValueStore();
+        ResourceValueStore values = new ResourceValueStore(writer, logger);
 
         foreach (ResourceNode node in graph.Nodes)
         {

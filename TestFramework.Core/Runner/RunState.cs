@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Runner;
 
@@ -33,25 +34,34 @@ namespace TestFramework.Core.Runner;
 /// </remarks>
 public sealed class RunState
 {
-    private readonly object syncRoot = new object();
-    private readonly Dictionary<Type, object> slots = [];
-    private bool frozen;
+    private readonly object syncRoot;
+    private readonly Dictionary<Type, object> slots;
+    private readonly RunWriter writer;
+    private readonly ScopedLogger logger;
+
+    internal RunState(RunWriter writer, ScopedLogger logger)
+    {
+        this.syncRoot = new object();
+        this.slots = [];
+        this.writer = writer;
+        this.logger = logger;
+    }
+
+    private RunState(RunState source, RunWriter writer)
+    {
+        // Shared by reference on purpose: one run's state, many writers, each able to say who it is.
+        this.syncRoot = source.syncRoot;
+        this.slots = source.slots;
+        this.writer = writer;
+        this.logger = source.logger;
+    }
 
     /// <summary>
-    /// Ends the run's ability to take new state. What it already holds stays readable.
+    /// The same state, written as <paramref name="writer"/>.
     /// </summary>
-    /// <remarks>
-    /// Internal, and deliberately not <see cref="IFreezable"/>: a caller able to freeze a running run's state
-    /// would make the next step that opens a browser fail. The run freezes its own state when it ends, as it does
-    /// its variables and artifacts.
-    /// </remarks>
-    internal void FreezeForRunEnd()
-    {
-        lock (this.syncRoot)
-        {
-            this.frozen = true;
-        }
-    }
+    /// <param name="writer">Who creates new slots through this view.</param>
+    /// <returns>The view.</returns>
+    internal RunState WrittenAs(RunWriter writer) => new RunState(this, writer);
 
     /// <summary>
     /// This run's instance of a package's state, created on first ask.
@@ -78,18 +88,8 @@ public sealed class RunState
 
             // Reading what a finished run kept is what it is for; opening something new into it is not. The
             // run's cleanup has already run, so a live object created now would belong to a run that can no
-            // longer close it.
-            if (this.frozen)
-            {
-                throw new Exceptions.FrameworkStateException(
-                    $"The run has finished, so it can take no new state: '{typeof(TState).Name}' was asked for after its Cleanup stage had run.")
-                {
-                    RecoverySteps = [
-                        "Create live objects inside a step of the run, and close them in a step of the run.",
-                        "Use TryGet to read what the run kept.",
-                    ],
-                };
-            }
+            // longer close it - and an attempt the run stopped waiting for would open one nobody closes.
+            using RunWriteTicket ticket = this.writer.Admit(RunChannel.RunState, typeof(TState).Name, this.logger);
 
             TState created = create()
                 ?? throw new InvalidOperationException($"The factory for '{typeof(TState).Name}' returned null, and a run's state slot cannot hold nothing.");

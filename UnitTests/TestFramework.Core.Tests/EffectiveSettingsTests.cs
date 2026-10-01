@@ -8,6 +8,7 @@ using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
 using Xunit;
 using Xunit.Abstractions;
+using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Tests;
 
@@ -58,7 +59,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
     [Fact]
     public void RecordingTheSameThingTwiceIsFineAndDisagreeingIsNot()
     {
-        EffectiveSettings settings = new EffectiveSettings();
+        EffectiveSettings settings = new EffectiveSettings(new RunWriteGate().Unrestricted, new ScopedLogger(null));
 
         settings.Record("docker", "azurite:Image", "azurite:3.35.0");
         settings.Record("docker", "azurite:Image", "azurite:3.35.0");
@@ -77,7 +78,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
     {
         // The source is part of the key precisely so a second package recording its own "Image" is not a
         // collision to be worked around with a prefix everyone invents differently.
-        EffectiveSettings settings = new EffectiveSettings();
+        EffectiveSettings settings = new EffectiveSettings(new RunWriteGate().Unrestricted, new ScopedLogger(null));
 
         settings.Record("docker.azure", "Image", "azurite:3.35.0");
         settings.Record("docker.web", "Image", "nginx:1.27");

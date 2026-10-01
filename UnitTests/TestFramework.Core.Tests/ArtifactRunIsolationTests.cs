@@ -11,6 +11,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -44,17 +45,14 @@ public class ArtifactRunIsolationTests
     }
 
     [Fact]
-    public void CloneForRun_ResetsPinnedAndFrozenState()
+    public void CloneForRun_ResetsPinnedState()
     {
         PinningArtifactReference reference = new(new PinRecorder());
 
-        // Pinned first, then frozen: that is the order a run does it in, and since freezing a reference
-        // now refuses further pinning, the old order (freeze, then pin, then assert both) only ever
-        // passed because the frozen flag guarded nothing.
         ScopedLogger logger = new ScopedLogger(null);
         DebuggingRunSession session = new DebuggingRunSession(new EmptyRunDebugger());
-        ArtifactStore store = new ArtifactStore(logger, session);
-        VariableStore variables = new VariableStore(logger, session);
+        ArtifactStore store = new ArtifactStore(logger, session, new RunWriteGate());
+        VariableStore variables = new VariableStore(logger, session, new RunWriteGate());
 
         // The reference resolves this when it pins, which is the whole point of pinning: the answer is
         // kept, so a later change to the variable cannot retarget the artifact.
@@ -65,16 +63,10 @@ public class ArtifactRunIsolationTests
             reference,
             RunContext.Ambient(new EmptyServiceProvider(), variables, store, logger, ValueResolution.Empty));
 
-        // The internal call, because the public route is gone on purpose: a reference is settled by its
-        // run ending, and nothing else - not even through an interface cast - may do it.
-        reference.FreezeForRunEnd();
-
-        Assert.True(reference.IsFrozen);
         Assert.True(reference.IsPinned);
 
         ArtifactReferenceGeneric clone = reference.CloneForRun();
 
-        Assert.False(clone.IsFrozen);
         Assert.False(clone.IsPinned);
         Assert.NotSame(reference, clone);
     }

@@ -320,8 +320,8 @@ public class CoreRunnerParallelizationTests
 
         private RuntimeContext()
         {
-            VariableStore = new VariableStore(Logger, DebuggingSession);
-            ArtifactStore = new ArtifactStore(Logger, DebuggingSession);
+            VariableStore = new VariableStore(Logger, DebuggingSession, new RunWriteGate());
+            ArtifactStore = new ArtifactStore(Logger, DebuggingSession, new RunWriteGate());
         }
 
         public static RuntimeContext Create() => new();

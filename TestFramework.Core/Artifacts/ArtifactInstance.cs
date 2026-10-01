@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using TestFramework.Core.Exceptions;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -83,7 +84,7 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
     /// </remarks>
     /// <param name="artifact">The new version's data.</param>
     /// <param name="ticket">Proof the store allowed this write.</param>
-    internal void AddVersion(TArtifactData artifact, ArtifactWriteTicket ticket) => base.AddVersionGeneric(artifact, ticket);
+    internal void AddVersion(TArtifactData artifact, RunWriteTicket ticket) => base.AddVersionGeneric(artifact, ticket);
 
     /// <summary>
     /// Returns a human-readable description of the artifact instance.
@@ -99,29 +100,6 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
 /// </summary>
 public class ArtifactInstanceGeneric
 {
-    /// <summary>
-    /// Gets a value indicating whether the artifact instance has been frozen against further mutation.
-    /// </summary>
-    public bool IsFrozen { get; private set; }
-
-    /// <summary>
-    /// Freezes the artifact instance when its run ends.
-    /// </summary>
-    /// <remarks>
-    /// Internal, and the instance deliberately does not implement the public <see cref="IFreezable"/>:
-    /// that interface's <c>Freeze</c> is reachable through a cast from any package, and freezing a single
-    /// artifact mid-run is worse than freezing the store - it fails only the test that touches this one
-    /// artifact and reads as a problem with the artifact. The reference and the describer are settled
-    /// with it - a frozen artifact whose reference could still be re-pinned would be frozen in name only.
-    /// </remarks>
-    internal void FreezeForRunEnd()
-    {
-        IsFrozen = true;
-        _dataVersions.Freeze();
-        Reference.FreezeForRunEnd();
-        Artifact.FreezeForRunEnd();
-    }
-
     private readonly FreezableCollection<ArtifactDataGeneric> _dataVersions = [];
 
     /// <summary>
@@ -181,7 +159,7 @@ public class ArtifactInstanceGeneric
     /// </summary>
     /// <remarks>
     /// Read-only from everywhere. It moves through <c>ArtifactStore.MarkState</c>, because setting it is a
-    /// write to the run: it passes the same licence check as every other write, and the change reaches
+    /// write to the run: the run's gate admits it like every other write, and the change reaches
     /// whatever is watching the run instead of only this object.
     /// </remarks>
     public ArtifactState State => _state;
@@ -191,18 +169,13 @@ public class ArtifactInstanceGeneric
     /// </summary>
     /// <param name="state">The state it reached.</param>
     /// <param name="ticket">Proof the store allowed this write.</param>
-    internal void SetState(ArtifactState state, ArtifactWriteTicket ticket)
+    internal void SetState(ArtifactState state, RunWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-        EnsureNotFrozen();
 
         _state = state;
     }
 
-    private void EnsureNotFrozen()
-    {
-        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
-    }
 
     /// <summary>
     /// Gets a value indicating whether the timeline marked this artifact readonly, so cleanup must
@@ -256,14 +229,13 @@ public class ArtifactInstanceGeneric
     /// </summary>
     /// <remarks>
     /// Ticketed for the reason <see cref="SetState"/> is: <c>ArtifactStore.CaptureVersion</c> is the one
-    /// way an artifact gains a version, so the licence check and the publication happen every time.
+    /// way an artifact gains a version, so the gate's admission and the publication happen every time.
     /// </remarks>
     /// <param name="data">The new version's data.</param>
     /// <param name="ticket">Proof the store allowed this write.</param>
-    internal void AddVersionGeneric(ArtifactDataGeneric data, ArtifactWriteTicket ticket)
+    internal void AddVersionGeneric(ArtifactDataGeneric data, RunWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
-        EnsureNotFrozen();
 
         _dataVersions.Add(data);
     }

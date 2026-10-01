@@ -86,7 +86,7 @@ public sealed class RunContext
     /// view, and a widget has to be filed against the attempt that produced it rather than against
     /// whichever view happened to be passed around.
     /// </remarks>
-    public WidgetStore Widgets => new(this.Variables.DebuggingSession, this.Variables.WriteLicence, this.Logger);
+    public WidgetStore Widgets => new(this.Variables.DebuggingSession, this.Variables.Writer, this.Logger);
 
     /// <summary>
     /// Where to record what this run resolved on the caller's behalf.
@@ -192,16 +192,19 @@ public sealed class RunContext
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(session);
         IServiceProvider resolvedServices = options.Services ?? new EmptyServiceProvider();
 
+        // A gate of its own: nothing here belongs to a run, and nothing ever finishes it.
+        RunWriteGate gate = new RunWriteGate();
+
         // Composed from whatever the caller registered, the same way a real run composes its own. A detached
         // context exists to drive a step without a timeline around it, and a step reads the configuration it
         // was set up with from the run - so one that could hold no resources could not stand in for a run at
         // all. With nothing registered this is an empty graph, which is what it always was.
         return Ambient(
             resolvedServices,
-            new VariableStore(logger, session),
-            new ArtifactStore(logger, session),
+            new VariableStore(logger, session, gate),
+            new ArtifactStore(logger, session, gate),
             logger,
-            Environment.Graph.RunResources.Compose(resolvedServices, environment: null).Resolution,
+            Environment.Graph.RunResources.Compose(resolvedServices, environment: null, gate.Unrestricted, logger).Resolution,
             options.CancellationToken,
             options.Timeout ?? System.Threading.Timeout.InfiniteTimeSpan);
     }

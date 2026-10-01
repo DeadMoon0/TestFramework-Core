@@ -12,6 +12,7 @@ using TestFramework.Core.Timelines;
 using Xunit;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Steps.Options;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -27,7 +28,7 @@ public class ExceptionTests
         // The store used to index its dictionary, so this was "The given key 'root' was not present in the
         // dictionary" - a message that names neither the run nor anything to do about it. The exception
         // that says it properly had been written for exactly this case and was never thrown.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
         store.SetVariable("orderId", "A-1");
         store.SetVariable("customer", 42);
@@ -46,7 +47,7 @@ public class ExceptionTests
     {
         // The cast threw InvalidCastException, which names two types and not the variable - so a reader
         // learned that something somewhere was a String, and had to go find which one.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
         store.SetVariable("orderId", "A-1");
 
@@ -60,7 +61,7 @@ public class ExceptionTests
     public void AVariableSetToNullReadsAsNullRatherThanAsAMismatch()
     {
         // Somebody stored null on purpose. Reading it back is not a disagreement about types.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
         store.SetVariable<string?>("optional", null);
 
@@ -74,7 +75,7 @@ public class ExceptionTests
     {
         // TryGet answers "is it there", not "is it whatever I claimed". Handing back default for a value
         // of the wrong type would hide a real mistake behind a false negative.
-        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new VariableStore(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
         store.SetVariable("orderId", "A-1");
 

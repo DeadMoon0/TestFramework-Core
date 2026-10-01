@@ -12,6 +12,7 @@ using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
 using Xunit;
 using Xunit.Abstractions;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -122,8 +123,8 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
 
         RunContext context = RunContext.Ambient(
             new EmptyServices(),
-            new VariableStore(logger, session),
-            new ArtifactStore(logger, session),
+            new VariableStore(logger, session, new RunWriteGate()),
+            new ArtifactStore(logger, session, new RunWriteGate()),
             logger,
             ValueResolution.Empty);
 

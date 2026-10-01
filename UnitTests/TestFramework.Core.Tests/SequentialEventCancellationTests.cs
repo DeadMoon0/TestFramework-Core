@@ -12,6 +12,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -45,9 +46,9 @@ public class SequentialEventCancellationTests
         Assert.Equal(pollsAtCancellation, step.PollCount);
     }
 
-    private static VariableStore CreateStore() => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+    private static VariableStore CreateStore() => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
-    private static ArtifactStore CreateArtifactStore() => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+    private static ArtifactStore CreateArtifactStore() => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
     private sealed class CountingSequentialEvent(TimeSpan nextDelay)
         : SequentialEvent<CountingSequentialEvent, EmptyStepResultContext>

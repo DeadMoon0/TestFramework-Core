@@ -16,32 +16,7 @@ public class VariableStore
 {
     private readonly object syncRoot;
 
-    /// <summary>
-    /// Gets a value indicating whether the variable store has been frozen against further mutation.
-    /// </summary>
-    public bool IsFrozen => _variables.IsFrozen;
-
-    /// <summary>
-    /// Freezes the variable store when its run ends.
-    /// </summary>
-    /// <remarks>
-    /// Internal, and the store deliberately does not implement the public <see cref="IFreezable"/>: that
-    /// interface's <c>Freeze</c> is reachable through a cast from any package, and a caller able to freeze
-    /// a <em>running</em> run's variables would turn every later write into a failure. The run freezes its
-    /// own variables when it ends, and nothing else may - the same shape the resource values use.
-    /// </remarks>
-    internal void FreezeForRunEnd()
-    {
-        lock (syncRoot) { _variables.Freeze(); }
-        RunState.FreezeForRunEnd();
-    }
-
-    private void EnsureNotFrozen()
-    {
-        if (IsFrozen) throw new FrameworkStateException("This instance has been frozen and is read-only.");
-    }
-
-    private readonly FreezableDictionary<VariableIdentifier, object?> _variables;
+    private readonly Dictionary<VariableIdentifier, object?> _variables;
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
@@ -68,13 +43,13 @@ public class VariableStore
     /// Unrestricted on the run's own store: writes that belong to no step - a fixture seeding a variable,
     /// the run publishing its summary - are always honoured.
     /// </remarks>
-    private readonly StepWriteLicence licence;
+    private readonly RunWriter writer;
 
     /// <summary>
-    /// Whether this view's writes still count. Shared with the run's other channels through the context, so
-    /// one rule decides it for all of them.
+    /// Who this view writes as. Shared with the run's other channels through the context, so one gate decides
+    /// for all of them.
     /// </summary>
-    internal StepWriteLicence WriteLicence => licence;
+    internal RunWriter Writer => writer;
 
     /// <summary>
     /// The run's own live things - what a package keeps for the length of a run and cannot put in a
@@ -110,9 +85,9 @@ public class VariableStore
     /// <param name="attempt">The attempt this view writes for.</param>
     /// <returns>The view.</returns>
     internal VariableStore ForAttempt(StepAttemptGate gate, StepAttempt attempt)
-        => new VariableStore(this, gate, attempt);
+        => new VariableStore(this, this.writer.Gate.For(gate, attempt));
 
-    private VariableStore(VariableStore source, StepAttemptGate gate, StepAttempt attempt)
+    private VariableStore(VariableStore source, RunWriter writer)
     {
         // Shared by reference on purpose: one store, many writers, each able to say who it is.
         this.syncRoot = source.syncRoot;
@@ -121,12 +96,12 @@ public class VariableStore
         this.debuggingSession = source.debuggingSession;
         this.changeTokens = source.changeTokens;
         this.changeTokenLock = source.changeTokenLock;
-        this.RunState = source.RunState;
-        this.EffectiveSettings = source.EffectiveSettings;
-        this.licence = StepWriteLicence.For(gate, attempt);
+        this.RunState = source.RunState.WrittenAs(writer);
+        this.EffectiveSettings = source.EffectiveSettings.WrittenAs(writer);
+        this.writer = writer;
     }
 
-    internal VariableStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
+    internal VariableStore(ScopedLogger logger, DebuggingRunSession debuggingSession, RunWriteGate gate)
     {
         this.syncRoot = new object();
         this._variables = [];
@@ -134,9 +109,9 @@ public class VariableStore
         this.changeTokenLock = new object();
         this.logger = logger;
         this.debuggingSession = debuggingSession;
-        this.RunState = new RunState();
-        this.EffectiveSettings = new EffectiveSettings();
-        this.licence = StepWriteLicence.Unrestricted;
+        this.writer = gate.Unrestricted;
+        this.RunState = new RunState(this.writer, logger);
+        this.EffectiveSettings = new EffectiveSettings(this.writer, logger);
     }
 
     /// <summary>
@@ -149,14 +124,14 @@ public class VariableStore
     {
         // An attempt the runner has stopped waiting for is still running, and it must not be able to
         // reach the stores a later test reads.
-        if (!licence.Allows(logger, identifier.Identifier))
+        if (!writer.TryAdmit(RunChannel.Variable, identifier.Identifier, logger, out RunWriteTicket? ticket))
             return;
 
         // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
         // expensive, and it used to happen up to three times per write with the lock held.
+        using (ticket)
         lock (syncRoot)
         {
-            EnsureNotFrozen();
             _variables[identifier] = value;
         }
 

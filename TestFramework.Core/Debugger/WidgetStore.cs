@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Debugger;
@@ -36,23 +37,23 @@ public sealed class WidgetStore
     private const int PreviewBudget = 2_000;
 
     private readonly DebuggingRunSession session;
-    private readonly StepWriteLicence licence;
+    private readonly RunWriter writer;
     private readonly ScopedLogger logger;
 
     /// <summary>
     /// The run's widgets as one attempt, or the run itself, may write them.
     /// </summary>
     /// <param name="session">The run's session, which owns the files and the signal.</param>
-    /// <param name="licence">
-    /// The same licence the attempt's variable and artifact stores hold, so the rule about an abandoned
-    /// attempt's writes lives in one type and every channel asks it - the run's own contexts carry the
-    /// unrestricted one, which is what lets an observer file the evidence of the attempt that just died.
+    /// <param name="writer">
+    /// The same writer the attempt's variable and artifact stores hold, so the run's one gate decides for every
+    /// channel - the run's own contexts carry the unrestricted one, which is what lets an observer file the
+    /// evidence of the attempt that just died.
     /// </param>
     /// <param name="logger">Where a refused widget is reported.</param>
-    internal WidgetStore(DebuggingRunSession session, StepWriteLicence licence, ScopedLogger logger)
+    internal WidgetStore(DebuggingRunSession session, RunWriter writer, ScopedLogger logger)
     {
         this.session = session;
-        this.licence = licence;
+        this.writer = writer;
         this.logger = logger;
     }
 
@@ -72,13 +73,12 @@ public sealed class WidgetStore
     {
         ArgumentNullException.ThrowIfNull(widget);
 
-        // A finished run is a snapshot. Its signal would be dropped - the queue is closed - while the file was
-        // still written, leaving evidence in its output that the run itself says nothing about.
-        if (session.HasFinished)
+        // A widget is evidence, so the gate drops a refused one rather than throwing: a debugging aid must not
+        // change how a run turns out. A finished run is a snapshot, and its signal queue is already closed.
+        if (!writer.TryAdmit(RunChannel.Widget, widget.Name, logger, out RunWriteTicket? ticket))
             return null;
 
-        if (!licence.Allows(logger, $"widget '{widget.Name}'"))
-            return null;
+        using RunWriteTicket admitted = ticket;
 
         byte[] bytes = widget.Bytes ?? Encoding.UTF8.GetBytes(widget.Text ?? string.Empty);
 

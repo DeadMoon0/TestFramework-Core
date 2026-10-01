@@ -23,7 +23,6 @@ public class FrozenRunTests
     {
         TimelineRun run = await Timeline.Create().Build().SetupRun().RunAsync();
 
-        Assert.True(run.VariableStore.IsFrozen);
         Assert.Throws<FrameworkStateException>(() => run.VariableStore.SetVariable("late", "value"));
     }
 
@@ -38,16 +37,12 @@ public class FrozenRunTests
 
         ArtifactInstanceGeneric instance = run.ArtifactStore.GetArtifact("data");
 
-        Assert.True(run.ArtifactStore.IsFrozen);
-        Assert.True(instance.IsFrozen);
-
         // Attempted the only way they can be attempted: through the store. Nothing can reach an
         // artifact's state or its versions directly any more, which is why these read as store calls.
         Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.CaptureVersion(instance, new FrozenTestArtifactData()));
         Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.MarkState(instance, ArtifactState.Cleaned));
 
-        // A frozen artifact is frozen all the way down, or "frozen" means only "the list of versions is".
-        Assert.True(instance.Reference.IsFrozen);
+        // A finished artifact is finished all the way down: its reference takes no new pin either.
         Assert.Throws<FrameworkStateException>(() => run.ArtifactStore.PinReference(
             instance,
             RunContext.Ambient(new EmptyServiceProvider(), run.VariableStore, run.ArtifactStore, new ScopedLogger(null), run.Values)));

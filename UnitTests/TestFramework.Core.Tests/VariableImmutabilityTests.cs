@@ -10,6 +10,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Steps.Preprocessor;
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -65,10 +66,10 @@ public class VariableImmutabilityTests
     }
 
     private static VariableStore CreateVariableStore()
-        => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
     private static ArtifactStore CreateArtifactStore()
-        => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        => new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
     [Fact]
     public async Task Run_Succeeds_WhenTheImmutablyReadVariableIsNeverWritten()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Exceptions;
+using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Runner;
 
@@ -63,9 +64,34 @@ public readonly record struct EffectiveSetting
 /// </remarks>
 public sealed class EffectiveSettings
 {
-    private readonly object syncRoot = new object();
-    private readonly Dictionary<(string Source, string Name), EffectiveSetting> settings = [];
-    private bool frozen;
+    private readonly object syncRoot;
+    private readonly Dictionary<(string Source, string Name), EffectiveSetting> settings;
+    private readonly RunWriter writer;
+    private readonly ScopedLogger logger;
+
+    internal EffectiveSettings(RunWriter writer, ScopedLogger logger)
+    {
+        this.syncRoot = new object();
+        this.settings = [];
+        this.writer = writer;
+        this.logger = logger;
+    }
+
+    private EffectiveSettings(EffectiveSettings source, RunWriter writer)
+    {
+        // Shared by reference on purpose: one run's record, many writers, each able to say who it is.
+        this.syncRoot = source.syncRoot;
+        this.settings = source.settings;
+        this.writer = writer;
+        this.logger = source.logger;
+    }
+
+    /// <summary>
+    /// The same record, written as <paramref name="writer"/>.
+    /// </summary>
+    /// <param name="writer">Who records through this view.</param>
+    /// <returns>The view.</returns>
+    internal EffectiveSettings WrittenAs(RunWriter writer) => new EffectiveSettings(this, writer);
 
     /// <summary>
     /// Records what this run resolved a setting to.
@@ -86,14 +112,12 @@ public sealed class EffectiveSettings
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(value);
 
+        if (!this.writer.TryAdmit(RunChannel.EffectiveSetting, $"{source}/{name}", this.logger, out RunWriteTicket? ticket))
+            return;
+
+        using (ticket)
         lock (this.syncRoot)
         {
-            if (this.frozen)
-            {
-                throw new FrameworkStateException(
-                    $"This run has finished, so '{source}/{name}' cannot be recorded on it any more.");
-            }
-
             if (this.settings.TryGetValue((source, name), out EffectiveSetting existing)
                 && !string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
@@ -143,14 +167,4 @@ public sealed class EffectiveSettings
         }
     }
 
-    /// <summary>
-    /// Closes the record when the run ends.
-    /// </summary>
-    internal void FreezeForRunEnd()
-    {
-        lock (this.syncRoot)
-        {
-            this.frozen = true;
-        }
-    }
 }

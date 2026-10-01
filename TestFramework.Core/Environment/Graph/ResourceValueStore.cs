@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Runner;
+using TestFramework.Core.Logging;
 using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Environment.Graph;
@@ -35,36 +37,18 @@ public sealed class ResourceValueStore
 {
     private readonly ConcurrentDictionary<Slot, ResolvedValue> values = new ConcurrentDictionary<Slot, ResolvedValue>();
 
-    internal ResourceValueStore()
-    {
-    }
+    private readonly RunWriter writer;
+    private readonly ScopedLogger logger;
 
     /// <summary>
-    /// Whether the run this belongs to has finished.
+    /// A store whose writes the run's gate admits.
     /// </summary>
-    public bool IsFrozen { get; private set; }
-
-    /// <summary>
-    /// Closes the store when its run ends, so what a finished run says it ran against is what it ran against.
-    /// </summary>
-    /// <remarks>
-    /// §2 of the guardrails: everything under a run freezes when its own part is done, and from then on writes
-    /// throw. That made this the one store a finished run exposed which was still writable - a snapshot that
-    /// can be handed around and trusted has to include the coordinates, because those are what the run proved
-    /// something *against*.
-    /// </remarks>
-    /// <remarks>
-    /// Internal, and deliberately not through <c>IFreezable</c>. That interface is public, so implementing it
-    /// here - even explicitly - would let any caller close a *running* run's values and leave its environment
-    /// unable to publish where it had just started something. The other stores can implement it because the
-    /// freezable collections behind them are internal; this one is the public object itself.
-    /// </remarks>
-    internal void Freeze() => this.IsFrozen = true;
-
-    private void EnsureNotFrozen()
+    /// <param name="writer">Who writes it: the environment publishes as the run itself.</param>
+    /// <param name="logger">Where a refused write is reported.</param>
+    internal ResourceValueStore(RunWriter writer, ScopedLogger logger)
     {
-        if (this.IsFrozen)
-            throw new FrameworkStateException("This instance has been frozen and is read-only.");
+        this.writer = writer;
+        this.logger = logger;
     }
 
     /// <summary>
@@ -102,10 +86,13 @@ public sealed class ResourceValueStore
     /// <param name="identifier">Which resource.</param>
     internal void WithdrawProduced(string resourceKind, string identifier)
     {
-        this.EnsureNotFrozen();
-
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (!this.writer.TryAdmit(RunChannel.ResourceValue, $"{resourceKind}/{identifier}", this.logger, out RunWriteTicket? ticket))
+            return;
+
+        using RunWriteTicket admitted = ticket;
 
         foreach (Slot slot in this.values
             .Where(entry => entry.Value.Origin == ValueOrigin.Produced
@@ -270,12 +257,15 @@ public sealed class ResourceValueStore
 
     private void Set(ResolvedValue value)
     {
-        this.EnsureNotFrozen();
-
         ArgumentException.ThrowIfNullOrWhiteSpace(value.ResourceKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(value.Identifier);
         ArgumentException.ThrowIfNullOrWhiteSpace(value.Key.ValueName);
         ArgumentNullException.ThrowIfNull(value.Value);
+
+        if (!this.writer.TryAdmit(RunChannel.ResourceValue, $"{value.ResourceKind}/{value.Identifier} {value.Key}", this.logger, out RunWriteTicket? ticket))
+            return;
+
+        using RunWriteTicket admitted = ticket;
 
         Slot slot = new Slot(value.ResourceKind, value.Identifier, value.Key);
 

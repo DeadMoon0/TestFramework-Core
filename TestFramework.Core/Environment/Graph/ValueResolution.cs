@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Exceptions;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Environment.Graph;
 
@@ -36,7 +38,7 @@ public sealed class ValueResolution
     /// step being exercised on its own. Handing this to something that runs inside a real run would hide
     /// that run's actual resources, so a step under a timeline always gets the run's own resolution.
     /// </remarks>
-    public static ValueResolution Empty { get; } = new ValueResolution(new ResourceValueStore());
+    public static ValueResolution Empty { get; } = new ValueResolution(new ResourceValueStore(RunWriteGate.Closed().Unrestricted, new ScopedLogger(null)));
 
     private readonly ResourceValueStore store;
 
@@ -162,14 +164,6 @@ public sealed class ValueResolution
     /// <returns>The values.</returns>
     public IReadOnlyList<ResolvedValue> Snapshot() => this.store.Snapshot();
 
-    /// <summary>
-    /// Closes the values when the run ends.
-    /// </summary>
-    /// <remarks>
-    /// Reading stays open - that is the point of keeping them - and only writing closes. Internal because a
-    /// caller who could freeze a running run's values could stop its own environment from publishing.
-    /// </remarks>
-    internal void FreezeForRunEnd() => this.store.Freeze();
 
     private ResolvedValue? Find(ValueRef value, ResourceVantage vantage)
     {

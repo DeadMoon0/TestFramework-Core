@@ -8,6 +8,7 @@ using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 using Xunit;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -29,12 +30,13 @@ namespace TestFramework.Core.Tests;
 public class PublicSurfaceTests
 {
     [Fact]
-    public void NobodyOutsideCoreCanFreezeARunsLiveState()
+    public void NobodyOutsideCoreCanFinishARun()
     {
-        // Damage: freezing a running run's state table would make the next step that opens a browser fail.
-        // The run freezes it when it ends, and nothing else may.
+        // Damage: finishing a running run would make every later write fail - the next step that opens a
+        // browser, sets a variable or publishes where its container started. The run finishes itself when its
+        // cleanup has run, through its one gate, and nothing else may reach that gate.
+        Assert.False(typeof(RunWriteGate).IsVisible);
         AssertNotPublic<TestFramework.Core.Runner.RunState>("Freeze");
-        AssertNotPublic<TestFramework.Core.Runner.RunState>("FreezeForRunEnd");
         Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(TestFramework.Core.Runner.RunState)));
     }
 
@@ -128,16 +130,17 @@ public class PublicSurfaceTests
     }
 
     [Fact]
-    public void NothingOutsideCoreCanMintPermissionToWriteToAnArtifact()
+    public void NothingOutsideCoreCanMintPermissionToWriteToARun()
     {
-        // The mutators demand an ArtifactWriteTicket and only the store can produce one, so this is what
-        // makes "every artifact write was checked first" a compiler guarantee rather than a convention.
-        // Damage if it were forgeable: the whole quarantine, since a forged ticket writes unchecked.
-        Assert.Empty(typeof(ArtifactWriteTicket).GetConstructors(BindingFlags.Public | BindingFlags.Instance));
+        // Every mutator of a run's live state demands a RunWriteTicket and only the run's gate mints one, so
+        // this is what makes "every write was admitted first" a compiler guarantee rather than a convention.
+        // Damage if it were forgeable: the whole quarantine and the finished-run snapshot, since a forged
+        // ticket writes unchecked.
+        Assert.False(typeof(RunWriteTicket).IsVisible);
+        Assert.Empty(typeof(RunWriteTicket).GetConstructors(BindingFlags.Public | BindingFlags.Instance));
 
-        // private protected: constructible only by a type inside this assembly that derives from it, so a
-        // package cannot make one and cannot subclass its way to one either.
-        ConstructorInfo[] hidden = typeof(ArtifactWriteTicket).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
+        // private protected: constructible only by a type inside this assembly that derives from it.
+        ConstructorInfo[] hidden = typeof(RunWriteTicket).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
 
         Assert.All(hidden, constructor => Assert.True(
             constructor.IsFamilyAndAssembly,

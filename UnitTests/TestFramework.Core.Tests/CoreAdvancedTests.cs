@@ -13,6 +13,7 @@ using TestFramework.Core.Steps.Preprocessor;
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -185,8 +186,8 @@ public class CoreAdvancedTests
 
         public RuntimeContext()
         {
-            VariableStore = new VariableStore(Logger, DebuggingSession);
-            ArtifactStore = new ArtifactStore(Logger, DebuggingSession);
+            VariableStore = new VariableStore(Logger, DebuggingSession, new RunWriteGate());
+            ArtifactStore = new ArtifactStore(Logger, DebuggingSession, new RunWriteGate());
         }
     }
 

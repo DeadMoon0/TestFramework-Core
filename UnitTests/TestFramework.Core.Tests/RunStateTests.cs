@@ -9,6 +9,7 @@ using TestFramework.Core.Timelines;
 using TestFramework.Core.Variables;
 using Xunit;
 using Xunit.Abstractions;
+using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Tests;
 
@@ -34,7 +35,7 @@ public class RunStateTests(ITestOutputHelper output)
     [Fact]
     public void OneSlotPerTypePerRun()
     {
-        RunState state = new RunState();
+        RunState state = new RunState(new RunWriteGate().Unrestricted, new ScopedLogger(null));
 
         Sessions first = state.GetOrAdd(() => new Sessions());
         Sessions second = state.GetOrAdd(() => new Sessions());
@@ -46,7 +47,7 @@ public class RunStateTests(ITestOutputHelper output)
     public void AskingWhetherARunHasStateDoesNotGiveItSome()
     {
         // A cleanup step must not open a browser in order to find out that no browser was opened.
-        RunState state = new RunState();
+        RunState state = new RunState(new RunWriteGate().Unrestricted, new ScopedLogger(null));
 
         Assert.False(state.TryGet(out Sessions? absent));
         Assert.Null(absent);
@@ -62,7 +63,7 @@ public class RunStateTests(ITestOutputHelper output)
     {
         // The guarantee, not an optimisation: a run that opened two browsers because two steps asked at the
         // same moment would be worse than one that opened none.
-        RunState state = new RunState();
+        RunState state = new RunState(new RunWriteGate().Unrestricted, new ScopedLogger(null));
         int built = 0;
 
         Sessions[] found = [.. Enumerable

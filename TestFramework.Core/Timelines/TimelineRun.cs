@@ -26,16 +26,17 @@ public class TimelineRun : IFreezable
     public bool IsFrozen { get; private set; }
 
     /// <summary>
-    /// Freezes the run result and all runtime stores it exposes.
+    /// Freezes the run result and finishes the run, so none of its live state takes another write.
     /// </summary>
+    /// <remarks>
+    /// One call closes every channel - variables, artifacts, run state, effective settings, resource values,
+    /// environment state and widgets - because they all ask the run's one gate. Before, this listed a freeze per
+    /// store, and a channel nobody added to the list stayed writable on a finished run.
+    /// </remarks>
     public void Freeze()
     {
         IsFrozen = true;
-        ArtifactStore.FreezeForRunEnd();
-        VariableStore.FreezeForRunEnd();
-        EnvironmentContext.Freeze();
-        Values.FreezeForRunEnd();
-        EffectiveSettings.FreezeForRunEnd();
+        _writeGate.Finish(_logger ?? new ScopedLogger(null));
         Stages.Freeze();
     }
 
@@ -81,8 +82,9 @@ public class TimelineRun : IFreezable
 
     private readonly ScopedLogger? _logger;
 
-    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, EnvComponentContext environmentContext, ValueResolution values, ScopedLogger? logger = null)
+    internal TimelineRun(Timeline timeline, FreezableCollection<StageInstance> stages, ArtifactStore artifactStore, VariableStore variableStore, EnvComponentContext environmentContext, ValueResolution values, RunWriteGate writeGate, ScopedLogger? logger = null)
     {
+        _writeGate = writeGate;
         Timeline = timeline;
         Stages = stages;
         ArtifactStore = artifactStore;
@@ -91,6 +93,8 @@ public class TimelineRun : IFreezable
         Values = values;
         _logger = logger;
     }
+
+    private readonly RunWriteGate _writeGate;
 
     private bool TryGetWithLabel(string label, out List<StepInstanceGeneric> steps)
     {

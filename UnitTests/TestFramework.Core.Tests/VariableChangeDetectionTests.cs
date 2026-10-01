@@ -6,6 +6,7 @@ using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -117,7 +118,7 @@ public sealed class VariableChangeDetectionTests
     {
         // The capture gate has to come before the fingerprint, or every run pays to serialize every
         // value it ever writes.
-        VariableStore store = new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()));
+        VariableStore store = new(new ScopedLogger(null), new DebuggingRunSession(new EmptyRunDebugger()), new RunWriteGate());
 
         store.SetVariable("value", new ThrowsWhenSerialized());
     }
@@ -133,7 +134,7 @@ public sealed class VariableChangeDetectionTests
         DebuggingRunSession session = new(debugger);
         await session.InitSessionAsync(EmptyStructure());
 
-        VariableStore store = new(new ScopedLogger(null), session);
+        VariableStore store = new(new ScopedLogger(null), session, new RunWriteGate());
         writes(store);
 
         await session.FinishSessionAsync();

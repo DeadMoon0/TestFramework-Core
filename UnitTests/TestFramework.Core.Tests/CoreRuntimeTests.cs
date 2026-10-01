@@ -10,6 +10,7 @@ using TestFramework.Core.Variables;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Exceptions;
 using Newtonsoft.Json.Linq;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -121,7 +122,7 @@ public class CoreRuntimeTests
 
         private RuntimeContext()
         {
-            VariableStore = new VariableStore(Logger, DebuggingSession);
+            VariableStore = new VariableStore(Logger, DebuggingSession, new RunWriteGate());
         }
 
         public static RuntimeContext Create() => new();

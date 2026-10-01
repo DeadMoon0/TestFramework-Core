@@ -7,6 +7,8 @@ using TestFramework.Core.Debugger;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
+using TestFramework.Core.Runner;
+using TestFramework.Core.Logging;
 
 namespace TestFramework.Core.Tests;
 
@@ -65,8 +67,9 @@ public sealed class WidgetTests : IDisposable
         // deadline kept dropping pictures into the run's output, attributed as if they mattered.
         DebuggingRunSession session = new(new EmptyRunDebugger());
         Logging.ScopedLogger logger = Logging.ScopedLogger.CreateWithDebuggerSession(session);
-        Variables.VariableStore variables = new(logger, session);
-        Artifacts.ArtifactStore artifacts = new(logger, session);
+        RunWriteGate runGate = new();
+        Variables.VariableStore variables = new(logger, session, runGate);
+        Artifacts.ArtifactStore artifacts = new(logger, session, runGate);
         StepAttemptGate gate = new();
 
         StepAttempt abandoned = gate.Begin("slow-step", 1);
@@ -75,7 +78,7 @@ public sealed class WidgetTests : IDisposable
             variables.ForAttempt(gate, abandoned),
             artifacts.ForAttempt(gate, abandoned),
             logger,
-            Environment.Graph.RunResources.Compose(new EmptyServiceProvider(), environment: null).Resolution,
+            Environment.Graph.RunResources.Compose(new EmptyServiceProvider(), environment: null, new RunWriteGate().Unrestricted, new ScopedLogger(null)).Resolution,
             StepDeadline.Start(System.Threading.Timeout.InfiniteTimeSpan, default),
             abandoned);
 

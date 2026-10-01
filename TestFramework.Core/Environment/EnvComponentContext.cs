@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Environment;
 
@@ -21,44 +23,38 @@ namespace TestFramework.Core.Environment;
 /// </remarks>
 public class EnvComponentContext
 {
-    private readonly FreezableDictionary<EnvComponentIdentifier, object?> _states = [];
-    private readonly FreezableDictionary<EnvComponentIdentifier, EnvComponentScope> _scopes = [];
-    private readonly FreezableCollection<EnvComponentIdentifier> _creationOrder = [];
+    private readonly object syncRoot = new object();
+    private readonly Dictionary<EnvComponentIdentifier, object?> _states = [];
+    private readonly Dictionary<EnvComponentIdentifier, EnvComponentScope> _scopes = [];
+    private readonly List<EnvComponentIdentifier> _creationOrder = [];
+    private readonly RunWriter writer;
+    private readonly ScopedLogger logger;
 
     /// <summary>
-    /// Gets a value indicating whether the context has been frozen against further mutation.
+    /// The run's record of its environment components, written as the run itself.
     /// </summary>
-    public bool IsFrozen { get; private set; }
-
-    /// <summary>
-    /// Freezes the component context when its run ends.
-    /// </summary>
-    /// <remarks>
-    /// Internal: a caller able to freeze a <em>running</em> run's component context would make every later
-    /// component creation fail, which is the same damage the stores are protected from and closed the
-    /// same way - the run settles its own record when it ends, and nothing else may.
-    /// </remarks>
-    internal void Freeze()
+    /// <param name="writer">Who writes it.</param>
+    /// <param name="logger">Where a refused write is reported.</param>
+    internal EnvComponentContext(RunWriter writer, ScopedLogger logger)
     {
-        IsFrozen = true;
-        _states.Freeze();
-        _scopes.Freeze();
-        _creationOrder.Freeze();
+        this.writer = writer;
+        this.logger = logger;
     }
 
     internal void SetState(EnvComponentIdentifier identifier, object? state, EnvComponentScope scope)
     {
-        if (IsFrozen) throw new Exceptions.FrameworkStateException("This instance has been frozen and is read-only.");
-        _states[identifier] = state;
-        _scopes[identifier] = scope;
+        if (!writer.TryAdmit(RunChannel.EnvironmentState, identifier.ToString(), logger, out RunWriteTicket? ticket))
+            return;
 
-        foreach (EnvComponentIdentifier created in _creationOrder)
+        using (ticket)
+        lock (syncRoot)
         {
-            if (created == identifier)
-                return;
-        }
+            _states[identifier] = state;
+            _scopes[identifier] = scope;
 
-        _creationOrder.Add(identifier);
+            if (!_creationOrder.Contains(identifier))
+                _creationOrder.Add(identifier);
+        }
     }
 
     internal IReadOnlyList<EnvComponentIdentifier> GetCreationOrder() => [.. _creationOrder];

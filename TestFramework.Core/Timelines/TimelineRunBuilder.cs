@@ -32,6 +32,11 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     private readonly EnvComponentContext _environmentContext;
 
     /// <summary>
+    /// The one gate every channel of this run's live state asks before a write.
+    /// </summary>
+    private readonly RunWriteGate _writeGate = new RunWriteGate();
+
+    /// <summary>
     /// Where an environment component publishes what it started. Set when the run composes its resources,
     /// which happens before the stages are built.
     /// </summary>
@@ -72,9 +77,9 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         _debuggingSession.CaptureIdentity(sourceFilePath, sourceLineNumber);
         logger = ScopedLogger.CreateWithDebuggerSession(_debuggingSession);
 
-        _newArtifactStore = new ArtifactStore(logger, _debuggingSession);
-        _newVariableStore = new VariableStore(logger, _debuggingSession);
-        _environmentContext = new EnvComponentContext();
+        _newArtifactStore = new ArtifactStore(logger, _debuggingSession, _writeGate);
+        _newVariableStore = new VariableStore(logger, _debuggingSession, _writeGate);
+        _environmentContext = new EnvComponentContext(_writeGate.Unrestricted, logger);
     }
 
     private void EnsureNotAlreadyUsed(string operation)
@@ -94,7 +99,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // Composed and validated before anything runs: a route to a value nothing offers, or two resources
         // waiting on each other, is a sentence at plan time rather than a step timing out later against an
         // address nobody supplied.
-        RunResources resources = RunResources.Compose(runServiceProvider, _environment);
+        RunResources resources = RunResources.Compose(runServiceProvider, _environment, _writeGate.Unrestricted, logger);
 
         // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
         // which is the same values without the ability to write them.
@@ -102,7 +107,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
-        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, logger);
+        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger);
 
         await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
         await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
@@ -206,12 +211,13 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             if (failures > 0)
                 logger.LogWarning("A debugger failed {0} time(s) while watching this run, and the run carried on without it. The first failure:\n{1}", failures, firstFailure!.ToString());
 
+            // Inside the finally: a run that did not come back normally is still over, and what it
+            // hands out must still be a snapshot rather than stores that take writes. Before the session
+            // closes, so there is no moment when the stores take a write whose signal has nowhere to go.
+            newRun.Freeze();
+
             await _debuggingSession.FinishSessionAsync();
             _ownedDebuggerResources?.Dispose();
-
-            // Inside the finally: a run that did not come back normally is still over, and what it
-            // hands out must still be a snapshot rather than stores that take writes.
-            newRun.Freeze();
         }
         return newRun;
     }

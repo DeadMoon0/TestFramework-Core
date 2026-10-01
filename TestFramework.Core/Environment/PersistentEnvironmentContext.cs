@@ -11,6 +11,7 @@ using TestFramework.Core.Exceptions;
 using TestFramework.Core.Environment.Internal;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Environment;
 
@@ -59,7 +60,13 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _persistentServiceProvider = persistentServiceProvider ?? new EmptyServiceProvider();
         _persistentSetupTimeout = ValidatePersistentSetupTimeout(_setup.GetPersistentSetupTimeout());
         _bootstrapEnvironment = _setup.CreateEnvironment();
-        _persistentPublishing = new ResourcePublishing(RunResources.Compose(_persistentServiceProvider, _bootstrapEnvironment).Values);
+        _persistentPublishing = new ResourcePublishing(RunResources.Compose(
+            _persistentServiceProvider,
+            _bootstrapEnvironment,
+            // The persistent slice outlives every run built on it, so nothing finishes its values; and an
+            // unfinished gate's run-level writer refuses nothing, so there is nothing to log.
+            new RunWriteGate().Unrestricted,
+            new ScopedLogger(null)).Values);
 
         _persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
         ValidatePersistentClosure(_bootstrapEnvironment, _persistentRoots);
@@ -216,8 +223,9 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     {
         DebuggingRunSession debuggingSession = new(CommonDebugger.GetCommon(_persistentServiceProvider, null));
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(debuggingSession);
-        VariableStore variableStore = new(logger, debuggingSession);
-        ArtifactStore artifactStore = new(logger, debuggingSession);
+        RunWriteGate gate = new RunWriteGate();
+        VariableStore variableStore = new(logger, debuggingSession, gate);
+        ArtifactStore artifactStore = new(logger, debuggingSession, gate);
 
         // The context's deadline arms itself; arming a token here first, as this did, put the cancellation
         // ahead of the clock that is supposed to say when the time is up.
@@ -265,8 +273,9 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
         DebuggingRunSession debuggingSession = new(CommonDebugger.GetCommon(_persistentServiceProvider, null));
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(debuggingSession);
-        VariableStore variableStore = new(logger, debuggingSession);
-        ArtifactStore artifactStore = new(logger, debuggingSession);
+        RunWriteGate gate = new RunWriteGate();
+        VariableStore variableStore = new(logger, debuggingSession, gate);
+        ArtifactStore artifactStore = new(logger, debuggingSession, gate);
 
         // Teardown has no deadline: cutting a release short is how a resource is stranded, which is the
         // thing this path exists to prevent.

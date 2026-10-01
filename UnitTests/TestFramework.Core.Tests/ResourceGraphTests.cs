@@ -8,6 +8,7 @@ using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using Xunit;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -152,7 +153,7 @@ public class ResourceGraphTests
     public void ANodeCannotProduceWhatItNeverOffered()
     {
         // Otherwise plan-time validation would be a promise the run does not keep.
-        ResourceValueStore values = new ResourceValueStore();
+        ResourceValueStore values = new ResourceValueStore(new RunWriteGate().Unrestricted, new ScopedLogger(null));
         StartedNode node = new StartedNode(Sql, "orders-db");
 
         NodeContext context = new NodeContext(
@@ -205,7 +206,7 @@ public class ResourceGraphTests
     public void ANodeCannotReachWhatItNeverDeclared()
     {
         // The honesty rule: an undeclared read is a dependency the graph cannot order or validate.
-        ResourceValueStore values = new ResourceValueStore();
+        ResourceValueStore values = new ResourceValueStore(new RunWriteGate().Unrestricted, new ScopedLogger(null));
         values.Produce(Sql.Name, "orders-db", new ValueKey(ValueNames.ConnectionString, ResourceVantage.Network), "Server=orders-db", "env", secret: false);
 
         ConnectionSet connections = new ConnectionSet(
@@ -224,7 +225,7 @@ public class ResourceGraphTests
     [Fact]
     public void ADeclaredNeighbourThatNeverSuppliedTheValueSaysWhatItDidSupply()
     {
-        ResourceValueStore values = new ResourceValueStore();
+        ResourceValueStore values = new ResourceValueStore(new RunWriteGate().Unrestricted, new ScopedLogger(null));
         values.Produce(Sql.Name, "orders-db", new ValueKey("DatabaseName"), "orders", "env", secret: false);
 
         ConnectionSet connections = new ConnectionSet(

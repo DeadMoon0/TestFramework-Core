@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Runner;
 
 namespace TestFramework.Core.Tests;
 
@@ -112,6 +113,6 @@ public class VariableReferenceTests
     {
         ScopedLogger logger = new(null);
         DebuggingRunSession session = new(new EmptyRunDebugger());
-        return new VariableStore(logger, session);
+        return new VariableStore(logger, session, new RunWriteGate());
     }
 }

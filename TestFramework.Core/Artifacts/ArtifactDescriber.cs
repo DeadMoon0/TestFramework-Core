@@ -44,22 +44,6 @@ public abstract class ArtifactDescriber<TArtifactDescriber, TArtifactData, TArti
 public abstract class ArtifactDescriberGeneric
 {
     /// <summary>
-    /// Gets a value indicating whether the describer has been frozen against further mutation.
-    /// </summary>
-    public bool IsFrozen { get; private set; }
-
-    /// <summary>
-    /// Freezes the describer when its run ends, like every other part of an artifact.
-    /// </summary>
-    /// <remarks>
-    /// Internal for the same reason the reference's is - the public <see cref="IFreezable"/> hands the
-    /// call out to any package through a cast. A describer is behaviour rather than state, so this settles
-    /// nothing today - it is here so that "a frozen artifact is frozen all the way down" stays true if a
-    /// describer ever holds something.
-    /// </remarks>
-    internal void FreezeForRunEnd() { IsFrozen = true; }
-
-    /// <summary>
     /// Gets how setup for this artifact kind may be parallelized.
     /// </summary>
     public virtual ArtifactSetupParallelizationMode SetupParallelization => ArtifactSetupParallelizationMode.AllowParallel;

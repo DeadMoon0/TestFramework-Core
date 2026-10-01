@@ -5,6 +5,7 @@ using TestFramework.Core;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
@@ -17,44 +18,17 @@ public class ArtifactStore
 {
     private readonly object syncRoot;
 
-    /// <summary>
-    /// Gets a value indicating whether the artifact store has been frozen against further mutation.
-    /// </summary>
-    public bool IsFrozen => _artifacts.IsFrozen;
-
-    /// <summary>
-    /// Freezes the artifact store and everything it holds when its run ends.
-    /// </summary>
-    /// <remarks>
-    /// Internal, and the store deliberately does not implement the public <see cref="IFreezable"/>: that
-    /// interface's <c>Freeze</c> is reachable through a cast from any package, and a caller able to freeze
-    /// a <em>running</em> run's artifacts would turn every later capture into a failure. Each held
-    /// instance settles here too - its versions, its reference and its describer - because the instances
-    /// stopped implementing the public interface for the same reason, and a frozen store whose artifacts
-    /// could still be re-pinned would be frozen in name only.
-    /// </remarks>
-    internal void FreezeForRunEnd()
-    {
-        lock (syncRoot)
-        {
-            foreach (ArtifactInstanceGeneric instance in _artifacts.Values)
-                instance.FreezeForRunEnd();
-
-            _artifacts.Freeze();
-        }
-    }
-
-    private readonly FreezableDictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts;
+    private readonly Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric> _artifacts;
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
     /// <summary>
-    /// Whether writes through this view of the store still count.
+    /// Who this view writes as.
     /// </summary>
     /// <remarks>
     /// Unrestricted on the run's own store: an artifact seeded before the run starts belongs to no step.
     /// </remarks>
-    private readonly StepWriteLicence licence;
+    private readonly RunWriter writer;
 
     /// <summary>
     /// A view of this store that writes on behalf of one attempt at one step.
@@ -69,32 +43,25 @@ public class ArtifactStore
     /// <param name="attempt">The attempt this view writes for.</param>
     /// <returns>The view.</returns>
     internal ArtifactStore ForAttempt(StepAttemptGate gate, StepAttempt attempt)
-        => new ArtifactStore(this, gate, attempt);
+        => new ArtifactStore(this, this.writer.Gate.For(gate, attempt));
 
-    private ArtifactStore(ArtifactStore source, StepAttemptGate gate, StepAttempt attempt)
+    private ArtifactStore(ArtifactStore source, RunWriter writer)
     {
         // Shared by reference on purpose: one store, many writers, each able to say who it is.
         this.syncRoot = source.syncRoot;
         this._artifacts = source._artifacts;
         this.logger = source.logger;
         this.debuggingSession = source.debuggingSession;
-        this.licence = StepWriteLicence.For(gate, attempt);
+        this.writer = writer;
     }
 
-    internal ArtifactStore(ScopedLogger logger, DebuggingRunSession debuggingSession)
+    internal ArtifactStore(ScopedLogger logger, DebuggingRunSession debuggingSession, RunWriteGate gate)
     {
         this.syncRoot = new object();
         this._artifacts = [];
         this.logger = logger;
         this.debuggingSession = debuggingSession;
-        this.licence = StepWriteLicence.Unrestricted;
-    }
-
-    /// <summary>
-    /// The only ticket there is. Private, so nothing else can name it, let alone make one.
-    /// </summary>
-    private sealed class Ticket : ArtifactWriteTicket
-    {
+        this.writer = gate.Unrestricted;
     }
 
     /// <summary>
@@ -186,9 +153,9 @@ public class ArtifactStore
     /// </para>
     /// <para>
     /// The write still goes through the one funnel — an abandoned attempt's capture is refused by the
-    /// licence, and a finished run's store refuses outright — and being public adds two refusals the
+    /// gate, and a finished run's store refuses outright — and being public adds two refusals the
     /// internal callers never needed. An instance this store does not hold is refused, because the
-    /// licence and freeze judged here are <em>this</em> run's: accepted, a caller could version another
+    /// admission judged here are <em>this</em> run's: accepted, a caller could version another
     /// run's artifact past that run's own gates. And data of a foreign artifact kind is refused, because
     /// the typed version reads cast — a foreign payload would surface as an
     /// <see cref="InvalidCastException"/> at whichever read touches it first, far from the mistake.
@@ -273,23 +240,24 @@ public class ArtifactStore
     /// The one place a change to the run's artifacts happens.
     /// </summary>
     /// <remarks>
-    /// One licence check, one ticket, one publication. Every write is expressed as <em>what</em> changes;
+    /// One admission, one ticket, one publication. Every write is expressed as <em>what</em> changes;
     /// none of them decides <em>whether</em> it may, which is why a new kind of write cannot arrive
     /// without the check.
     /// </remarks>
     /// <param name="target">What is being written, for the warning a refused write produces.</param>
     /// <param name="change">The change to make.</param>
     /// <param name="published">The artifact to publish afterwards, or null when there is nothing to show yet.</param>
-    private void Write(ArtifactIdentifier target, Action<ArtifactWriteTicket> change, ArtifactInstanceGeneric? published)
+    private void Write(ArtifactIdentifier target, Action<RunWriteTicket> change, ArtifactInstanceGeneric? published)
     {
-        // An attempt the runner has stopped waiting for is still running, and it must not be able to
-        // reach the stores a later test reads.
-        if (!licence.Allows(logger, target.Identifier))
+        // The run's gate decides, as it does for every channel: an attempt the runner has stopped waiting
+        // for must not reach the stores a later test reads, and a finished run takes nothing new.
+        if (!writer.TryAdmit(RunChannel.Artifact, target.Identifier, logger, out RunWriteTicket? ticket))
             return;
 
-        // Legal here and nowhere else: a nested type's private constructor is reachable from the type
-        // that encloses it, and from nothing further out.
-        change(new Ticket());
+        using (ticket)
+        {
+            change(ticket);
+        }
 
         // Building the debug state serialises the reference and the data. Skip it when nothing reads it.
         if (published is null || !debuggingSession.IsCapturing)
@@ -301,7 +269,7 @@ public class ArtifactStore
         debuggingSession.PublishArtifactUpdate(published.Identifier, WithBody(GetDebuggingStateFromInstance(published), published));
     }
 
-    private void Hold(ArtifactInstanceGeneric instance, ArtifactWriteTicket ticket)
+    private void Hold(ArtifactInstanceGeneric instance, RunWriteTicket ticket)
     {
         ArgumentNullException.ThrowIfNull(ticket);
 
