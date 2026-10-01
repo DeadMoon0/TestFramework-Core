@@ -192,11 +192,13 @@ public class ArtifactHookContextTests(ITestOutputHelper output)
 
         protected override IEnumerable<DeclaredResource> Declarations =>
         [
-            new DeclaredResource(
-                kind,
-                identifier,
-                new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.ConnectionString)] = connectionString },
-                this.SourceName),
+            new DeclaredResource
+            {
+                Kind = kind,
+                Identifier = identifier,
+                Values = new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.ConnectionString)] = connectionString },
+                DeclaredBy = this.SourceName,
+            },
         ];
     }
 

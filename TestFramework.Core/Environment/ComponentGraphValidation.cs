@@ -8,45 +8,106 @@ namespace TestFramework.Core.Environment;
 /// <summary>
 /// Represents one dependency edge in a resolved component graph.
 /// </summary>
-/// <param name="ComponentType">The dependent component type.</param>
-/// <param name="RealizedComponentIdentity">The realized identity of the dependency instance.</param>
-/// <param name="Ownership">Whether the dependency may be shared or must remain isolated.</param>
-public sealed record ComponentGraphDependency(
-    Type ComponentType,
-    string RealizedComponentIdentity,
-    DependencyOwnership Ownership = DependencyOwnership.Shared);
+public sealed record ComponentGraphDependency
+{
+    /// <summary>
+    /// The dependent component type.
+    /// </summary>
+    public required Type ComponentType { get; init; }
+
+    /// <summary>
+    /// The realized identity of the dependency instance.
+    /// </summary>
+    public required string RealizedComponentIdentity { get; init; }
+
+    /// <summary>
+    /// Whether the dependency may be shared or must remain isolated.
+    /// </summary>
+    public DependencyOwnership Ownership { get; init; } = DependencyOwnership.Shared;
+}
 
 /// <summary>
 /// Represents one resolved component node used for graph validation and contract binding.
 /// </summary>
-/// <param name="ComponentType">The concrete component type.</param>
-/// <param name="RealizedComponentIdentity">The realized identity of this component instance.</param>
-/// <param name="Dependencies">Resolved dependency edges for this component.</param>
-/// <param name="Provides">Contracts this component provides.</param>
-/// <param name="Requires">Contracts this component requires.</param>
-public sealed record ComponentGraphNode(
-    Type ComponentType,
-    string RealizedComponentIdentity,
-    IReadOnlyCollection<ComponentGraphDependency> Dependencies,
-    IReadOnlyCollection<IEnvironmentResourceContract> Provides,
-    IReadOnlyCollection<IEnvironmentResourceContract> Requires);
+public sealed record ComponentGraphNode
+{
+    /// <summary>
+    /// The concrete component type.
+    /// </summary>
+    public required Type ComponentType { get; init; }
+
+    /// <summary>
+    /// The realized identity of this component instance.
+    /// </summary>
+    public required string RealizedComponentIdentity { get; init; }
+
+    /// <summary>
+    /// Resolved dependency edges for this component.
+    /// </summary>
+    public required IReadOnlyCollection<ComponentGraphDependency> Dependencies { get; init; }
+
+    /// <summary>
+    /// Contracts this component provides.
+    /// </summary>
+    public required IReadOnlyCollection<IEnvironmentResourceContract> Provides { get; init; }
+
+    /// <summary>
+    /// Contracts this component requires.
+    /// </summary>
+    public required IReadOnlyCollection<IEnvironmentResourceContract> Requires { get; init; }
+}
 
 /// <summary>
 /// Represents a successful binding between a required contract and a providing component.
 /// </summary>
-/// <param name="ConsumerComponentType">The consuming component type.</param>
-/// <param name="ConsumerIdentity">The realized identity of the consuming component.</param>
-/// <param name="Requirement">The required contract.</param>
-/// <param name="ProviderComponentType">The providing component type.</param>
-/// <param name="ProviderIdentity">The realized identity of the providing component.</param>
-/// <param name="ProviderContract">The matched provider contract.</param>
-public sealed record ComponentContractBinding(
-    Type ConsumerComponentType,
-    string ConsumerIdentity,
-    IEnvironmentResourceContract Requirement,
-    Type ProviderComponentType,
-    string ProviderIdentity,
-    IEnvironmentResourceContract ProviderContract);
+public sealed record ComponentContractBinding
+{
+    internal ComponentContractBinding(
+        Type consumerComponentType,
+        string consumerIdentity,
+        IEnvironmentResourceContract requirement,
+        Type providerComponentType,
+        string providerIdentity,
+        IEnvironmentResourceContract providerContract)
+    {
+        this.ConsumerComponentType = consumerComponentType;
+        this.ConsumerIdentity = consumerIdentity;
+        this.Requirement = requirement;
+        this.ProviderComponentType = providerComponentType;
+        this.ProviderIdentity = providerIdentity;
+        this.ProviderContract = providerContract;
+    }
+
+    /// <summary>
+    /// The consuming component type.
+    /// </summary>
+    public Type ConsumerComponentType { get; internal init; }
+
+    /// <summary>
+    /// The realized identity of the consuming component.
+    /// </summary>
+    public string ConsumerIdentity { get; internal init; }
+
+    /// <summary>
+    /// The required contract.
+    /// </summary>
+    public IEnvironmentResourceContract Requirement { get; internal init; }
+
+    /// <summary>
+    /// The providing component type.
+    /// </summary>
+    public Type ProviderComponentType { get; internal init; }
+
+    /// <summary>
+    /// The realized identity of the providing component.
+    /// </summary>
+    public string ProviderIdentity { get; internal init; }
+
+    /// <summary>
+    /// The matched provider contract.
+    /// </summary>
+    public IEnvironmentResourceContract ProviderContract { get; internal init; }
+}
 
 /// <summary>
 /// Validates resolved component graphs before any instances are created.

@@ -291,11 +291,13 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
 
         protected override IEnumerable<DeclaredResource> Declarations =>
         [
-            new DeclaredResource(
-                kind,
-                identifier,
-                new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.ConnectionString)] = connectionString },
-                this.SourceName),
+            new DeclaredResource
+            {
+                Kind = kind,
+                Identifier = identifier,
+                Values = new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.ConnectionString)] = connectionString },
+                DeclaredBy = this.SourceName,
+            },
         ];
     }
 
@@ -306,11 +308,13 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
 
         protected override IEnumerable<DeclaredResource> Declarations =>
         [
-            new DeclaredResource(
-                kind,
-                identifier,
-                new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.BaseUrl)] = "http://localhost:1/" },
-                this.SourceName),
+            new DeclaredResource
+            {
+                Kind = kind,
+                Identifier = identifier,
+                Values = new Dictionary<ValueKey, string> { [new ValueKey(ValueNames.BaseUrl)] = "http://localhost:1/" },
+                DeclaredBy = this.SourceName,
+            },
         ];
     }
 

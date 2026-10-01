@@ -1,9 +1,12 @@
+using TestFramework.Core.Conventions;
+
 namespace TestFramework.Core.Environment;
 
 /// <summary>
 /// Identifies an environment component.
 /// </summary>
 /// <param name="Identifier">The underlying component key.</param>
+[ClosedShape("An identifier is its name; anything more about a component belongs on the component.")]
 public record EnvComponentIdentifier(string Identifier)
 {
     /// <summary>

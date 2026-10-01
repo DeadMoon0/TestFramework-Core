@@ -26,10 +26,16 @@ public class DeclaredNodeSourceTests
         [
             new HandBuiltSource("a fixture",
             [
-                new DeclaredResource(Sql, "orders-db", new Dictionary<ValueKey, string>
+                new DeclaredResource
                 {
-                    [new ValueKey("DatabaseName")] = "orders",
-                }, "a fixture"),
+                    Kind = Sql,
+                    Identifier = "orders-db",
+                    Values = new Dictionary<ValueKey, string>
+                    {
+                        [new ValueKey("DatabaseName")] = "orders",
+                    },
+                    DeclaredBy = "a fixture",
+                },
             ]),
         ]);
 
@@ -47,10 +53,16 @@ public class DeclaredNodeSourceTests
         // mistake whether it comes from configuration, a fixture, or somebody's own plug-in.
         HandBuiltSource source = new HandBuiltSource("somebody's own plug-in",
         [
-            new DeclaredResource(Sql, "orders-db", new Dictionary<ValueKey, string>
+            new DeclaredResource
             {
-                [new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host)] = "https://nope.test/",
-            }, "somebody's own plug-in"),
+                Kind = Sql,
+                Identifier = "orders-db",
+                Values = new Dictionary<ValueKey, string>
+                {
+                    [new ValueKey(ValueNames.BaseUrl, ResourceVantage.Host)] = "https://nope.test/",
+                },
+                DeclaredBy = "somebody's own plug-in",
+            },
         ]);
 
         FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(() => _ = source.Nodes);
@@ -67,7 +79,7 @@ public class DeclaredNodeSourceTests
         // against, so the engine reads it once.
         HandBuiltSource source = new HandBuiltSource("a fixture",
         [
-            new DeclaredResource(Sql, "orders-db", new Dictionary<ValueKey, string>(), "a fixture"),
+            new DeclaredResource { Kind = Sql, Identifier = "orders-db", Values = new Dictionary<ValueKey, string>(), DeclaredBy = "a fixture" },
         ]);
 
         _ = source.Nodes;

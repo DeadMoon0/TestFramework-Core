@@ -17,20 +17,54 @@ public enum ValueOrigin
 /// <summary>
 /// One value of one resource, with everything a failure message needs to explain it.
 /// </summary>
-/// <param name="ResourceKind">The kind that owns it, for example <c>web.sql</c>.</param>
-/// <param name="Identifier">Which one, for example <c>orders-db</c>.</param>
-/// <param name="Key">Which value, and for whose viewpoint.</param>
-/// <param name="Value">The value itself.</param>
-/// <param name="Origin">Whether it was declared or produced.</param>
-/// <param name="Source">Who supplied it - an environment's name, or the configuration section.</param>
-public sealed record ResolvedValue(
-    string ResourceKind,
-    string Identifier,
-    ValueKey Key,
-    string Value,
-    ValueOrigin Origin,
-    string Source)
+public sealed record ResolvedValue
 {
+    internal ResolvedValue(
+        string resourceKind,
+        string identifier,
+        ValueKey key,
+        string value,
+        ValueOrigin origin,
+        string source)
+    {
+        this.ResourceKind = resourceKind;
+        this.Identifier = identifier;
+        this.Key = key;
+        this.Value = value;
+        this.Origin = origin;
+        this.Source = source;
+    }
+
+    /// <summary>
+    /// The kind that owns it, for example <c>web.sql</c>.
+    /// </summary>
+    public string ResourceKind { get; internal init; }
+
+    /// <summary>
+    /// Which one, for example <c>orders-db</c>.
+    /// </summary>
+    public string Identifier { get; internal init; }
+
+    /// <summary>
+    /// Which value, and for whose viewpoint.
+    /// </summary>
+    public ValueKey Key { get; internal init; }
+
+    /// <summary>
+    /// The value itself.
+    /// </summary>
+    public string Value { get; internal init; }
+
+    /// <summary>
+    /// Whether it was declared or produced.
+    /// </summary>
+    public ValueOrigin Origin { get; internal init; }
+
+    /// <summary>
+    /// Who supplied it - an environment's name, or the configuration section.
+    /// </summary>
+    public string Source { get; internal init; }
+
     /// <summary>
     /// Whether <see cref="Value"/> has been redacted because its kind declared it secret.
     /// </summary>

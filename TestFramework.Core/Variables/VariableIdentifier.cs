@@ -1,9 +1,12 @@
-﻿namespace TestFramework.Core.Variables;
+﻿using TestFramework.Core.Conventions;
+
+namespace TestFramework.Core.Variables;
 
 /// <summary>
 /// Identifies a variable within a timeline definition and run.
 /// </summary>
 /// <param name="Identifier">The underlying variable key.</param>
+[ClosedShape("An identifier is its name; anything more about a variable belongs on the variable.")]
 public record VariableIdentifier(string Identifier)
 {
     /// <summary>

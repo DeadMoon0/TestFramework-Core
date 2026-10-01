@@ -11,13 +11,25 @@ namespace TestFramework.Core.Conventions;
 /// <summary>
 /// What a convention check looked at, so a caller can see what it did not.
 /// </summary>
-/// <param name="Checked">How many types were actually checked.</param>
-/// <param name="Skipped">
-/// The types the check could not reach, each with the reason. A check that quietly passes over what it
-/// cannot construct reads as "all clear" when it means "I looked at four of forty".
-/// </param>
-public sealed record ConventionReport(int Checked, IReadOnlyList<string> Skipped)
+public sealed record ConventionReport
 {
+    internal ConventionReport(int @checked, IReadOnlyList<string> skipped)
+    {
+        this.Checked = @checked;
+        this.Skipped = skipped;
+    }
+
+    /// <summary>
+    /// How many types were actually checked.
+    /// </summary>
+    public int Checked { get; internal init; }
+
+    /// <summary>
+    /// The types the check could not reach, each with the reason. A check that quietly passes over what it
+    /// cannot construct reads as "all clear" when it means "I looked at four of forty".
+    /// </summary>
+    public IReadOnlyList<string> Skipped { get; internal init; }
+
     /// <summary>
     /// Reads as <c>checked 12, skipped 3</c>, for a suite that wants to log what ran.
     /// </summary>

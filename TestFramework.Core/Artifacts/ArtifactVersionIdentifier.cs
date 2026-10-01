@@ -1,9 +1,12 @@
-﻿namespace TestFramework.Core.Artifacts;
+﻿using TestFramework.Core.Conventions;
+
+namespace TestFramework.Core.Artifacts;
 
 /// <summary>
 /// Identifies a specific version of an artifact.
 /// </summary>
 /// <param name="Identifier">The underlying version key.</param>
+[ClosedShape("An identifier is its name; anything more about a version belongs on the version.")]
 public record ArtifactVersionIdentifier(string Identifier)
 {
     /// <summary>

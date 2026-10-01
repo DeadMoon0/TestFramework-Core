@@ -9,8 +9,30 @@ namespace TestFramework.Core.Exceptions;
 /// <summary>
 /// Carries the details of every step that did not complete successfully.
 /// </summary>
-public record FailedStepInfo(string StageName, string StepName, Exception? StepException)
+public record FailedStepInfo
 {
+    internal FailedStepInfo(string stageName, string stepName, Exception? stepException)
+    {
+        this.StageName = stageName;
+        this.StepName = stepName;
+        this.StepException = stepException;
+    }
+
+    /// <summary>
+    /// The stage the step belongs to.
+    /// </summary>
+    public string StageName { get; internal init; }
+
+    /// <summary>
+    /// The step, by its label or name.
+    /// </summary>
+    public string StepName { get; internal init; }
+
+    /// <summary>
+    /// What it threw, or <see langword="null"/> for a step that did not run.
+    /// </summary>
+    public Exception? StepException { get; internal init; }
+
     /// <summary>
     /// Why the step never ran, when it was skipped rather than failed; <see langword="null"/> for a step that
     /// ran and did not complete.

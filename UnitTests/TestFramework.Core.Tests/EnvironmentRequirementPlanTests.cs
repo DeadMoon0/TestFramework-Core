@@ -156,7 +156,7 @@ public class EnvironmentRequirementPlanTests
         public override string SourceName => sourceName;
 
         protected override IEnumerable<DeclaredResource> Declarations
-            => resources.Select(resource => new DeclaredResource(resource.Kind, resource.Identifier, new Dictionary<ValueKey, string>(), sourceName));
+            => resources.Select(resource => new DeclaredResource { Kind = resource.Kind, Identifier = resource.Identifier, Values = new Dictionary<ValueKey, string>(), DeclaredBy = sourceName });
     }
 
     /// <summary>

@@ -21,9 +21,18 @@ public enum DependencyOwnership
 /// <summary>
 /// Describes a dependency edge from one environment component to another.
 /// </summary>
-/// <param name="ComponentType">The concrete component definition type that should be resolved.</param>
-/// <param name="Ownership">How the dependency may be shared across dependents.</param>
-public sealed record ComponentDependency(Type ComponentType, DependencyOwnership Ownership = DependencyOwnership.Shared);
+public sealed record ComponentDependency
+{
+    /// <summary>
+    /// The concrete component definition type that should be resolved.
+    /// </summary>
+    public required Type ComponentType { get; init; }
+
+    /// <summary>
+    /// How the dependency may be shared across dependents.
+    /// </summary>
+    public DependencyOwnership Ownership { get; init; } = DependencyOwnership.Shared;
+}
 
 /// <summary>
 /// Marker interface for resource contracts used to match compatible providers and consumers.

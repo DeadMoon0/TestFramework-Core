@@ -1,4 +1,5 @@
 using System;
+using TestFramework.Core.Conventions;
 
 namespace TestFramework.Core.Environment;
 
@@ -7,6 +8,7 @@ namespace TestFramework.Core.Environment;
 /// </summary>
 /// <param name="ResourceKind">The logical resource kind, or <see cref="EnvironmentResourceKinds.Any"/>.</param>
 /// <param name="ResourceIdentifier">The specific resource identifier.</param>
+[ClosedShape("A requirement names a declared resource by its kind and identifier; what it needs from it is the resource's schema.")]
 public record EnvironmentRequirement(string ResourceKind, string ResourceIdentifier)
 {
     /// <summary>

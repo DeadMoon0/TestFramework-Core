@@ -218,12 +218,36 @@ public sealed class ResourceKindBuilder
 /// <summary>
 /// One value a kind offers, and the way to point at it on a particular instance.
 /// </summary>
-/// <param name="KindName">The kind that offers it.</param>
-/// <param name="ValueName">Which value.</param>
-/// <param name="PerVantage">True when it is built separately for each viewpoint.</param>
-/// <param name="Optional">True when an instance may legitimately not have it.</param>
-public sealed record ResourceValue(string KindName, string ValueName, bool PerVantage, bool Optional)
+public sealed record ResourceValue
 {
+    internal ResourceValue(string kindName, string valueName, bool perVantage, bool optional)
+    {
+        this.KindName = kindName;
+        this.ValueName = valueName;
+        this.PerVantage = perVantage;
+        this.Optional = optional;
+    }
+
+    /// <summary>
+    /// The kind that offers it.
+    /// </summary>
+    public string KindName { get; internal init; }
+
+    /// <summary>
+    /// Which value.
+    /// </summary>
+    public string ValueName { get; internal init; }
+
+    /// <summary>
+    /// True when it is built separately for each viewpoint.
+    /// </summary>
+    public bool PerVantage { get; internal init; }
+
+    /// <summary>
+    /// True when an instance may legitimately not have it.
+    /// </summary>
+    public bool Optional { get; internal init; }
+
     /// <summary>
     /// True when the value must never be printed wherever values are listed.
     /// </summary>

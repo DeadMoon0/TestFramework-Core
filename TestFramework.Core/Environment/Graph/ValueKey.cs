@@ -1,4 +1,5 @@
 using System;
+using TestFramework.Core.Conventions;
 
 namespace TestFramework.Core.Environment.Graph;
 
@@ -13,8 +14,18 @@ namespace TestFramework.Core.Environment.Graph;
 /// </remarks>
 /// <param name="ValueName">What the value is, from <see cref="ValueNames"/> or a package's own list.</param>
 /// <param name="Vantage">Whose viewpoint it is built for, or <see langword="null"/> when it does not depend on one.</param>
-public readonly record struct ValueKey(string ValueName, ResourceVantage? Vantage = null)
+[ClosedShape("A value is found by its name and the viewpoint it is for; nothing else distinguishes two values of one resource.")]
+public readonly record struct ValueKey(string ValueName, ResourceVantage? Vantage)
 {
+    /// <summary>
+    /// A value that reads the same from every viewpoint.
+    /// </summary>
+    /// <param name="valueName">What the value is.</param>
+    public ValueKey(string valueName)
+        : this(valueName, null)
+    {
+    }
+
     /// <summary>
     /// Reads as <c>BaseUrl (Network)</c>, or <c>DatabaseName</c> for a value with no vantage.
     /// </summary>

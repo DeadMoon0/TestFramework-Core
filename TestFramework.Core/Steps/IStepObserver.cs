@@ -6,11 +6,36 @@ namespace TestFramework.Core.Steps;
 /// <summary>
 /// What a step was, when something happened to it.
 /// </summary>
-/// <param name="Label">The step's label, or its name when it has none.</param>
-/// <param name="Name">The step's name.</param>
-/// <param name="StageName">The stage it ran in.</param>
-/// <param name="Attempt">Which attempt this was, counting from one.</param>
-public sealed record StepObservation(string Label, string Name, string StageName, int Attempt);
+public sealed record StepObservation
+{
+    internal StepObservation(string label, string name, string stageName, int attempt)
+    {
+        this.Label = label;
+        this.Name = name;
+        this.StageName = stageName;
+        this.Attempt = attempt;
+    }
+
+    /// <summary>
+    /// The step's label, or its name when it has none.
+    /// </summary>
+    public string Label { get; internal init; }
+
+    /// <summary>
+    /// The step's name.
+    /// </summary>
+    public string Name { get; internal init; }
+
+    /// <summary>
+    /// The stage it ran in.
+    /// </summary>
+    public string StageName { get; internal init; }
+
+    /// <summary>
+    /// Which attempt this was, counting from one.
+    /// </summary>
+    public int Attempt { get; internal init; }
+}
 
 /// <summary>
 /// Watches steps run, so evidence gathering lives beside the run rather than inside every step.

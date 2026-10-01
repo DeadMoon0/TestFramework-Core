@@ -8,15 +8,28 @@ namespace TestFramework.Core.Environment.Graph;
 /// <summary>
 /// A resource somebody wrote down: which kind it is, what it is called, and the values it holds.
 /// </summary>
-/// <param name="Kind">The kind, which decides what values it may hold.</param>
-/// <param name="Identifier">Which resource.</param>
-/// <param name="Values">What it holds - only what is actually there.</param>
-/// <param name="DeclaredBy">Where it came from, for a message: a configuration section, a fixture, a file.</param>
-public sealed record DeclaredResource(
-    ResourceKind Kind,
-    string Identifier,
-    IReadOnlyDictionary<ValueKey, string> Values,
-    string DeclaredBy);
+public sealed record DeclaredResource
+{
+    /// <summary>
+    /// The kind, which decides what values it may hold.
+    /// </summary>
+    public required ResourceKind Kind { get; init; }
+
+    /// <summary>
+    /// Which resource.
+    /// </summary>
+    public required string Identifier { get; init; }
+
+    /// <summary>
+    /// What it holds - only what is actually there.
+    /// </summary>
+    public required IReadOnlyDictionary<ValueKey, string> Values { get; init; }
+
+    /// <summary>
+    /// Where it came from, for a message: a configuration section, a fixture, a file.
+    /// </summary>
+    public required string DeclaredBy { get; init; }
+}
 
 /// <summary>
 /// The socket a package plugs declared resources into.

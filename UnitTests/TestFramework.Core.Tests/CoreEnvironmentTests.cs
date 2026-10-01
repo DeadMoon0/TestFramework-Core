@@ -282,7 +282,7 @@ public class CoreEnvironmentTests
             public override string SourceName => "requirement environment";
 
             protected override IEnumerable<DeclaredResource> Declarations
-                => [new DeclaredResource(ServiceBusKind, "bus", new Dictionary<ValueKey, string>(), this.SourceName)];
+                => [new DeclaredResource { Kind = ServiceBusKind, Identifier = "bus", Values = new Dictionary<ValueKey, string>(), DeclaredBy = this.SourceName }];
         }
     }
 

@@ -1,9 +1,12 @@
-﻿namespace TestFramework.Core.Artifacts;
+﻿using TestFramework.Core.Conventions;
+
+namespace TestFramework.Core.Artifacts;
 
 /// <summary>
 /// Identifies an artifact instance.
 /// </summary>
 /// <param name="Identifier">The underlying artifact key.</param>
+[ClosedShape("An identifier is its name; anything more about an artifact belongs on the artifact.")]
 public record ArtifactIdentifier(string Identifier)
 {
     /// <summary>

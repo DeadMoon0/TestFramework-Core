@@ -226,14 +226,16 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
 
             protected override IEnumerable<DeclaredResource> Declarations =>
             [
-                new DeclaredResource(
-                    Declared,
-                    "named",
-                    new Dictionary<ValueKey, string>
+                new DeclaredResource
+                {
+                    Kind = Declared,
+                    Identifier = "named",
+                    Values = new Dictionary<ValueKey, string>
                     {
                         [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "from-the-definition",
                     },
-                    "definition"),
+                    DeclaredBy = "definition",
+                },
             ];
         }
     }
@@ -259,14 +261,16 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
 
         protected override IEnumerable<DeclaredResource> Declarations =>
         [
-            new DeclaredResource(
-                Declared,
-                "named",
-                new Dictionary<ValueKey, string>
+            new DeclaredResource
+            {
+                Kind = Declared,
+                Identifier = "named",
+                Values = new Dictionary<ValueKey, string>
                 {
                     [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "written-down",
                 },
-                "configuration"),
+                DeclaredBy = "configuration",
+            },
         ];
     }
 
@@ -354,14 +358,16 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
 
         protected override IEnumerable<DeclaredResource> Declarations =>
         [
-            new DeclaredResource(
-                Emulator,
-                "emulator",
-                new Dictionary<ValueKey, string>
+            new DeclaredResource
+            {
+                Kind = Emulator,
+                Identifier = "emulator",
+                Values = new Dictionary<ValueKey, string>
                 {
                     [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "default-port",
                 },
-                "placeholder configuration"),
+                DeclaredBy = "placeholder configuration",
+            },
         ];
     }
 

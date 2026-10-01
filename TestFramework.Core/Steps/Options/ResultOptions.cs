@@ -47,8 +47,37 @@ public class ResultOptions : IFreezable
 /// <summary>
 /// Describes how a property from a step result context should be projected into the variable store.
 /// </summary>
-/// <param name="Variable">The destination variable that receives the projected value.</param>
-/// <param name="MemberPath">The selected member-access path on the result context.</param>
-/// <param name="DeclaredType">The declared CLR type of the projected value.</param>
-/// <param name="Accessor">Accessor used to evaluate the projected value at runtime.</param>
-public sealed record ResultBinding(VariableIdentifier Variable, string MemberPath, Type DeclaredType, Func<object?, object?> Accessor);
+public sealed record ResultBinding
+{
+    internal ResultBinding(
+        VariableIdentifier variable,
+        string memberPath,
+        Type declaredType,
+        Func<object?, object?> accessor)
+    {
+        this.Variable = variable;
+        this.MemberPath = memberPath;
+        this.DeclaredType = declaredType;
+        this.Accessor = accessor;
+    }
+
+    /// <summary>
+    /// The destination variable that receives the projected value.
+    /// </summary>
+    public VariableIdentifier Variable { get; internal init; }
+
+    /// <summary>
+    /// The selected member-access path on the result context.
+    /// </summary>
+    public string MemberPath { get; internal init; }
+
+    /// <summary>
+    /// The declared CLR type of the projected value.
+    /// </summary>
+    public Type DeclaredType { get; internal init; }
+
+    /// <summary>
+    /// Accessor used to evaluate the projected value at runtime.
+    /// </summary>
+    public Func<object?, object?> Accessor { get; internal init; }
+}

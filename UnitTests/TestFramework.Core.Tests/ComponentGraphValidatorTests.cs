@@ -15,24 +15,30 @@ public class ComponentGraphValidatorTests
     {
         ComponentGraphNode[] nodes =
         [
-            new(
-                typeof(TestOwnerA),
-                "functionapp:fa1",
-                [new ComponentGraphDependency(typeof(TestSharedDependency), "servicebus:bus", DependencyOwnership.Exclusive)],
-                [],
-                []),
-            new(
-                typeof(TestOwnerB),
-                "functionapp:fa2",
-                [new ComponentGraphDependency(typeof(TestSharedDependency), "servicebus:bus", DependencyOwnership.Exclusive)],
-                [],
-                []),
-            new(
-                typeof(TestSharedDependency),
-                "servicebus:bus",
-                [],
-                [],
-                [])
+            new ComponentGraphNode
+            {
+                ComponentType = typeof(TestOwnerA),
+                RealizedComponentIdentity = "functionapp:fa1",
+                Dependencies = [new ComponentGraphDependency { ComponentType = typeof(TestSharedDependency), RealizedComponentIdentity = "servicebus:bus", Ownership = DependencyOwnership.Exclusive }],
+                Provides = [],
+                Requires = [],
+            },
+            new ComponentGraphNode
+            {
+                ComponentType = typeof(TestOwnerB),
+                RealizedComponentIdentity = "functionapp:fa2",
+                Dependencies = [new ComponentGraphDependency { ComponentType = typeof(TestSharedDependency), RealizedComponentIdentity = "servicebus:bus", Ownership = DependencyOwnership.Exclusive }],
+                Provides = [],
+                Requires = [],
+            },
+            new ComponentGraphNode
+            {
+                ComponentType = typeof(TestSharedDependency),
+                RealizedComponentIdentity = "servicebus:bus",
+                Dependencies = [],
+                Provides = [],
+                Requires = [],
+            }
         ];
 
         DependencyGraphException exception = Assert.Throws<DependencyGraphException>(() => ComponentGraphValidator.Validate(nodes));
@@ -47,9 +53,9 @@ public class ComponentGraphValidatorTests
         TestContract requirement = new("trigger", "bus", "queue");
         ComponentGraphNode[] nodes =
         [
-            new(typeof(TestOwnerA), "consumer", [], [], [requirement]),
-            new(typeof(TestProviderA), "provider-a", [], [new TestContract("trigger", "bus", "queue")], []),
-            new(typeof(TestProviderB), "provider-b", [], [new TestContract("trigger", "bus", "queue")], [])
+            new ComponentGraphNode { ComponentType = typeof(TestOwnerA), RealizedComponentIdentity = "consumer", Dependencies = [], Provides = [], Requires = [requirement] },
+            new ComponentGraphNode { ComponentType = typeof(TestProviderA), RealizedComponentIdentity = "provider-a", Dependencies = [], Provides = [new TestContract("trigger", "bus", "queue")], Requires = [] },
+            new ComponentGraphNode { ComponentType = typeof(TestProviderB), RealizedComponentIdentity = "provider-b", Dependencies = [], Provides = [new TestContract("trigger", "bus", "queue")], Requires = [] }
         ];
 
         DependencyGraphException exception = Assert.Throws<DependencyGraphException>(() => ContractBindingPass.Bind(nodes, static (required, provided) => object.Equals(required, provided)));

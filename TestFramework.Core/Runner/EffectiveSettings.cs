@@ -8,11 +8,30 @@ namespace TestFramework.Core.Runner;
 /// <summary>
 /// One setting a run resolved for itself, and who resolved it.
 /// </summary>
-/// <param name="Source">Which package or component decided it, so two of them may both record a "Browser".</param>
-/// <param name="Name">What was decided.</param>
-/// <param name="Value">What it came out as.</param>
-public readonly record struct EffectiveSetting(string Source, string Name, string Value)
+public readonly record struct EffectiveSetting
 {
+    internal EffectiveSetting(string source, string name, string @value)
+    {
+        this.Source = source;
+        this.Name = name;
+        this.Value = @value;
+    }
+
+    /// <summary>
+    /// Which package or component decided it, so two of them may both record a "Browser".
+    /// </summary>
+    public string Source { get; internal init; }
+
+    /// <summary>
+    /// What was decided.
+    /// </summary>
+    public string Name { get; internal init; }
+
+    /// <summary>
+    /// What it came out as.
+    /// </summary>
+    public string Value { get; internal init; }
+
     /// <summary>Reads as <c>ui.browser/Browser = chromium</c>.</summary>
     /// <returns>The description, for messages and logs.</returns>
     public override string ToString() => $"{this.Source}/{this.Name} = {this.Value}";

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Conventions;
 
 namespace TestFramework.Core.Environment.Graph;
 
@@ -93,6 +94,7 @@ public sealed record ValueRoute
 /// </summary>
 /// <param name="KindName">The kind.</param>
 /// <param name="Identifier">Which one.</param>
+[ClosedShape("An address is a kind and a name; a resource is found by nothing else.")]
 public sealed record ResourceAddress(string KindName, string Identifier)
 {
     /// <summary>
@@ -111,11 +113,30 @@ public sealed record ResourceAddress(string KindName, string Identifier)
 /// second hand-maintained list beside the wiring, and the two drifted; here one declaration yields both,
 /// so a node that reads a neighbour's value cannot be created before that neighbour exists.
 /// </remarks>
-/// <param name="KindName">The kind of the resource needed.</param>
-/// <param name="Identifier">Which one.</param>
-/// <param name="Routes">What is borrowed from it, or empty when only its existence is needed.</param>
-public sealed record Connection(string KindName, string Identifier, IReadOnlyList<ValueRoute> Routes)
+public sealed record Connection
 {
+    internal Connection(string kindName, string identifier, IReadOnlyList<ValueRoute> routes)
+    {
+        this.KindName = kindName;
+        this.Identifier = identifier;
+        this.Routes = routes;
+    }
+
+    /// <summary>
+    /// The kind of the resource needed.
+    /// </summary>
+    public string KindName { get; internal init; }
+
+    /// <summary>
+    /// Which one.
+    /// </summary>
+    public string Identifier { get; internal init; }
+
+    /// <summary>
+    /// What is borrowed from it, or empty when only its existence is needed.
+    /// </summary>
+    public IReadOnlyList<ValueRoute> Routes { get; internal init; }
+
     /// <summary>
     /// Reads as <c>web.sql/orders-db (1 route)</c>.
     /// </summary>

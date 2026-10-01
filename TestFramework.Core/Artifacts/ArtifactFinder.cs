@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Conventions;
 
 namespace TestFramework.Core.Artifacts;
 
@@ -11,12 +12,14 @@ namespace TestFramework.Core.Artifacts;
 /// Represents the result of locating a single artifact reference.
 /// </summary>
 /// <param name="Reference">The located artifact reference.</param>
+[ClosedShape("A finder's result is the reference it found; anything more about the artifact belongs on the reference.")]
 public record ArtifactFinderResult(ArtifactReferenceGeneric Reference);
 
 /// <summary>
 /// Represents the result of locating multiple artifact references.
 /// </summary>
 /// <param name="ArtifactReferences">The located artifact references.</param>
+[ClosedShape("A finder's result is the references it found; anything more belongs on each reference.")]
 public record ArtifactFinderResultMulti(ArtifactFinderResult[] ArtifactReferences);
 
 /// <summary>
