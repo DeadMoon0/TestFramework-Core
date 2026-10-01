@@ -100,7 +100,14 @@ public abstract class TimelineFrameworkException : Exception
     /// <summary>
     /// Returns a formatted string representation of the exception.
     /// </summary>
-    /// <returns>Formatted error message with recovery steps and available options</returns>
+    /// <remarks>
+    /// The advice comes first, because it is what a reader should act on; the cause and the place it was
+    /// thrown follow, because the advice alone is not the whole truth. Stopping after the advice, as this
+    /// used to, dropped the inner exception and the stack trace from every log and report that prints an
+    /// exception - a configuration error wrapping a Docker or SQL failure printed as advice with the actual
+    /// failure gone.
+    /// </remarks>
+    /// <returns>The message, recovery steps and available options, then the cause and the stack trace.</returns>
     public override string ToString()
     {
         var lines = new List<string>
@@ -122,6 +129,19 @@ public abstract class TimelineFrameworkException : Exception
             lines.Add("");
             lines.Add("Available:");
             lines.AddRange(AvailableOptions.Select(o => $"  * {o}"));
+        }
+
+        if (InnerException is not null)
+        {
+            lines.Add("");
+            lines.Add("Cause:");
+            lines.AddRange(InnerException.ToString().Split(System.Environment.NewLine).Select(line => $"  {line}"));
+        }
+
+        if (StackTrace is { Length: > 0 } stackTrace)
+        {
+            lines.Add("");
+            lines.Add(stackTrace);
         }
 
         return string.Join(System.Environment.NewLine, lines);

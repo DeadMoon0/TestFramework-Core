@@ -57,14 +57,10 @@ public class TimelineRunFailedException : Exception
                 continue;
             }
 
-            if (f.StepException is TimelineFrameworkException frameworkException)
-            {
-                foreach (string line in frameworkException.ToString().Split(System.Environment.NewLine).Select(x => "    " + x))
-                    sb.AppendLine(line);
-                continue;
-            }
-
-            sb.AppendLine($"    {f.StepException.GetType().Name}: {f.StepException.Message}");
+            // In full, whatever its type: a step's own exception is as likely as the framework's to carry its
+            // real cause one level down, and naming only its type and message lost it.
+            foreach (string line in f.StepException.ToString().Split(System.Environment.NewLine).Select(x => "    " + x))
+                sb.AppendLine(line);
         }
         List<FailedStepInfo> skipped = [.. failedSteps.Where(static f => f.SkipReason is not null)];
         if (skipped.Count > 0)
