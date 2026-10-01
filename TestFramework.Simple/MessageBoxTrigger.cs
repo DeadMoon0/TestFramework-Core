@@ -148,9 +148,7 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <param name="contract">The IO contract to populate.</param>
     public override void DeclareIO(StepIOContract contract)
     {
-        if (msg.HasIdentifier)
-            contract.Inputs.Add(new StepIOEntry(msg.Identifier!.Identifier, StepIOKind.Variable, true, typeof(string)));
-        if (caption.HasIdentifier)
-            contract.Inputs.Add(new StepIOEntry(caption.Identifier!.Identifier, StepIOKind.Variable, true, typeof(string)));
+        contract.Input(msg);
+        contract.Input(caption);
     }
 }

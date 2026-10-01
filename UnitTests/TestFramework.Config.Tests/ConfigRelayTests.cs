@@ -18,7 +18,7 @@ public class ConfigRelayTests
 {
     private static readonly ResourceKind ApiKind = ResourceKind.Named("relay.tests.api")
         .OffersPerVantage(ValueNames.BaseUrl)
-        .Offers("HealthPath", optional: true);
+        .Offers("HealthPath", ValueTraits.Optional);
 
     [Fact]
     public void DeclaredEntriesBecomeResourcesTheGraphCanAnswerFor()

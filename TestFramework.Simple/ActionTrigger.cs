@@ -75,9 +75,8 @@ public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<Var
     public override void DeclareIO(StepIOContract contract)
     {
         foreach (var item in _variables)
-            if (item.HasIdentifier)
-                contract.Inputs.Add(new StepIOEntry(item.Identifier!.Identifier, StepIOKind.Variable));
+            contract.Input(item);
         foreach (var item in _artifacts)
-            contract.Inputs.Add(new StepIOEntry(item.Identifier, StepIOKind.Artifact));
+            contract.InputArtifact(item);
     }
 }

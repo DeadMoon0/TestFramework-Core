@@ -143,11 +143,13 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     /// <returns>The record.</returns>
     public virtual TConfig Read(IReadOnlyDictionary<string, string> values, string identifier)
         => throw new FrameworkConfigurationException(
-            $"'{this.GetType().Name}' cannot rebuild {typeof(TConfig).Name} from the run's values yet.",
-            [
+            $"'{this.GetType().Name}' cannot rebuild {typeof(TConfig).Name} from the run's values yet.")
+        {
+            RecoverySteps = [
                 $"Override Read(values, identifier) on {this.GetType().Name} so this resource's configuration can come from the run rather than from a store.",
                 "Until then, whatever reads this record has to keep reading the configuration store.",
-            ]);
+            ],
+        };
 
     /// <inheritdoc />
     object IConfigShape.Read(IConfiguration configuration, string identifier)

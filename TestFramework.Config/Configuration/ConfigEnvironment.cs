@@ -51,11 +51,13 @@ public sealed class ConfigEnvironment : DeclaredNodeSource
             {
                 foreach (string identifier in shape.Identifiers(this.configuration))
                 {
-                    yield return new DeclaredResource(
-                        shape.Kind,
-                        identifier,
-                        shape.Values(shape.Read(this.configuration, identifier)),
-                        $"section '{shape.Section}'");
+                    yield return new DeclaredResource
+                    {
+                        Kind = shape.Kind,
+                        Identifier = identifier,
+                        Values = shape.Values(shape.Read(this.configuration, identifier)),
+                        DeclaredBy = $"section '{shape.Section}'",
+                    };
                 }
             }
         }

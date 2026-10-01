@@ -74,16 +74,20 @@ public static class ConfigInheritance
         if (chain.Contains(identifier, StringComparer.OrdinalIgnoreCase))
         {
             throw new FrameworkConfigurationException(
-                $"The configuration entry '{identifier}' inherits from itself: {string.Join(" -> ", chain.Append(identifier))}.",
-                ["Break the cycle - one entry in the chain has to stand on its own."]);
+                $"The configuration entry '{identifier}' inherits from itself: {string.Join(" -> ", chain.Append(identifier))}.")
+            {
+                RecoverySteps = ["Break the cycle - one entry in the chain has to stand on its own."],
+            };
         }
 
         if (!TryFind(declared, identifier, out TConfig? config) || config is null)
         {
             throw new FrameworkConfigurationException(
-                $"The configuration entry '{identifier}' is not declared, so nothing can inherit from it.",
-                ["Declare it, or point 'BasedOn' at one of the entries that exist."],
-                [.. declared.Keys.OrderBy(static key => key, StringComparer.Ordinal)]);
+                $"The configuration entry '{identifier}' is not declared, so nothing can inherit from it.")
+            {
+                RecoverySteps = ["Declare it, or point 'BasedOn' at one of the entries that exist."],
+                AvailableOptions = [.. declared.Keys.OrderBy(static key => key, StringComparer.Ordinal)],
+            };
         }
 
         if (config.BasedOn is not { Length: > 0 } parentIdentifier)
@@ -140,12 +144,14 @@ public static class ConfigInheritance
             if (unstatable.Length > 0)
             {
                 throw new FrameworkConfigurationException(
-                    $"'{type.Name}' has {unstatable.Length} propert(ies) that cannot express \"not stated\", so inheritance would silently discard what a child declared.",
-                    [
+                    $"'{type.Name}' has {unstatable.Length} propert(ies) that cannot express \"not stated\", so inheritance would silently discard what a child declared.")
+                {
+                    RecoverySteps = [
                         "Make each of them nullable - 'bool?' rather than 'bool' - so that unset is null.",
                         "Apply the default where the effective value is read instead of in the declaration.",
                     ],
-                    [.. unstatable]);
+                    AvailableOptions = [.. unstatable],
+                };
             }
 
             return writable;

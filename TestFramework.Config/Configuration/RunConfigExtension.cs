@@ -36,13 +36,27 @@ namespace TestFramework.Core.Steps;
 public static class RunConfigExtension
 {
     /// <summary>
-    /// The configuration of one resource, as this run knows it.
+    /// The configuration of one resource, as this run knows it, from the test process's viewpoint.
     /// </summary>
     /// <remarks>
-    /// The host viewpoint unless asked otherwise, because the caller is usually the test process. Code
-    /// generating a file that something inside the environment will read asks for the network viewpoint and
+    /// The host viewpoint, because the caller is usually the test process. Code generating a file that
+    /// something inside the environment will read asks for the network viewpoint with the other overload and
     /// gets the addresses that work there.
     /// </remarks>
+    /// <typeparam name="TConfig">The configuration record.</typeparam>
+    /// <param name="context">The run.</param>
+    /// <param name="identifier">Which resource.</param>
+    /// <returns>The record.</returns>
+    /// <exception cref="FrameworkConfigurationException">
+    /// Nothing in the run supplies the resource, or no shape owns the record type.
+    /// </exception>
+    public static TConfig Configured<TConfig>(this RunContext context, string identifier)
+        where TConfig : class
+        => Configured<TConfig>(context, identifier, ResourceVantage.Host);
+
+    /// <summary>
+    /// The configuration of one resource, as this run knows it, from <paramref name="vantage"/>.
+    /// </summary>
     /// <typeparam name="TConfig">The configuration record.</typeparam>
     /// <param name="context">The run.</param>
     /// <param name="identifier">Which resource.</param>
@@ -54,7 +68,7 @@ public static class RunConfigExtension
     public static TConfig Configured<TConfig>(
         this RunContext context,
         string identifier,
-        ResourceVantage vantage = ResourceVantage.Host)
+        ResourceVantage vantage)
         where TConfig : class
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -62,21 +76,25 @@ public static class RunConfigExtension
 
         ConfigShape<TConfig> shape = context.Services.GetService<ConfigShape<TConfig>>()
             ?? throw new FrameworkConfigurationException(
-                $"Nothing in this run reads {typeof(TConfig).Name}, so its configuration cannot be resolved.",
-                [
+                $"Nothing in this run reads {typeof(TConfig).Name}, so its configuration cannot be resolved.")
+            {
+                RecoverySteps = [
                     $"Call the loader of the package that owns {typeof(TConfig).Name} on the config instance this run is set up with.",
-                ]);
+                ],
+            };
 
         IReadOnlyDictionary<string, string> values = context.Values.ValuesFor(shape.Kind, identifier, vantage);
 
         if (values.Count == 0)
         {
             throw new FrameworkConfigurationException(
-                $"Nothing in this run supplies {shape.Kind}/'{identifier}'.",
-                [
+                $"Nothing in this run supplies {shape.Kind}/'{identifier}'.")
+            {
+                RecoverySteps = [
                     $"Add a '{shape.Section}:{identifier}' section, or include the definition that provisions it.",
                 ],
-                [.. context.Values.IdentifiersOf(shape.Kind)]);
+                AvailableOptions = [.. context.Values.IdentifiersOf(shape.Kind)],
+            };
         }
 
         return shape.Read(values, identifier);

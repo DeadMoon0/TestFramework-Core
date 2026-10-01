@@ -83,11 +83,13 @@ public sealed class ConfigStore<TConfig>
             if (this.sealedForRun)
             {
                 throw new FrameworkConfigurationException(
-                    $"Configuration for '{identifier}' arrived after loading finished.",
-                    [
+                    $"Configuration for '{identifier}' arrived after loading finished.")
+                {
+                    RecoverySteps = [
                         "Declare it while the configuration is being built. Something a run discovers is a resource value, not a declaration.",
                     ],
-                    [.. this.entries.Keys.OrderBy(static key => key, StringComparer.Ordinal)]);
+                    AvailableOptions = [.. this.entries.Keys.OrderBy(static key => key, StringComparer.Ordinal)],
+                };
             }
 
             this.entries[identifier] = config;
@@ -120,9 +122,11 @@ public sealed class ConfigStore<TConfig>
             return this.entries.TryGetValue(identifier, out TConfig? config)
                 ? config
                 : throw new FrameworkConfigurationException(
-                    $"Nothing is configured as {typeof(TConfig).Name} under '{identifier}'.",
-                    ["Add the entry, or let the environment provide the resource and leave the entry out."],
-                    [.. this.entries.Keys.OrderBy(static key => key, StringComparer.Ordinal)]);
+                    $"Nothing is configured as {typeof(TConfig).Name} under '{identifier}'.")
+                {
+                    RecoverySteps = ["Add the entry, or let the environment provide the resource and leave the entry out."],
+                    AvailableOptions = [.. this.entries.Keys.OrderBy(static key => key, StringComparer.Ordinal)],
+                };
         }
     }
 
