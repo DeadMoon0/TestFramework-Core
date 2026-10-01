@@ -16,7 +16,7 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>BREAKING - SetupRun takes the method that writes a line, an Action&lt;string&gt;, instead of xunit's ITestOutputHelper, and Core no longer depends on xunit: pass output.WriteLine where you passed output, or TestContext.WriteLine, Console.WriteLine or anything else that takes a string. BREAKING - an assertion on the value of a variable that was never set now fails instead of passing. The blocking PersistentEnvironmentContext constructors and OnRequirementResolved are removed; use CreateAsync and EnvironmentResources.Required. A failing debugger can no longer keep a run from its Cleanup stage, and a retry count that names a variable nothing sets is refused while the run is planned.</PackageReleaseNotes>
+		<PackageReleaseNotes>BREAKING - SetupRun takes the method that writes a line, output.WriteLine, instead of xunit's ITestOutputHelper; Core no longer depends on xunit. BREAKING - an assertion on a variable that was never set now fails, and EnsureRanToCompletion now also fails for a step that never ran, naming why, so a run cancelled between stages no longer passes. The blocking PersistentEnvironmentContext constructors and OnRequirementResolved are removed; use CreateAsync and EnvironmentResources.Required.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
