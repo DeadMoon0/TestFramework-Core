@@ -29,7 +29,7 @@ public class ArtifactNotFoundException : TimelineFrameworkException
     /// <param name="artifactName">Name of the artifact that was not found</param>
     /// <param name="registeredArtifacts">List of artifacts that are available</param>
     /// <param name="stepIndex">Index of the step where the error occurred</param>
-    public ArtifactNotFoundException(
+    internal ArtifactNotFoundException(
         string artifactName,
         IReadOnlyList<string> registeredArtifacts,
         int? stepIndex = null)

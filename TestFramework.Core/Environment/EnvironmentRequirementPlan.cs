@@ -99,9 +99,11 @@ internal static class EnvironmentRequirementPlan
         if (named.Count > 1)
         {
             throw new FrameworkConfigurationException(
-                $"Step '{LabelOf(step)}' requires '{requirement.ResourceIdentifier}' without saying which kind, and {named.Count} kinds of resource carry that name.",
-                ["Require the kind as well, or rename one of the resources."],
-                [.. named.Select(node => Describe(node, resources))]);
+                $"Step '{LabelOf(step)}' requires '{requirement.ResourceIdentifier}' without saying which kind, and {named.Count} kinds of resource carry that name.")
+            {
+                RecoverySteps = ["Require the kind as well, or rename one of the resources."],
+                AvailableOptions = [.. named.Select(node => Describe(node, resources))],
+            };
         }
 
         return named.Count == 1
@@ -116,12 +118,14 @@ internal static class EnvironmentRequirementPlan
             : $"{requirement.ResourceKind} '{requirement.ResourceIdentifier}'";
 
         return new FrameworkConfigurationException(
-            $"Step '{LabelOf(step)}' requires {what}, and nothing in this run declares it.",
-            [
+            $"Step '{LabelOf(step)}' requires {what}, and nothing in this run declares it.")
+        {
+            RecoverySteps = [
                 "Declare it in the configuration this run is set up with, or include the definition that provides it in the environment set with SetEnv(...).",
                 "Resource names are case-sensitive.",
             ],
-            [.. candidates.Select(node => Describe(node, resources))]);
+            AvailableOptions = [.. candidates.Select(node => Describe(node, resources))],
+        };
     }
 
     private static string Describe(ResourceNode node, ResourceGraph resources)

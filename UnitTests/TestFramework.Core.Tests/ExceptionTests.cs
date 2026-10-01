@@ -126,27 +126,6 @@ public class ExceptionTests
     }
 
     [Fact]
-    public void EnvironmentNotSetException_ListsAvailableEnvironments()
-    {
-        var ex = new EnvironmentNotSetException();
-
-        Assert.Contains("No environment is configured", ex.Message);
-        Assert.Contains("SetEnv", ex.Message);
-        Assert.Contains("AzureExt", ex.Message);
-        Assert.Contains("LocalIOExt", ex.Message);
-        Assert.NotEmpty(ex.AvailableOptions);
-    }
-
-    [Fact]
-    public void EnvironmentNotSetException_SuggestsRecovery()
-    {
-        var ex = new EnvironmentNotSetException();
-
-        Assert.NotEmpty(ex.RecoverySteps);
-        Assert.Contains("SetEnv()", ex.RecoverySteps[0]);
-    }
-
-    [Fact]
     public void ArtifactNotFoundException_ListsRegisteredArtifacts()
     {
         var registered = new[] { "response", "headers", "statusCode" };
@@ -321,31 +300,6 @@ public class ExceptionTests
     }
 
     [Fact]
-    public void ConfigurationInvalidException_ShowsExpectedFormat()
-    {
-        var ex = new ConfigurationInvalidException(
-            "TIMEOUT",
-            "integer (milliseconds)",
-            "not_a_number");
-
-        Assert.Contains("TIMEOUT", ex.Message);
-        Assert.Contains("integer (milliseconds)", ex.Message);
-        Assert.Contains("not_a_number", ex.Message);
-    }
-
-    [Fact]
-    public void ConfigurationInvalidException_SuggestsCorrectFormat()
-    {
-        var ex = new ConfigurationInvalidException(
-            "MAX_CONCURRENT",
-            "positive integer",
-            null);
-
-        Assert.NotEmpty(ex.RecoverySteps);
-        Assert.Contains("positive integer", ex.RecoverySteps[0]);
-    }
-
-    [Fact]
     public void TimelineFrameworkException_ToString_IsReadable()
     {
         var available = new Dictionary<string, object?> { { "x", 1 } };
@@ -361,8 +315,8 @@ public class ExceptionTests
     [Fact]
     public void TimelineFrameworkException_HasConsistentFormat()
     {
-        var ex1 = new EnvironmentNotSetException();
-        var ex2 = new ConfigurationInvalidException("KEY", "format");
+        var ex1 = new MissingVariableException("y", new Dictionary<string, object?>());
+        var ex2 = new FrameworkConfigurationException("The key is not set.");
 
         var str1 = ex1.ToString();
         var str2 = ex2.ToString();

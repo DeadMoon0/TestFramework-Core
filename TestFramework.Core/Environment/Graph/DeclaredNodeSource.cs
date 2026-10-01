@@ -66,11 +66,13 @@ public abstract class DeclaredNodeSource : IResourceNodeSource
                 }
 
                 throw new FrameworkConfigurationException(
-                    $"{declaration.DeclaredBy} declares {key} for '{declaration.Identifier}', which {declaration.Kind} does not offer.",
-                    [
+                    $"{declaration.DeclaredBy} declares {key} for '{declaration.Identifier}', which {declaration.Kind} does not offer.")
+                {
+                    RecoverySteps = [
                         "Declare the value on the kind, or stop declaring it here - the kind is what routes and reads are checked against.",
                     ],
-                    [.. declaration.Kind.Values.Select(value => $"{declaration.Kind} offers {value.ValueName}")]);
+                    AvailableOptions = [.. declaration.Kind.Values.Select(value => $"{declaration.Kind} offers {value.ValueName}")],
+                };
             }
 
             built.Add(new DeclaredResourceNode(declaration));

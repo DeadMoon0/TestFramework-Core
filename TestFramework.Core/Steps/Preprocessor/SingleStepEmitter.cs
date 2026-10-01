@@ -12,7 +12,7 @@ namespace TestFramework.Core.Steps.Preprocessor;
 /// Emits a single step, including any required pre-step or cleanup-step redirections.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public class SingleStepEmitter(StepGeneric step) : StepEmitter
+internal class SingleStepEmitter(StepGeneric step) : StepEmitter
 {
     /// <summary>
     /// Emits the wrapped step and any auxiliary pre-step or cleanup-step emissions.

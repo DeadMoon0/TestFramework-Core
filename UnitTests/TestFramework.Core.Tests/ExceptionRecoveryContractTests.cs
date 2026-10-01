@@ -33,8 +33,10 @@ public class ExceptionRecoveryContractTests(ITestOutputHelper outputHelper)
         TimelineFrameworkException[] exceptions =
         [
             new MissingVariableException("test", variables),
-            new ConfigurationInvalidException("key", "type", "value"),
-            new EnvironmentNotSetException(null, ["env1"]),
+            new FrameworkConfigurationException("The key is not set.") { AvailableOptions = ["env1"] },
+            new FrameworkStateException("The run has finished."),
+            new FrameworkTimeoutException("The container did not start in time."),
+            new UnsupportedFrameworkValueException("The mode is not supported."),
             new ArtifactNotFoundException("missing", ["found"]),
         ];
 

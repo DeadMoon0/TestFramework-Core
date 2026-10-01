@@ -41,7 +41,7 @@ public class Timeline : IFreezable
     /// <summary>
     /// Gets the main stage that contains the timeline's emitted steps before execution preprocessing.
     /// </summary>
-    public PreProcessableStage MainStage { get; internal set; } = new PreProcessableStage() { Name = "Main Stage", Description = "The Stage where all Main Steps are Executed." };
+    internal PreProcessableStage MainStage { get; set; } = new PreProcessableStage() { Name = "Main Stage", Description = "The Stage where all Main Steps are Executed." };
 
     internal Timeline(PreProcessableStage mainStage)
     {

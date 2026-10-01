@@ -141,9 +141,11 @@ public sealed class ResourceGraph
         if (matches.Count > 1)
         {
             throw new FrameworkConfigurationException(
-                $"'{identifier}' names {matches.Count} different kinds of resource in this run.",
-                ["Say which kind, or rename one of them."],
-                [.. matches.Select(match => $"{match} from {this.ProviderOf(match)}")]);
+                $"'{identifier}' names {matches.Count} different kinds of resource in this run.")
+            {
+                RecoverySteps = ["Say which kind, or rename one of them."],
+                AvailableOptions = [.. matches.Select(match => $"{match} from {this.ProviderOf(match)}")],
+            };
         }
 
         node = matches.Count == 1 ? matches[0] : null;
@@ -319,26 +321,31 @@ public sealed class ResourceGraph
     private FrameworkConfigurationException Unsatisfied(ResourceNode node, Connection connection)
         => new FrameworkConfigurationException(
             $"Nothing provides {connection.KindName}/{connection.Identifier}, needed by {node}"
-                + (connection.Routes.Count == 0 ? "." : $" ({string.Join("; ", connection.Routes)})."),
-            [
+                + (connection.Routes.Count == 0 ? "." : $" ({string.Join("; ", connection.Routes)})."))
+        {
+            RecoverySteps = [
                 "Include the definition that provisions it in the environment, or declare it in configuration.",
             ],
-            [.. this.Nodes.Select(known => $"{known} from {this.ProviderOf(known)}")]);
+            AvailableOptions = [.. this.Nodes.Select(known => $"{known} from {this.ProviderOf(known)}")],
+        };
 
     private static bool Offers(ResourceNode neighbour, ValueRoute route)
         => neighbour.Kind.Offers(route.Value.ValueName);
 
     private static FrameworkConfigurationException NotOffered(ResourceNode node, ResourceNode neighbour, ValueRoute route)
         => new FrameworkConfigurationException(
-            $"{node} routes {route.Value.ValueName} ({route.Vantage}) from {neighbour}, which does not offer it.",
-            ["Route a value the resource has, or declare this one on its kind."],
-            [.. neighbour.Kind.Values.Select(offered => $"{neighbour.Kind} offers {offered.ValueName}")]);
+            $"{node} routes {route.Value.ValueName} ({route.Vantage}) from {neighbour}, which does not offer it.")
+        {
+            RecoverySteps = ["Route a value the resource has, or declare this one on its kind."],
+            AvailableOptions = [.. neighbour.Kind.Values.Select(offered => $"{neighbour.Kind} offers {offered.ValueName}")],
+        };
 
     private static FrameworkConfigurationException Cycle(IReadOnlyList<ResourceNode> path)
         => new FrameworkConfigurationException(
-            $"The resources depend on each other in a circle: {string.Join(" -> ", path.Select(static node => node.ToString()))}.",
-            ["Break the circle: one of these connections has to go, or move the value it carries to a resource that comes earlier."],
-            []);
+            $"The resources depend on each other in a circle: {string.Join(" -> ", path.Select(static node => node.ToString()))}.")
+        {
+            RecoverySteps = ["Break the circle: one of these connections has to go, or move the value it carries to a resource that comes earlier."],
+        };
 
     private readonly record struct NodeId(string ResourceKind, string Identifier)
     {

@@ -66,6 +66,26 @@ public sealed class ExceptionRenderingTests
         Assert.Contains(nameof(TimeoutException), failure.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void GuidanceSetAfterConstructionIsInTheMessage()
+    {
+        // The steps and options are init properties so the exceptions can gain more without a constructor
+        // change; the message has to be built from what was set, not from what the constructor saw.
+        FrameworkStateException failure = new("The run has finished.")
+        {
+            RecoverySteps = ["Create it inside a step."],
+            AvailableOptions = ["TryGet"],
+        };
+
+        Assert.Contains("Create it inside a step.", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("TryGet", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Check the preceding setup", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnExceptionWithoutGuidanceKeepsItsTypesAdvice()
+        => Assert.NotEmpty(new FrameworkTimeoutException("The container did not start in time.").RecoverySteps);
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowWrapped(string cause)
     {
@@ -77,9 +97,10 @@ public sealed class ExceptionRenderingTests
         {
             throw new FrameworkConfigurationException(
                 "The environment could not start the container.",
-                ["Check that Docker is running."],
-                null,
-                inner);
+                inner)
+            {
+                RecoverySteps = ["Check that Docker is running."],
+            };
         }
     }
 

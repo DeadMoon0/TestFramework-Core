@@ -31,7 +31,7 @@ public class MissingVariableException : TimelineFrameworkException
     /// <param name="availableVariables">Dictionary of variables that are available</param>
     /// <param name="stepIndex">Index of the step where the error occurred</param>
     /// <param name="stepName">Name of the step where the error occurred</param>
-    public MissingVariableException(
+    internal MissingVariableException(
         string variableName,
         IReadOnlyDictionary<string, object?> availableVariables,
         int? stepIndex = null,

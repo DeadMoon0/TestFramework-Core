@@ -171,12 +171,14 @@ public sealed class ConnectionSet
             : this.values.TryGet(kindName, value.Identifier, new ValueKey(value.ValueName), out ResolvedValue? vantageFree)
                 ? vantageFree!.Value
                 : throw new Exceptions.FrameworkConfigurationException(
-                    $"'{this.owner}' needs {value.ValueName} ({vantage}) of {kindName}/{value.Identifier}, which never supplied it.",
-                    ["The neighbour exists but produced no such value. Check the viewpoint it was produced for."],
-                    [.. this.values.Snapshot()
+                    $"'{this.owner}' needs {value.ValueName} ({vantage}) of {kindName}/{value.Identifier}, which never supplied it.")
+                {
+                    RecoverySteps = ["The neighbour exists but produced no such value. Check the viewpoint it was produced for."],
+                    AvailableOptions = [.. this.values.Snapshot()
                         .Where(known => string.Equals(known.ResourceKind, kindName, StringComparison.Ordinal)
                             && string.Equals(known.Identifier, value.Identifier, StringComparison.Ordinal))
-                        .Select(static known => known.Key.ToString())]);
+                        .Select(static known => known.Key.ToString())],
+                };
     }
 
     /// <summary>
@@ -198,9 +200,11 @@ public sealed class ConnectionSet
 
         return state as TState
             ?? throw new Exceptions.FrameworkConfigurationException(
-                $"'{this.owner}' asked {address} for {typeof(TState).Name} state, which it did not produce.",
-                ["Check the state type the neighbour returns from its creation."],
-                [state is null ? "it produced no state" : $"it produced {state.GetType().Name}"]);
+                $"'{this.owner}' asked {address} for {typeof(TState).Name} state, which it did not produce.")
+            {
+                RecoverySteps = ["Check the state type the neighbour returns from its creation."],
+                AvailableOptions = [state is null ? "it produced no state" : $"it produced {state.GetType().Name}"],
+            };
     }
 
     private void EnsureDeclared(string kindName, string identifier)
@@ -216,8 +220,10 @@ public sealed class ConnectionSet
         }
 
         throw new Exceptions.FrameworkConfigurationException(
-            $"'{this.owner}' reached for {kindName}/{identifier} without declaring a connection to it.",
-            ["Declare a route or an ordering dependency, so the graph can order the two and validate the pair before anything starts."],
-            [.. this.connections.Select(static connection => connection.ToString())]);
+            $"'{this.owner}' reached for {kindName}/{identifier} without declaring a connection to it.")
+        {
+            RecoverySteps = ["Declare a route or an ordering dependency, so the graph can order the two and validate the pair before anything starts."],
+            AvailableOptions = [.. this.connections.Select(static connection => connection.ToString())],
+        };
     }
 }

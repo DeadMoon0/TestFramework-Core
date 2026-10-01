@@ -42,9 +42,10 @@ internal static class StepCloneGuard
         if (clone is null)
         {
             throw new FrameworkConfigurationException(
-                $"'{stepType}.Clone()' returned null, so this step cannot be added to a timeline.",
-                [$"Return a new {stepType} from Clone(), carrying this step's own fields."],
-                []);
+                $"'{stepType}.Clone()' returned null, so this step cannot be added to a timeline.")
+            {
+                RecoverySteps = [$"Return a new {stepType} from Clone(), carrying this step's own fields."],
+            };
         }
 
         // Damage: the modifiers about to run - Name(...), WithTimeOut(...) - would edit the object the
@@ -52,11 +53,12 @@ internal static class StepCloneGuard
         if (ReferenceEquals(source, clone))
         {
             throw new FrameworkConfigurationException(
-                $"'{stepType}.Clone()' returned the same instance instead of a copy.",
-                [
+                $"'{stepType}.Clone()' returned the same instance instead of a copy.")
+            {
+                RecoverySteps = [
                     $"Return 'new {stepType}(...).WithClonedOptions(this)' rather than 'this'.",
                 ],
-                []);
+            };
         }
 
         // Damage: the step silently loses whatever the subclass added - its fields, its overrides - and
@@ -64,11 +66,13 @@ internal static class StepCloneGuard
         if (clone.GetType() != source.GetType())
         {
             throw new FrameworkConfigurationException(
-                $"'{stepType}.Clone()' returned a '{clone.GetType().Name}', so this step would run as its base class.",
-                [
+                $"'{stepType}.Clone()' returned a '{clone.GetType().Name}', so this step would run as its base class.")
+            {
+                RecoverySteps = [
                     $"Give {stepType} its own Clone() override that returns a {stepType}.",
                 ],
-                [$"a base class in the chain returned its own type: {clone.GetType().Name}"]);
+                AvailableOptions = [$"a base class in the chain returned its own type: {clone.GetType().Name}"],
+            };
         }
 
         foreach (string shared in SharedOptions(source, clone))
@@ -76,12 +80,13 @@ internal static class StepCloneGuard
             // Damage: two steps holding one options object. Configuring either configures both, and
             // freezing either freezes both - so the second run fails on a write the first one allowed.
             throw new FrameworkConfigurationException(
-                $"'{stepType}.Clone()' returned a copy that shares its {shared} with the original.",
-                [
+                $"'{stepType}.Clone()' returned a copy that shares its {shared} with the original.")
+            {
+                RecoverySteps = [
                     $"Let the new {stepType} build its own options and copy the values with WithClonedOptions(this).",
                     "Do not assign the original's options objects onto the clone.",
                 ],
-                []);
+            };
         }
 
         return clone;

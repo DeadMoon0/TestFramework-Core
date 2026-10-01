@@ -14,7 +14,7 @@ namespace TestFramework.Core.Steps.Preprocessor;
 /// Emits nested steps only when a condition variable resolves to <see langword="true"/>.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public class ConditionalStepEmitter(VariableReference<bool> shouldRun, Action<ITimelineBuilder> steps) : StepEmitter
+internal class ConditionalStepEmitter(VariableReference<bool> shouldRun, Action<ITimelineBuilder> steps) : StepEmitter
 {
     /// <summary>
     /// Emits the nested steps when the condition evaluates to true.

@@ -35,25 +35,29 @@ internal static class ResourceValueContract
         if (!kind.TryGetValue(valueName, out ResourceValue? offered))
         {
             throw new FrameworkConfigurationException(
-                $"{source} produced '{valueName}', which {kind} does not offer.",
-                ["Declare the value on the kind, so a route to it can be checked before anything starts."],
-                [.. kind.Values.Select(static value => value.ToString())]);
+                $"{source} produced '{valueName}', which {kind} does not offer.")
+            {
+                RecoverySteps = ["Declare the value on the kind, so a route to it can be checked before anything starts."],
+                AvailableOptions = [.. kind.Values.Select(static value => value.ToString())],
+            };
         }
 
         if (offered!.PerVantage && vantage is null)
         {
             throw new FrameworkConfigurationException(
-                $"{source} produced '{valueName}' without a viewpoint, but {kind} offers it per viewpoint.",
-                ["Publish it once for each viewpoint: what the test process reaches is not what a peer container reaches."],
-                []);
+                $"{source} produced '{valueName}' without a viewpoint, but {kind} offers it per viewpoint.")
+            {
+                RecoverySteps = ["Publish it once for each viewpoint: what the test process reaches is not what a peer container reaches."],
+            };
         }
 
         if (!offered.PerVantage && vantage is not null)
         {
             throw new FrameworkConfigurationException(
-                $"{source} produced '{valueName}' for {vantage}, but {kind} offers it as one value for every viewpoint.",
-                ["Publish it once, without a viewpoint."],
-                []);
+                $"{source} produced '{valueName}' for {vantage}, but {kind} offers it as one value for every viewpoint.")
+            {
+                RecoverySteps = ["Publish it once, without a viewpoint."],
+            };
         }
 
         return offered.KeyFor(vantage ?? ResourceVantage.Host);

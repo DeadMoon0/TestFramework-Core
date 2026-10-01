@@ -14,7 +14,7 @@ public class ArtifactResolutionInvariantException : TimelineFrameworkException
     /// <param name="identifier">The artifact being resolved.</param>
     /// <param name="operation">The operation performing the resolution.</param>
     /// <param name="versionIdentifier">The requested version identifier, when relevant.</param>
-    public ArtifactResolutionInvariantException(ArtifactIdentifier identifier, string operation, ArtifactVersionIdentifier? versionIdentifier = null)
+    internal ArtifactResolutionInvariantException(ArtifactIdentifier identifier, string operation, ArtifactVersionIdentifier? versionIdentifier = null)
         : base(
             versionIdentifier is null
                 ? $"Artifact '{identifier}' reported Found=true during {operation}, but no artifact data was returned."

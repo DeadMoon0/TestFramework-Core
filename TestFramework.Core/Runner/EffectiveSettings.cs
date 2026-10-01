@@ -79,8 +79,10 @@ public sealed class EffectiveSettings
                 && !string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
                 throw new FrameworkConfigurationException(
-                    $"'{source}/{name}' was already recorded as '{existing.Value}' for this run, and is now being recorded as '{value}'.",
-                    ["Record it once, where the choice is actually made."]);
+                    $"'{source}/{name}' was already recorded as '{existing.Value}' for this run, and is now being recorded as '{value}'.")
+                {
+                    RecoverySteps = ["Record it once, where the choice is actually made."],
+                };
             }
 
             this.settings[(source, name)] = new EffectiveSetting(source, name, value);

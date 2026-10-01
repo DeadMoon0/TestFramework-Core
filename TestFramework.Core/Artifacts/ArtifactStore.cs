@@ -118,16 +118,33 @@ public class ArtifactStore
     /// <typeparam name="TArtifactReference">The reference.</typeparam>
     /// <param name="identifier">What to call it.</param>
     /// <param name="reference">Where it lives.</param>
-    /// <param name="data">Its first version, when it already has one.</param>
-    /// <param name="state">The state it exists in from the start.</param>
-    /// <param name="isReadonly">Whether cleanup must leave the underlying resource alone.</param>
+    /// <returns>The artifact, already held by this store.</returns>
+    public ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference> Add<TArtifactDescriber, TArtifactData, TArtifactReference>(
+        ArtifactIdentifier identifier,
+        TArtifactReference reference)
+        where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
+        where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
+        where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
+        => this.Add<TArtifactDescriber, TArtifactData, TArtifactReference>(identifier, reference, null);
+
+    /// <summary>
+    /// Makes an artifact that already has its first version, and holds it.
+    /// </summary>
+    /// <remarks>
+    /// It starts not set up and owned by the run. Whether cleanup must leave it alone is the timeline's call,
+    /// made with <c>MarkReadonly()</c> - the one way to say it, so a store and a timeline cannot disagree.
+    /// </remarks>
+    /// <typeparam name="TArtifactDescriber">The describer.</typeparam>
+    /// <typeparam name="TArtifactData">The data.</typeparam>
+    /// <typeparam name="TArtifactReference">The reference.</typeparam>
+    /// <param name="identifier">What to call it.</param>
+    /// <param name="reference">Where it lives.</param>
+    /// <param name="data">Its first version, or <see langword="null"/> when it has none yet.</param>
     /// <returns>The artifact, already held by this store.</returns>
     public ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference> Add<TArtifactDescriber, TArtifactData, TArtifactReference>(
         ArtifactIdentifier identifier,
         TArtifactReference reference,
-        TArtifactData? data = null,
-        ArtifactState state = ArtifactState.NotSetup,
-        bool isReadonly = false)
+        TArtifactData? data)
         where TArtifactDescriber : ArtifactDescriber<TArtifactDescriber, TArtifactData, TArtifactReference>, new()
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
@@ -138,9 +155,7 @@ public class ArtifactStore
             reference.GetArtifactDescriber(),
             identifier,
             reference,
-            data,
-            state,
-            isReadonly);
+            data);
 
         this.AddArtifact(instance);
 
@@ -163,7 +178,7 @@ public class ArtifactStore
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Public since 0.5.0, for the same reason <see cref="Add"/> is: a package's own step can hold the
+    /// Public since 0.5.0, for the same reason <c>Add</c> is: a package's own step can hold the
     /// new version's data already — captured at a boundary the run drove, with no reference to re-resolve
     /// it through — and until this was reachable there was no way to record that version at all, only to
     /// replace the whole instance and lose its history. The timeline's version verb keeps its place for
@@ -194,8 +209,10 @@ public class ArtifactStore
                 || !ReferenceEquals(held, instance))
             {
                 throw new FrameworkConfigurationException(
-                    $"Artifact '{instance.Identifier.Identifier}' is not held by this run's store, so this run may not version it.",
-                    ["Capture the version through the store of the run that holds the artifact - context.Artifacts inside that run's own step."]);
+                    $"Artifact '{instance.Identifier.Identifier}' is not held by this run's store, so this run may not version it.")
+                {
+                    RecoverySteps = ["Capture the version through the store of the run that holds the artifact - context.Artifacts inside that run's own step."],
+                };
             }
         }
 
@@ -204,8 +221,10 @@ public class ArtifactStore
         if (expectedKind != actualKind)
         {
             throw new FrameworkConfigurationException(
-                $"'{instance.Identifier.Identifier}' is a {instance.Artifact} artifact, and the version data belongs to '{actualKind.Name}'.",
-                [$"Build the version's data as the artifact's own type; its describer is '{expectedKind.Name}'."]);
+                $"'{instance.Identifier.Identifier}' is a {instance.Artifact} artifact, and the version data belongs to '{actualKind.Name}'.")
+            {
+                RecoverySteps = [$"Build the version's data as the artifact's own type; its describer is '{expectedKind.Name}'."],
+            };
         }
 
         this.Write(instance.Identifier, ticket => instance.AddVersionGeneric(data, ticket), instance);

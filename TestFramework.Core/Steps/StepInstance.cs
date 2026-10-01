@@ -62,8 +62,10 @@ public class StepInstanceGeneric : IFreezable
     public StepResultGeneric LastResult => RetryResults.Count > 0
         ? RetryResults.Last()
         : throw new Exceptions.FrameworkStateException(
-            $"Step '{Step.LabelOptions.Label ?? Step.Name}' has no result yet, because it has not run.",
-            ["Read State instead: it answers NotRun for a step that has not run.", "After a run, every step has a result - a step the run never reached is Skipped, and its SkipReason says why."]);
+            $"Step '{Step.LabelOptions.Label ?? Step.Name}' has no result yet, because it has not run.")
+        {
+            RecoverySteps = ["Read State instead: it answers NotRun for a step that has not run.", "After a run, every step has a result - a step the run never reached is Skipped, and its SkipReason says why."],
+        };
 
     /// <summary>
     /// Gets the current state of the step: the state of its last attempt, or <see cref="StepState.NotRun"/>

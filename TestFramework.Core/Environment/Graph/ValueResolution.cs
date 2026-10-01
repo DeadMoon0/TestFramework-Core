@@ -192,9 +192,11 @@ public sealed class ValueResolution
 
     private FrameworkConfigurationException Missing(ValueRef value, ResourceVantage vantage)
         => new FrameworkConfigurationException(
-            $"Nothing in this run supplies {value.ValueName} ({vantage}) for {value.ResourceKind ?? "any kind"}/{value.Identifier}.",
-            [
+            $"Nothing in this run supplies {value.ValueName} ({vantage}) for {value.ResourceKind ?? "any kind"}/{value.Identifier}.")
+        {
+            RecoverySteps = [
                 "Include the definition that provisions it in the environment, or declare it in configuration.",
             ],
-            [.. this.store.Snapshot().Select(static known => known.ToString())]);
+            AvailableOptions = [.. this.store.Snapshot().Select(static known => known.ToString())],
+        };
 }

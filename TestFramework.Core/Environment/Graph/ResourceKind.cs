@@ -305,11 +305,13 @@ internal static class ResourceKindRegistry
         }
 
         throw new Exceptions.FrameworkConfigurationException(
-            $"'{name}' is already declared as a resource kind with different values.",
-            [
+            $"'{name}' is already declared as a resource kind with different values.")
+        {
+            RecoverySteps = [
                 "Two packages cannot mean different things by one kind name. Rename one, or declare the kind once and share it.",
             ],
-            [$"already declared: {Describe(existing)}", $"now declared: {Describe(candidate)}"]);
+            AvailableOptions = [$"already declared: {Describe(existing)}", $"now declared: {Describe(candidate)}"],
+        };
     }
 
     /// <summary>

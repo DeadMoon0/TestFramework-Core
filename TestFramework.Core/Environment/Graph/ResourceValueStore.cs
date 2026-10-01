@@ -218,9 +218,11 @@ public sealed class ResourceValueStore
         if (matches.Count > 1)
         {
             throw new FrameworkConfigurationException(
-                $"'{identifier}' names {matches.Count} different kinds of resource, so asking for its {key} without saying which is ambiguous.",
-                ["Ask for the kind as well, or rename one of the resources."],
-                [.. matches.Select(static match => $"{match.ResourceKind}/{match.Identifier} from {match.Source}")]);
+                $"'{identifier}' names {matches.Count} different kinds of resource, so asking for its {key} without saying which is ambiguous.")
+            {
+                RecoverySteps = ["Ask for the kind as well, or rename one of the resources."],
+                AvailableOptions = [.. matches.Select(static match => $"{match.ResourceKind}/{match.Identifier} from {match.Source}")],
+            };
         }
 
         value = matches.Count == 1 ? matches[0] : null;
@@ -295,9 +297,11 @@ public sealed class ResourceValueStore
             if (existing.Origin == ValueOrigin.Produced && !string.Equals(existing.Source, incoming.Source, StringComparison.Ordinal))
             {
                 throw new FrameworkConfigurationException(
-                    $"'{existing.Source}' and '{incoming.Source}' both produced {existing.Key} for {existing.ResourceKind}/{existing.Identifier}.",
-                    ["Two providers claim the same resource. Include only one of them, or give them different identifiers."],
-                    [$"{existing.Source} produced '{existing.Value}'", $"{incoming.Source} produced '{incoming.Value}'"]);
+                    $"'{existing.Source}' and '{incoming.Source}' both produced {existing.Key} for {existing.ResourceKind}/{existing.Identifier}.")
+                {
+                    RecoverySteps = ["Two providers claim the same resource. Include only one of them, or give them different identifiers."],
+                    AvailableOptions = [$"{existing.Source} produced '{existing.Value}'", $"{incoming.Source} produced '{incoming.Value}'"],
+                };
             }
 
             return incoming;

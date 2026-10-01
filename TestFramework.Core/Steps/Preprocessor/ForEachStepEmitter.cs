@@ -18,7 +18,7 @@ namespace TestFramework.Core.Steps.Preprocessor;
 /// </summary>
 /// <typeparam name="TItem">The collection item type.</typeparam>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public class ForEachStepEmitter<TItem>(VariableReference<IEnumerable<TItem>> collection, VariableIdentifier variable, Action<ITimelineBuilder> steps) : StepEmitter
+internal class ForEachStepEmitter<TItem>(VariableReference<IEnumerable<TItem>> collection, VariableIdentifier variable, Action<ITimelineBuilder> steps) : StepEmitter
 {
     /// <summary>
     /// Emits the nested steps for each resolved collection item.
@@ -27,12 +27,14 @@ public class ForEachStepEmitter<TItem>(VariableReference<IEnumerable<TItem>> col
     {
         if (modifierActions.Count != 0)
             throw new UnsupportedFrameworkValueException(
-                $"ForEach over '{variable.Identifier}' cannot carry step modifiers: it emits a whole group of steps, so there is no single step for a modifier to apply to.",
-                new[]
+                $"ForEach over '{variable.Identifier}' cannot carry step modifiers: it emits a whole group of steps, so there is no single step for a modifier to apply to.")
+            {
+                RecoverySteps = new[]
                 {
                     $"Move the modifier onto the individual steps inside the ForEach('{variable.Identifier}') body.",
                     "Use Trigger(...) for a single step when you want to modify exactly one step."
-                });
+                },
+            };
 
         // Record both sides before resolving anything: the loop reads the collection and writes the
         // item variable once per iteration, and validation has to see that in composition order.
@@ -41,12 +43,14 @@ public class ForEachStepEmitter<TItem>(VariableReference<IEnumerable<TItem>> col
 
         var items = (collection.GetValue(variableStore)
             ?? throw new FrameworkStateException(
-                $"The ForEach collection variable '{collection.Identifier?.Identifier ?? "<constant>"}' resolved to null, so there is nothing to iterate for '{variable.Identifier}'.",
-                new[]
+                $"The ForEach collection variable '{collection.Identifier?.Identifier ?? "<constant>"}' resolved to null, so there is nothing to iterate for '{variable.Identifier}'.")
+            {
+                RecoverySteps = new[]
                 {
                     $"Set '{collection.Identifier?.Identifier ?? "the collection"}' to a non-null collection before this ForEach runs.",
                     "Pass an empty collection instead of null when the loop is meant to do nothing."
-                })).ToList();
+                },
+            }).ToList();
         logger?.LogInformation($"ForEach '{variable.Identifier}': {items.Count} item(s)");
 
         foreach (TItem var in items)

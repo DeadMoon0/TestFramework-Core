@@ -306,9 +306,10 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         {
             TimeSpan delay = step.Step.RetryOptions.CalcDelay.GetValue(variableStore)?.Invoke(iteration)
                 ?? throw new FrameworkConfigurationException(
-                    $"Step '{step.Step.Name}' cannot retry: RetryOptions.CalcDelay resolved to null.",
-                    ["Set CalcDelay to a function of the attempt number, or leave the default in place."],
-                    []);
+                    $"Step '{step.Step.Name}' cannot retry: RetryOptions.CalcDelay resolved to null.")
+                {
+                    RecoverySteps = ["Set CalcDelay to a function of the attempt number, or leave the default in place."],
+                };
 
             await Task.Delay(delay, stopToken);
 
@@ -365,9 +366,10 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero)
             {
                 throw new FrameworkConfigurationException(
-                    $"Step '{step.Step.Name}' has a timeout of {timeout}, which no step can run under.",
-                    ["State a positive timeout, or Timeout.InfiniteTimeSpan for a step with no deadline."],
-                    []);
+                    $"Step '{step.Step.Name}' has a timeout of {timeout}, which no step can run under.")
+                {
+                    RecoverySteps = ["State a positive timeout, or Timeout.InfiniteTimeSpan for a step with no deadline."],
+                };
             }
         }
         catch (Exception exception)

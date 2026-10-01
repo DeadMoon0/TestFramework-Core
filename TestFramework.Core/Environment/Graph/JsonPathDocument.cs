@@ -95,11 +95,13 @@ public sealed class JsonPathDocument : ConfigDocument
             if (paths[index].StartsWith(previous + ":", StringComparison.Ordinal))
             {
                 throw new FrameworkConfigurationException(
-                    $"'{documentPath}' is routed both '{previous}' and '{paths[index]}', so one of them would silently replace the other.",
-                    [
+                    $"'{documentPath}' is routed both '{previous}' and '{paths[index]}', so one of them would silently replace the other.")
+                {
+                    RecoverySteps = [
                         $"Route '{previous}' or the values inside it, not both.",
                     ],
-                    [$"'{previous}' would have to be a value and an object at the same time"]);
+                    AvailableOptions = [$"'{previous}' would have to be a value and an object at the same time"],
+                };
             }
         }
     }
@@ -121,18 +123,22 @@ public sealed class JsonPathDocument : ConfigDocument
         {
             throw new FrameworkConfigurationException(
                 $"The existing '{path}' is not valid JSON, so routed values cannot be merged into it.",
-                [
+                exception)
+            {
+                RecoverySteps = [
                     "Fix the file the payload ships, or generate the document whole instead of merging into it.",
                 ],
-                [exception.Message],
-                exception);
+                AvailableOptions = [exception.Message],
+            };
         }
 
         return parsed as JObject
             ?? throw new FrameworkConfigurationException(
-                $"The existing '{path}' is valid JSON but not an object, so there is nothing to merge routed values into.",
-                ["Make it an object, or generate the document whole instead of merging into it."],
-                [$"it is a {parsed.Type}"]);
+                $"The existing '{path}' is valid JSON but not an object, so there is nothing to merge routed values into.")
+            {
+                RecoverySteps = ["Make it an object, or generate the document whole instead of merging into it."],
+                AvailableOptions = [$"it is a {parsed.Type}"],
+            };
     }
 
     private static void Insert(JObject root, string valuePath, string value, string path)
@@ -142,9 +148,10 @@ public sealed class JsonPathDocument : ConfigDocument
         if (segments.Length == 0)
         {
             throw new FrameworkConfigurationException(
-                $"A route into '{path}' has no value path, so there is nowhere to write it.",
-                ["Give the route a path, for example 'ConnectionStrings:Sql'."],
-                []);
+                $"A route into '{path}' has no value path, so there is nowhere to write it.")
+            {
+                RecoverySteps = ["Give the route a path, for example 'ConnectionStrings:Sql'."],
+            };
         }
 
         JObject current = root;

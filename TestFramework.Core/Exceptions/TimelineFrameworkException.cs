@@ -11,40 +11,54 @@ namespace TestFramework.Core.Exceptions;
 /// </summary>
 public abstract class TimelineFrameworkException : Exception
 {
-    private readonly string _friendlyMessage;
-    private readonly IReadOnlyList<string> _recoverySteps;
-    private readonly IReadOnlyList<string> _availableOptions;
-
     /// <summary>
     /// Friendly error message with recovery guidance
     /// </summary>
-    public string FriendlyMessage => _friendlyMessage;
+    public string FriendlyMessage { get; }
 
     /// <summary>
     /// Recovery steps (e.g., "Call SetEnv()", "Check variable name")
     /// </summary>
-    public IReadOnlyList<string> RecoverySteps => _recoverySteps;
+    /// <remarks>
+    /// An init property rather than a constructor parameter, like <see cref="AvailableOptions"/>: a constructor
+    /// parameter is a signature every package compiles against, so the next piece of guidance added that way
+    /// would break all of them. Each exception type starts with its own general advice; a thrower that knows
+    /// better replaces it.
+    /// </remarks>
+    public IReadOnlyList<string> RecoverySteps { get; init; }
 
     /// <summary>
     /// Available alternatives (e.g., list of variables, environments, artifacts)
     /// </summary>
-    public IReadOnlyList<string> AvailableOptions => _availableOptions;
+    public IReadOnlyList<string> AvailableOptions { get; init; } = [];
+
+    /// <summary>
+    /// The friendly message followed by the recovery steps and the available options.
+    /// </summary>
+    /// <remarks>
+    /// Built when it is read, because the steps and options are set after the constructor has run.
+    /// </remarks>
+    public override string Message => BuildDetailedMessage(this.FriendlyMessage, this.RecoverySteps, this.AvailableOptions);
 
     /// <summary>
     /// Initializes a new instance of the TimelineFrameworkException class.
     /// </summary>
     /// <param name="friendlyMessage">Friendly error message with recovery guidance</param>
     /// <param name="recoverySteps">Recovery steps to fix the error</param>
-    /// <param name="availableOptions">Available alternatives or valid values</param>
-    protected TimelineFrameworkException(
-        string friendlyMessage,
-        IReadOnlyList<string> recoverySteps,
-        IReadOnlyList<string>? availableOptions = null)
-        : base(BuildDetailedMessage(friendlyMessage, recoverySteps, availableOptions))
+    protected TimelineFrameworkException(string friendlyMessage, IReadOnlyList<string> recoverySteps)
+        : this(friendlyMessage, recoverySteps, [], null)
     {
-        _friendlyMessage = friendlyMessage;
-        _recoverySteps = recoverySteps;
-        _availableOptions = availableOptions ?? new List<string>();
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the TimelineFrameworkException class with the values a reader could pick from.
+    /// </summary>
+    /// <param name="friendlyMessage">Friendly error message with recovery guidance</param>
+    /// <param name="recoverySteps">Recovery steps to fix the error</param>
+    /// <param name="availableOptions">Available alternatives or valid values</param>
+    protected TimelineFrameworkException(string friendlyMessage, IReadOnlyList<string> recoverySteps, IReadOnlyList<string> availableOptions)
+        : this(friendlyMessage, recoverySteps, availableOptions, null)
+    {
     }
 
     /// <summary>
@@ -53,17 +67,17 @@ public abstract class TimelineFrameworkException : Exception
     /// <param name="friendlyMessage">Friendly error message with recovery guidance</param>
     /// <param name="recoverySteps">Recovery steps to fix the error</param>
     /// <param name="availableOptions">Available alternatives or valid values</param>
-    /// <param name="innerException">The underlying cause of the failure</param>
+    /// <param name="innerException">The underlying cause of the failure, or <see langword="null"/></param>
     protected TimelineFrameworkException(
         string friendlyMessage,
         IReadOnlyList<string> recoverySteps,
-        IReadOnlyList<string>? availableOptions,
+        IReadOnlyList<string> availableOptions,
         Exception? innerException)
-        : base(BuildDetailedMessage(friendlyMessage, recoverySteps, availableOptions), innerException)
+        : base(friendlyMessage, innerException)
     {
-        _friendlyMessage = friendlyMessage;
-        _recoverySteps = recoverySteps;
-        _availableOptions = availableOptions ?? new List<string>();
+        this.FriendlyMessage = friendlyMessage;
+        this.RecoverySteps = recoverySteps;
+        this.AvailableOptions = availableOptions;
     }
 
     private static string BuildDetailedMessage(

@@ -40,7 +40,7 @@ public sealed record ConventionReport(int Checked, IReadOnlyList<string> Skipped
 /// rule that only Core's tests enforce is a rule only Core follows.
 /// </para>
 /// </remarks>
-public static class StepConventions
+public static partial class StepConventions
 {
     /// <summary>
     /// No package hands another package a view of its internals.
@@ -91,13 +91,15 @@ public static class StepConventions
         if (granted.Count > 0)
         {
             throw new FrameworkConfigurationException(
-                $"'{owner}' opens its internals to {granted.Count} assembly(ies) that are not its own suite, so those can do things no other package can.",
-                [
+                $"'{owner}' opens its internals to {granted.Count} assembly(ies) that are not its own suite, so those can do things no other package can.")
+            {
+                RecoverySteps = [
                     $"The one grant this package may make is to '{owner}.Tests', its own suite.",
                     "Whatever the favoured package reaches for is a surface this one is missing - add it, and let every package use it.",
                     "A grant to another package's suite is the same handshake one level down. Where those tests are about this package's own behaviour, they belong in this package's own suite - move them rather than opening the door.",
                 ],
-                [.. granted]);
+                AvailableOptions = [.. granted],
+            };
         }
 
         return new ConventionReport(1, []);
@@ -153,12 +155,14 @@ public static class StepConventions
         if (offenders.Count != 0)
         {
             throw new FrameworkConfigurationException(
-                $"{offenders.Count} step type(s) in '{assembly.GetName().Name}' do not clone themselves.",
-                [
+                $"{offenders.Count} step type(s) in '{assembly.GetName().Name}' do not clone themselves.")
+            {
+                RecoverySteps = [
                     "Give each of them a Clone() override that returns its own type and copies its own fields.",
                     "Carry the framework's options across with WithClonedOptions(this).",
                 ],
-                [.. offenders.OrderBy(static offender => offender, StringComparer.Ordinal)]);
+                AvailableOptions = [.. offenders.OrderBy(static offender => offender, StringComparer.Ordinal)],
+            };
         }
 
         return new ConventionReport(steps.Count, []);
@@ -232,11 +236,13 @@ public static class StepConventions
         if (offenders.Count != 0)
         {
             throw new FrameworkConfigurationException(
-                $"{offenders.Count} part(s) in '{assembly.GetName().Name}' survive a freeze.",
-                [
+                $"{offenders.Count} part(s) in '{assembly.GetName().Name}' survive a freeze.")
+            {
+                RecoverySteps = [
                     "Freeze every freezable part in that type's Freeze(), or find the parts instead of listing them.",
                 ],
-                [.. offenders.OrderBy(static offender => offender, StringComparer.Ordinal)]);
+                AvailableOptions = [.. offenders.OrderBy(static offender => offender, StringComparer.Ordinal)],
+            };
         }
 
         return new ConventionReport(checkedTypes, [.. skipped.OrderBy(static entry => entry, StringComparer.Ordinal)]);

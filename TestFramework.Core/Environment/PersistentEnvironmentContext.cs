@@ -22,7 +22,6 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 {
     private readonly TSetup _setup;
     private readonly IServiceProvider _persistentServiceProvider;
-    private readonly bool _disposePersistentServiceProvider;
     private readonly IEnvironmentProvider _bootstrapEnvironment;
     private readonly Dictionary<EnvComponentIdentifier, object?> _persistentStates = [];
 
@@ -52,13 +51,12 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private readonly TimeSpan _persistentSetupTimeout;
     private bool _disposed;
 
-    private PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider, bool disposePersistentServiceProvider)
+    private PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider)
     {
         ArgumentNullException.ThrowIfNull(setup);
 
         _setup = setup;
         _persistentServiceProvider = persistentServiceProvider ?? new EmptyServiceProvider();
-        _disposePersistentServiceProvider = disposePersistentServiceProvider;
         _persistentSetupTimeout = ValidatePersistentSetupTimeout(_setup.GetPersistentSetupTimeout());
         _bootstrapEnvironment = _setup.CreateEnvironment();
         _persistentPublishing = new ResourcePublishing(RunResources.Compose(_persistentServiceProvider, _bootstrapEnvironment).Values);
@@ -71,31 +69,49 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     /// <summary>
     /// Creates the persistent environment slice and awaits its bootstrap.
     /// </summary>
-    /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
-    /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
-    /// <param name="cancellationToken">What stops the bootstrap.</param>
     /// <returns>The bootstrapped context.</returns>
-    public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
-        IServiceProvider? persistentServiceProvider = null,
-        bool disposePersistentServiceProvider = false,
-        CancellationToken cancellationToken = default)
-        => CreateAsync(new TSetup(), persistentServiceProvider, disposePersistentServiceProvider, cancellationToken);
+    public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync()
+        => CreateAsync(new TSetup(), null, CancellationToken.None);
 
     /// <summary>
     /// Creates the persistent environment slice from an explicit setup instance and awaits its bootstrap.
     /// </summary>
     /// <param name="setup">The persistent environment setup.</param>
-    /// <param name="persistentServiceProvider">Services available to the persistent components.</param>
-    /// <param name="disposePersistentServiceProvider">Whether disposing this context also disposes the provider.</param>
+    /// <returns>The bootstrapped context.</returns>
+    public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync(TSetup setup)
+        => CreateAsync(setup, null, CancellationToken.None);
+
+    /// <summary>
+    /// Creates the persistent environment slice with the services its components use, and awaits its bootstrap.
+    /// </summary>
+    /// <remarks>
+    /// The context owns <paramref name="persistentServiceProvider"/> from here on and disposes it with itself.
+    /// The provider lives exactly as long as the components built from it, and the context is the one thing
+    /// that knows when that ends - a flag saying who disposes it was a rule only the caller could get right.
+    /// </remarks>
+    /// <param name="setup">The persistent environment setup.</param>
+    /// <param name="persistentServiceProvider">Services available to the persistent components; the context disposes it.</param>
+    /// <returns>The bootstrapped context.</returns>
+    public static Task<PersistentEnvironmentContext<TSetup>> CreateAsync(TSetup setup, IServiceProvider persistentServiceProvider)
+        => CreateAsync(setup, persistentServiceProvider, CancellationToken.None);
+
+    /// <summary>
+    /// Creates the persistent environment slice and awaits its bootstrap, stopping when asked.
+    /// </summary>
+    /// <remarks>
+    /// The context owns <paramref name="persistentServiceProvider"/> from here on and disposes it with itself.
+    /// </remarks>
+    /// <param name="setup">The persistent environment setup.</param>
+    /// <param name="persistentServiceProvider">Services available to the persistent components, or <see langword="null"/>
+    /// for none; the context disposes it.</param>
     /// <param name="cancellationToken">What stops the bootstrap.</param>
     /// <returns>The bootstrapped context.</returns>
     public static async Task<PersistentEnvironmentContext<TSetup>> CreateAsync(
         TSetup setup,
-        IServiceProvider? persistentServiceProvider = null,
-        bool disposePersistentServiceProvider = false,
-        CancellationToken cancellationToken = default)
+        IServiceProvider? persistentServiceProvider,
+        CancellationToken cancellationToken)
     {
-        PersistentEnvironmentContext<TSetup> context = new(setup, persistentServiceProvider, disposePersistentServiceProvider);
+        PersistentEnvironmentContext<TSetup> context = new(setup, persistentServiceProvider);
 
         try
         {
@@ -136,9 +152,9 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
 
         await DisposePersistentComponentsAsync();
 
-        if (_disposePersistentServiceProvider && _persistentServiceProvider is IAsyncDisposable asyncDisposable)
+        if (_persistentServiceProvider is IAsyncDisposable asyncDisposable)
             await asyncDisposable.DisposeAsync();
-        else if (_disposePersistentServiceProvider && _persistentServiceProvider is IDisposable disposable)
+        else if (_persistentServiceProvider is IDisposable disposable)
             disposable.Dispose();
 
         _disposed = true;

@@ -15,13 +15,13 @@ namespace TestFramework.Core.Steps.Preprocessor;
 /// <param name="RedirectToCleanUp">Whether the step should be routed to the cleanup stage.</param>
 /// <param name="RunInPreSetupStage">Whether the step should be routed to the pre-setup stage.</param>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public record StepEmitterStepResult(StepGeneric Step, bool RedirectToCleanUp = false, bool RunInPreSetupStage = false);
+internal record StepEmitterStepResult(StepGeneric Step, bool RedirectToCleanUp = false, bool RunInPreSetupStage = false);
 
 /// <summary>
 /// Provides the base contract for objects that emit concrete steps during preprocessing.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public abstract class StepEmitter : IFreezable
+internal abstract class StepEmitter : IFreezable
 {
     private readonly List<Action<StepGeneric, VariableTracker, ArtifactTracker>> _modifierActions = [];
 

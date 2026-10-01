@@ -82,11 +82,13 @@ public sealed class RunState
             if (this.frozen)
             {
                 throw new Exceptions.FrameworkStateException(
-                    $"The run has finished, so it can take no new state: '{typeof(TState).Name}' was asked for after its Cleanup stage had run.",
-                    [
+                    $"The run has finished, so it can take no new state: '{typeof(TState).Name}' was asked for after its Cleanup stage had run.")
+                {
+                    RecoverySteps = [
                         "Create live objects inside a step of the run, and close them in a step of the run.",
                         "Use TryGet to read what the run kept.",
-                    ]);
+                    ],
+                };
             }
 
             TState created = create()
