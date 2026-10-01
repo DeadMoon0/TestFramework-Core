@@ -118,9 +118,6 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
 
         foreach (EnvironmentRequirement requirement in requirements)
         {
-#pragma warning disable CS0618 // still honoured for an environment written against an earlier engine
-            OnRequirementResolved(requirement);
-#pragma warning restore CS0618
             if (_resourceKindMappings.TryGetValue(requirement.ResourceKind, out HashSet<EnvComponentIdentifier>? mappedComponents))
                 resolved.UnionWith(mappedComponents);
             if (_declaredResourceMappings.TryGetValue(requirement.ResourceKind, out HashSet<EnvComponentIdentifier>? declaredComponents))
@@ -156,19 +153,5 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
             .Where(type => type.IsGenericType)
             .Select(type => type.GetGenericTypeDefinition())
             .Contains(mappedType);
-    }
-
-    /// <summary>
-    /// Allows derived providers to react when a requirement is resolved.
-    /// </summary>
-    /// <remarks>
-    /// Obsolete because it made an environment learn what a run needs by remembering it on the instance -
-    /// state one run left for the next, and two runs sharing an instance would race over. What a run needs
-    /// from an environment now arrives with each component's context, as
-    /// <see cref="Graph.EnvironmentResources.Required"/>.
-    /// </remarks>
-    [Obsolete("Read what the run needs from EnvironmentResources.Required in the component's context instead of remembering it on the environment.")]
-    protected virtual void OnRequirementResolved(EnvironmentRequirement requirement)
-    {
     }
 }

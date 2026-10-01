@@ -29,6 +29,15 @@ namespace TestFramework.Core.Tests;
 public class PublicSurfaceTests
 {
     [Fact]
+    public void APersistentEnvironmentCanOnlyBeStartedByAwaitingIt()
+    {
+        // Damage: a constructor cannot await, so one that bootstraps blocks the calling thread for the whole
+        // setup - two minutes by default - and deadlocks outright under a synchronization context. CreateAsync
+        // is the only road in.
+        Assert.Empty(typeof(TestFramework.Core.Environment.PersistentEnvironmentContext<>).GetConstructors(BindingFlags.Public | BindingFlags.Instance));
+    }
+
+    [Fact]
     public void NobodyOutsideTheRunnerCanStartOrEndAStepAttempt()
     {
         // Damage: Begin abandons whatever attempt is current, so any caller could silently void every

@@ -133,6 +133,14 @@ public class ConfigInstanceTests
     }
 
     [Fact]
+    public void ConfigPersistentEnvironmentContext_CanOnlyBeStartedByAwaitingIt()
+    {
+        // A constructor cannot await, so one that bootstraps blocks the calling thread for the whole setup and
+        // deadlocks under a synchronization context. CreateAsync is the only road in.
+        Assert.Empty(typeof(ConfigPersistentEnvironmentContext<>).GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance));
+    }
+
+    [Fact]
     public async Task ConfigPersistentEnvironmentContext_LayersRunConfig_AndSupportsTimelineSetupRunExtension()
     {
         await using ConfigPersistentEnvironmentContext<ConfigPersistentTestSetup> persistent =

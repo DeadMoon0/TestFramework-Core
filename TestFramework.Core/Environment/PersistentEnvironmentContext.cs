@@ -52,37 +52,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
     private readonly TimeSpan _persistentSetupTimeout;
     private bool _disposed;
 
-    private const string BlockingConstructorObsoleteMessage =
-        "This constructor blocks the calling thread for the entire bootstrap — up to the persistent setup timeout, two minutes by default — and deadlocks under a SynchronizationContext. Use PersistentEnvironmentContext<TSetup>.CreateAsync(...) instead.";
-
-    /// <summary>
-    /// Creates and bootstraps the persistent environment slice immediately.
-    /// </summary>
-    [Obsolete(BlockingConstructorObsoleteMessage)]
-    public PersistentEnvironmentContext(IServiceProvider? persistentServiceProvider = null, bool disposePersistentServiceProvider = false)
-        : this(new TSetup(), persistentServiceProvider, disposePersistentServiceProvider)
-    {
-    }
-
-    /// <summary>
-    /// Creates and bootstraps the persistent environment slice immediately using an explicit setup instance.
-    /// </summary>
-    [Obsolete(BlockingConstructorObsoleteMessage)]
-    public PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider = null, bool disposePersistentServiceProvider = false)
-        : this(setup, persistentServiceProvider, disposePersistentServiceProvider, bootstrap: false)
-    {
-        try
-        {
-            BootstrapPersistentComponentsAsync(_persistentRoots, CancellationToken.None).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            DisposePersistentComponentsAsync().GetAwaiter().GetResult();
-            throw;
-        }
-    }
-
-    private PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider, bool disposePersistentServiceProvider, bool bootstrap)
+    private PersistentEnvironmentContext(TSetup setup, IServiceProvider? persistentServiceProvider, bool disposePersistentServiceProvider)
     {
         ArgumentNullException.ThrowIfNull(setup);
 
@@ -96,10 +66,6 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         _persistentRoots = ValidatePersistentRoots(_setup.GetPersistentComponentIdentifiers());
         ValidatePersistentClosure(_bootstrapEnvironment, _persistentRoots);
         _persistentComponents = [.. EnvComponentGraph.Order(_bootstrapEnvironment, _persistentRoots).Select(component => component.Id)];
-
-        // 'bootstrap' exists only so CreateAsync can build the object and then await the bootstrap.
-        // A constructor cannot await, which is the whole reason the blocking overloads are obsolete.
-        _ = bootstrap;
     }
 
     /// <summary>
@@ -129,7 +95,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         bool disposePersistentServiceProvider = false,
         CancellationToken cancellationToken = default)
     {
-        PersistentEnvironmentContext<TSetup> context = new(setup, persistentServiceProvider, disposePersistentServiceProvider, bootstrap: false);
+        PersistentEnvironmentContext<TSetup> context = new(setup, persistentServiceProvider, disposePersistentServiceProvider);
 
         try
         {

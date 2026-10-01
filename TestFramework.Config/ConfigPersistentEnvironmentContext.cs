@@ -15,29 +15,6 @@ public sealed class ConfigPersistentEnvironmentContext<TSetup> : IAsyncDisposabl
     private readonly ConfigInstance _persistentConfig;
     private readonly PersistentEnvironmentContext<TSetup> _inner;
 
-    private const string BlockingConstructorObsoleteMessage =
-        "This constructor blocks the calling thread for the entire bootstrap and deadlocks under a SynchronizationContext. Use ConfigPersistentEnvironmentContext<TSetup>.CreateAsync(...) instead.";
-
-    /// <summary>
-    /// Creates and bootstraps the persistent environment context using the setup's configuration snapshot.
-    /// </summary>
-    [Obsolete(BlockingConstructorObsoleteMessage)]
-    public ConfigPersistentEnvironmentContext(bool disposePersistentServiceProvider = true)
-        : this(new TSetup(), disposePersistentServiceProvider)
-    {
-    }
-
-    /// <summary>
-    /// Creates and bootstraps the persistent environment context using an explicit setup instance.
-    /// </summary>
-    [Obsolete(BlockingConstructorObsoleteMessage)]
-    public ConfigPersistentEnvironmentContext(TSetup setup, bool disposePersistentServiceProvider = true)
-    {
-        ArgumentNullException.ThrowIfNull(setup);
-        _persistentConfig = setup.CreatePersistentConfig();
-        _inner = new PersistentEnvironmentContext<TSetup>(setup, _persistentConfig.BuildServiceProvider(), disposePersistentServiceProvider);
-    }
-
     private ConfigPersistentEnvironmentContext(ConfigInstance persistentConfig, PersistentEnvironmentContext<TSetup> inner)
     {
         _persistentConfig = persistentConfig;
