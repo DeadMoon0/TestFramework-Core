@@ -35,6 +35,23 @@ public sealed class RunState
 {
     private readonly object syncRoot = new object();
     private readonly Dictionary<Type, object> slots = [];
+    private bool frozen;
+
+    /// <summary>
+    /// Ends the run's ability to take new state. What it already holds stays readable.
+    /// </summary>
+    /// <remarks>
+    /// Internal, and deliberately not <see cref="IFreezable"/>: a caller able to freeze a running run's state
+    /// would make the next step that opens a browser fail. The run freezes its own state when it ends, as it does
+    /// its variables and artifacts.
+    /// </remarks>
+    internal void FreezeForRunEnd()
+    {
+        lock (this.syncRoot)
+        {
+            this.frozen = true;
+        }
+    }
 
     /// <summary>
     /// This run's instance of a package's state, created on first ask.
@@ -57,6 +74,19 @@ public sealed class RunState
             if (this.slots.TryGetValue(typeof(TState), out object? existing))
             {
                 return (TState)existing;
+            }
+
+            // Reading what a finished run kept is what it is for; opening something new into it is not. The
+            // run's cleanup has already run, so a live object created now would belong to a run that can no
+            // longer close it.
+            if (this.frozen)
+            {
+                throw new Exceptions.FrameworkStateException(
+                    $"The run has finished, so it can take no new state: '{typeof(TState).Name}' was asked for after its Cleanup stage had run.",
+                    [
+                        "Create live objects inside a step of the run, and close them in a step of the run.",
+                        "Use TryGet to read what the run kept.",
+                    ]);
             }
 
             TState created = create()

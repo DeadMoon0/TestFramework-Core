@@ -30,7 +30,11 @@ public class VariableStore
     /// a <em>running</em> run's variables would turn every later write into a failure. The run freezes its
     /// own variables when it ends, and nothing else may - the same shape the resource values use.
     /// </remarks>
-    internal void FreezeForRunEnd() { lock (syncRoot) { _variables.Freeze(); } }
+    internal void FreezeForRunEnd()
+    {
+        lock (syncRoot) { _variables.Freeze(); }
+        RunState.FreezeForRunEnd();
+    }
 
     private void EnsureNotFrozen()
     {

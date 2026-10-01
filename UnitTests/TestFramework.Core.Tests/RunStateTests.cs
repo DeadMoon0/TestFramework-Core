@@ -98,6 +98,40 @@ public class RunStateTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AFinishedRunTakesNoNewState()
+    {
+        // Damage: a finished run handed out a state table that still took new slots, so a live object could
+        // be opened into a run whose cleanup had already run - and nothing would ever close it.
+        TimelineRun run = await Timeline.Create()
+            .Trigger(new RecordingStep(failFirst: false)).Name("opens")
+            .Build()
+            .SetupRun(null, output.WriteLine)
+            .RunAsync();
+
+        Exceptions.FrameworkStateException refusal = Assert.Throws<Exceptions.FrameworkStateException>(
+            () => run.VariableStore.RunState.GetOrAdd(() => new Unopened()));
+
+        Assert.Contains(nameof(Unopened), refusal.FriendlyMessage, StringComparison.Ordinal);
+        Assert.False(run.VariableStore.RunState.TryGet(out Unopened? _));
+    }
+
+    [Fact]
+    public async Task AFinishedRunStillHandsOutTheStateItHas()
+    {
+        // The other half: reading what a run kept is what a finished run is for.
+        TimelineRun run = await Timeline.Create()
+            .Trigger(new RecordingStep(failFirst: false)).Name("opens")
+            .Build()
+            .SetupRun(null, output.WriteLine)
+            .RunAsync();
+
+        Assert.True(run.VariableStore.RunState.TryGet(out Sessions? sessions));
+        Assert.Same(sessions, run.VariableStore.RunState.GetOrAdd(() => new Sessions()));
+    }
+
+    private sealed class Unopened;
+
+    [Fact]
     public async Task TheCleanupStepFindsWhatTheStepBeforeItOpened()
     {
         // The other half, and the one that leaks: a cleanup step reading a state of its own would report

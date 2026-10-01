@@ -29,6 +29,16 @@ namespace TestFramework.Core.Tests;
 public class PublicSurfaceTests
 {
     [Fact]
+    public void NobodyOutsideCoreCanFreezeARunsLiveState()
+    {
+        // Damage: freezing a running run's state table would make the next step that opens a browser fail.
+        // The run freezes it when it ends, and nothing else may.
+        AssertNotPublic<TestFramework.Core.Runner.RunState>("Freeze");
+        AssertNotPublic<TestFramework.Core.Runner.RunState>("FreezeForRunEnd");
+        Assert.False(typeof(IFreezable).IsAssignableFrom(typeof(TestFramework.Core.Runner.RunState)));
+    }
+
+    [Fact]
     public void APersistentEnvironmentCanOnlyBeStartedByAwaitingIt()
     {
         // Damage: a constructor cannot await, so one that bootstraps blocks the calling thread for the whole
