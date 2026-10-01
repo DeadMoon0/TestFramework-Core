@@ -71,6 +71,12 @@ public class VariableStore
     private readonly StepWriteLicence licence;
 
     /// <summary>
+    /// Whether this view's writes still count. Shared with the run's other channels through the context, so
+    /// one rule decides it for all of them.
+    /// </summary>
+    internal StepWriteLicence WriteLicence => licence;
+
+    /// <summary>
     /// The run's own live things - what a package keeps for the length of a run and cannot put in a
     /// variable.
     /// </summary>

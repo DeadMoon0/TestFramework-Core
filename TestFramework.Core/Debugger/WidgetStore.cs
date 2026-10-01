@@ -1,5 +1,7 @@
 using System;
 using System.Text;
+using TestFramework.Core.Logging;
+using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Debugger;
 
@@ -34,10 +36,24 @@ public sealed class WidgetStore
     private const int PreviewBudget = 2_000;
 
     private readonly DebuggingRunSession session;
+    private readonly StepWriteLicence licence;
+    private readonly ScopedLogger logger;
 
-    internal WidgetStore(DebuggingRunSession session)
+    /// <summary>
+    /// The run's widgets as one attempt, or the run itself, may write them.
+    /// </summary>
+    /// <param name="session">The run's session, which owns the files and the signal.</param>
+    /// <param name="licence">
+    /// The same licence the attempt's variable and artifact stores hold, so the rule about an abandoned
+    /// attempt's writes lives in one type and every channel asks it - the run's own contexts carry the
+    /// unrestricted one, which is what lets an observer file the evidence of the attempt that just died.
+    /// </param>
+    /// <param name="logger">Where a refused widget is reported.</param>
+    internal WidgetStore(DebuggingRunSession session, StepWriteLicence licence, ScopedLogger logger)
     {
         this.session = session;
+        this.licence = licence;
+        this.logger = logger;
     }
 
     /// <summary>
@@ -55,6 +71,14 @@ public sealed class WidgetStore
     public DebugValueBody? Publish(Widget widget)
     {
         ArgumentNullException.ThrowIfNull(widget);
+
+        // A finished run is a snapshot. Its signal would be dropped - the queue is closed - while the file was
+        // still written, leaving evidence in its output that the run itself says nothing about.
+        if (session.HasFinished)
+            return null;
+
+        if (!licence.Allows(logger, $"widget '{widget.Name}'"))
+            return null;
 
         byte[] bytes = widget.Bytes ?? Encoding.UTF8.GetBytes(widget.Text ?? string.Empty);
 

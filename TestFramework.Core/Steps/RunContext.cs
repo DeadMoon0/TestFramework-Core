@@ -86,7 +86,7 @@ public sealed class RunContext
     /// view, and a widget has to be filed against the attempt that produced it rather than against
     /// whichever view happened to be passed around.
     /// </remarks>
-    public WidgetStore Widgets => new(this.Variables.DebuggingSession);
+    public WidgetStore Widgets => new(this.Variables.DebuggingSession, this.Variables.WriteLicence, this.Logger);
 
     /// <summary>
     /// Where to record what this run resolved on the caller's behalf.

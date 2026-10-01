@@ -42,6 +42,9 @@ internal class DebuggingRunSession
     private readonly object drainStartGate = new();
     private Task? drainTask;
     private int writerCompleted;
+
+    /// <summary>Whether the run has finished and its signals have been closed.</summary>
+    internal bool HasFinished => Volatile.Read(ref writerCompleted) == 1;
     private bool sessionInitialized;
 
     /// <summary>The steps currently asking, or waiting, at a breakpoint.</summary>

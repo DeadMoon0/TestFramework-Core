@@ -58,6 +58,82 @@ public sealed class WidgetTests : IDisposable
     }
 
     [Fact]
+    public void AnAbandonedAttemptsWidgetIsNotWritten()
+    {
+        // Damage: evidence filed against an attempt the run had already given up on. The variable and artifact
+        // stores refuse an abandoned attempt's writes; widgets did not, so a step left running past its
+        // deadline kept dropping pictures into the run's output, attributed as if they mattered.
+        DebuggingRunSession session = new(new EmptyRunDebugger());
+        Logging.ScopedLogger logger = Logging.ScopedLogger.CreateWithDebuggerSession(session);
+        Variables.VariableStore variables = new(logger, session);
+        Artifacts.ArtifactStore artifacts = new(logger, session);
+        StepAttemptGate gate = new();
+
+        StepAttempt abandoned = gate.Begin("slow-step", 1);
+        RunContext abandonedContext = new(
+            new EmptyServiceProvider(),
+            variables.ForAttempt(gate, abandoned),
+            artifacts.ForAttempt(gate, abandoned),
+            logger,
+            Environment.Graph.RunResources.Compose(new EmptyServiceProvider(), environment: null).Resolution,
+            StepDeadline.Start(System.Threading.Timeout.InfiniteTimeSpan, default),
+            abandoned);
+
+        // The run moves on.
+        gate.Begin("next-step", 1);
+
+        DebugValueBody? body = abandonedContext.Widgets.Publish(Shot("late"));
+
+        Assert.Null(body);
+        Assert.Empty(FilesNamed("late.png"));
+    }
+
+    [Fact]
+    public async Task AFinishedRunTakesNoNewWidget()
+    {
+        // Damage: a file in a finished run's output that the run itself says nothing about - the signal is
+        // dropped because the run is over, while the file used to be written anyway.
+        KeepingStep.Kept = null;
+        await RunAsync(new WidgetRecordingDebugger(), Timeline.Create().Trigger(new KeepingStep()).Name("keeps").Build());
+
+        DebugValueBody? body = KeepingStep.Kept!.Widgets.Publish(Shot("after-the-end"));
+
+        Assert.Null(body);
+        Assert.Empty(FilesNamed("after-the-end.png"));
+    }
+
+    private static Widget Shot(string name) => new()
+    {
+        Kind = WidgetKinds.Screenshot,
+        Name = name,
+        Form = DebugPreviewForm.Image,
+        Bytes = Png
+    };
+
+    private string[] FilesNamed(string name)
+        => Directory.Exists(root) ? Directory.GetFiles(root, name, SearchOption.AllDirectories) : [];
+
+    /// <summary>Keeps its context, so a test can try to use it after the run is over.</summary>
+    private sealed class KeepingStep : Step<EmptyStepResultContext>
+    {
+        public static RunContext? Kept;
+
+        public override string Name => "Keeps its context";
+        public override string Description => "Holds on to what the run handed it.";
+        public override bool DoesReturn => false;
+
+        public override Task<EmptyStepResultContext?> Execute(RunContext context)
+        {
+            Kept = context;
+            return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
+        }
+
+        public override Step<EmptyStepResultContext> Clone() => new KeepingStep().WithClonedOptions(this);
+        public override void DeclareIO(StepIOContract contract) { }
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
+    }
+
+    [Fact]
     public async Task AnWidgetIsWrittenIntoTheRunsOwnOutputBesideItsValues()
     {
         WidgetRecordingDebugger debugger = new();
