@@ -527,8 +527,6 @@ run.Artifact<BlobData>("file").Should().HaveBeenSetUp();
 
 | Exception | Thrown when |
 |-----------|-------------|
-| `VariableDoesNotExistException` | Variable accessed but never defined |
-| `VariableDoesNotYetExistException` | Variable read before its definition step ran |
 | `CannotSetImmutableVariableException` | Attempt to mutate an immutable variable |
 | `ArtifactDoesNotExistException` | Artifact accessed but never registered |
 | `ArtifactDoesNotYetExistException` | Artifact read before its setup step ran |
