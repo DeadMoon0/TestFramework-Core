@@ -4,7 +4,6 @@ using System.Threading;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Logging.BuildInEvents;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Logging;
 
@@ -23,11 +22,11 @@ public class ScopedLogger
     internal void ClearAssertionScope() => assertionScope.Value = null;
     internal AssertionScope? CurrentScope => assertionScope.Value;
 
-    internal ScopedLogger(ITestOutputHelper? outputHelper)
+    internal ScopedLogger(Action<string>? writeLine)
     {
-        debuggingSession = outputHelper is null
+        debuggingSession = writeLine is null
             ? null
-            : new DebuggingRunSession(new OutputRunDebugger(outputHelper));
+            : new DebuggingRunSession(new OutputRunDebugger(writeLine));
     }
 
     private ScopedLogger(DebuggingRunSession debuggingSession, bool _)

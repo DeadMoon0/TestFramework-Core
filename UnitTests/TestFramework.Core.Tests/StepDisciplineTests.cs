@@ -73,7 +73,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
-            () => timeline.SetupRun(outputHelper: output).RunAsync());
+            () => timeline.SetupRun(writeLine: output.WriteLine).RunAsync());
 
         Assert.Contains("returned the same instance", failure.Message, StringComparison.Ordinal);
         Assert.Contains(nameof(SelfReturningStep), failure.Message, StringComparison.Ordinal);
@@ -89,7 +89,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
-            () => timeline.SetupRun(outputHelper: output).RunAsync());
+            () => timeline.SetupRun(writeLine: output.WriteLine).RunAsync());
 
         Assert.Contains("would run as its base class", failure.Message, StringComparison.Ordinal);
     }
@@ -104,7 +104,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
-            () => timeline.SetupRun(outputHelper: output).RunAsync());
+            () => timeline.SetupRun(writeLine: output.WriteLine).RunAsync());
 
         Assert.Contains("shares its", failure.Message, StringComparison.Ordinal);
     }
@@ -117,8 +117,8 @@ public class StepDisciplineTests(ITestOutputHelper output)
             .Trigger(new WellBehavedStep()).Name("fine")
             .Build();
 
-        TimelineRun first = await timeline.SetupRun(outputHelper: output).RunAsync();
-        TimelineRun second = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun first = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
+        TimelineRun second = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Complete, first.Step("fine").LastResult.State);
         Assert.Equal(StepState.Complete, second.Step("fine").LastResult.State);

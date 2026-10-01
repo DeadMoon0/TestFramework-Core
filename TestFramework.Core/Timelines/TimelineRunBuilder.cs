@@ -18,7 +18,6 @@ using TestFramework.Core.Runner;
 using TestFramework.Core.Environment;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Steps.SystemSteps;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Timelines;
 
@@ -56,14 +55,14 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     /// </summary>
     private bool _hasRun;
 
-    internal TimelineRunBuilder(IServiceProvider serviceProvider, ITestOutputHelper? outputHelper, Timeline timeline, PreProcessableStage mainStage, string? sourceFilePath = null, int sourceLineNumber = 0)
+    internal TimelineRunBuilder(IServiceProvider serviceProvider, Action<string>? writeLine, Timeline timeline, PreProcessableStage mainStage, string? sourceFilePath = null, int sourceLineNumber = 0)
     {
         _timeline = timeline;
         _mainStage = mainStage;
         _serviceProvider = serviceProvider;
 
         _debuggingSession = new DebuggingRunSession(
-            CommonDebugger.GetCommon(_serviceProvider, outputHelper, out _ownedDebuggerResources),
+            CommonDebugger.GetCommon(_serviceProvider, writeLine, out _ownedDebuggerResources),
             sourceFilePath,
             sourceLineNumber);
 

@@ -52,7 +52,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
             .Trigger(new DeadlineReadingStep(recorder)).WithTimeOut(TimeSpan.FromSeconds(30)).Name("reads-its-deadline")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("reads-its-deadline").LastResult.State);
 
@@ -80,7 +80,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(new SourceProvider(new DeclaringSource(sql, "orders-db", "Server=declared")), output)
+            .SetupRun(new SourceProvider(new DeclaringSource(sql, "orders-db", "Server=declared")), output.WriteLine)
             .RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("reads-a-value").LastResult.State);
@@ -105,7 +105,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
             () => timeline
-                .SetupRun(new SourceProvider(new MisdeclaringSource(sql, "orders-db")), output)
+                .SetupRun(new SourceProvider(new MisdeclaringSource(sql, "orders-db")), output.WriteLine)
                 .RunAsync());
 
         Assert.Contains("does not offer", failure.Message, StringComparison.Ordinal);

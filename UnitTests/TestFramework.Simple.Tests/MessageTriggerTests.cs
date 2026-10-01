@@ -19,7 +19,7 @@ public class MessageTriggerTests
             .Trigger(SimpleExt.Trigger.Message("Hello", "Greeting"))
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
         Assert.Contains("[Greeting] Hello", output.Text, StringComparison.Ordinal);
@@ -33,7 +33,7 @@ public class MessageTriggerTests
             .Trigger(SimpleExt.Trigger.Message(Var.Ref<string>("msg"), Var.Ref<string>("caption")))
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output)
+        TimelineRun run = await timeline.SetupRun(output.WriteLine)
             .AddVariable("msg", "resolved body")
             .AddVariable("caption", "resolved caption")
             .RunAsync();
@@ -50,7 +50,7 @@ public class MessageTriggerTests
             .Trigger(SimpleExt.Trigger.Message("body only"))
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
         Assert.Contains("[Message] body only", output.Text, StringComparison.Ordinal);

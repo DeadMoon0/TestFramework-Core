@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Logging;
 
@@ -20,7 +19,7 @@ internal static class LogRendering
     internal static string[] ToLines(LogEvent logEvent, int indentLevel)
     {
         Collector collector = new();
-        LogLineWriter writer = new(collector, Indent);
+        LogLineWriter writer = new(collector.Lines.Add, Indent);
 
         logEvent.CurrentIndentLevel = indentLevel;
         logEvent.FormatLogEvent(writer);
@@ -29,12 +28,9 @@ internal static class LogRendering
     }
 
     /// <summary>Catches what an event writes instead of putting it on a test's output.</summary>
-    private sealed class Collector : ITestOutputHelper
+    private sealed class Collector
     {
         internal List<string> Lines { get; } = [];
 
-        public void WriteLine(string message) => Lines.Add(message);
-
-        public void WriteLine(string format, params object[] args) => Lines.Add(string.Format(format, args));
     }
 }

@@ -39,7 +39,7 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
             .Build();
 
         Task<TimelineRun> running = timeline
-            .SetupRun(new DebuggerServiceProvider(debugger), output)
+            .SetupRun(new DebuggerServiceProvider(debugger), output.WriteLine)
             .SetEnv(new TwoComponentEnvironment(calls))
             .RunAsync();
 

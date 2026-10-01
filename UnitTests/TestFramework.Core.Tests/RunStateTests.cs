@@ -90,7 +90,7 @@ public class RunStateTests(ITestOutputHelper output)
                 .WithRetry(1, CalcDelays.None).Name("twice")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
 
         Sessions sessions = run.VariableStore.RunState.GetOrAdd(() => new Sessions());
 
@@ -106,7 +106,7 @@ public class RunStateTests(ITestOutputHelper output)
             .Trigger(new RecordingStep(failFirst: false)).Name("opens")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
 
         Sessions sessions = run.VariableStore.RunState.GetOrAdd(() => new Sessions());
 

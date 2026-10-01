@@ -67,8 +67,8 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
             await PersistentEnvironmentContext<EmulatorSetup>.CreateAsync();
 
-        TimelineRun first = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
-        TimelineRun second = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun first = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun second = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         first.EnsureRanToCompletion();
         second.EnsureRanToCompletion();
@@ -95,7 +95,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
             await PersistentEnvironmentContext<EmulatorSetup>.CreateAsync();
 
-        TimelineRun run = await timeline.SetupRun(services, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun run = await timeline.SetupRun(services, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         run.EnsureRanToCompletion();
 
@@ -117,7 +117,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             .Trigger(new ReadingStep("test.emulator", "downstream")).Name("reads")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         run.EnsureRanToCompletion();
 
@@ -141,7 +141,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
             await PersistentEnvironmentContext<EmulatorSetup>.CreateAsync();
 
-        TimelineRun run = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         run.EnsureRanToCompletion();
 
@@ -167,7 +167,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         run.EnsureRanToCompletion();
 
@@ -190,7 +190,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(services, output).SetEnv(persistent.CreateEnvironment()).RunAsync();
+        TimelineRun run = await timeline.SetupRun(services, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
 
         run.EnsureRanToCompletion();
 

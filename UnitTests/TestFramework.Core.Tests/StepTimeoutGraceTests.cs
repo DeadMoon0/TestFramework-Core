@@ -31,7 +31,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
                 .WithTimeOut(TimeSpan.FromMilliseconds(300)).Name("cooperative")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         StepResultGeneric result = run.Step("cooperative").LastResult;
 
@@ -58,7 +58,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
                 .WithTimeOut(TimeSpan.FromMilliseconds(300)).Name("stubborn")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         StepResultGeneric result = run.Step("stubborn").LastResult;
 
@@ -85,7 +85,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
             .Trigger(step).WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("expires")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Timeout, run.Step("expires").LastResult.State);
         Assert.True(step.SawExpiry, "the step was cancelled while its own deadline still reported time left");

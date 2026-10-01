@@ -39,7 +39,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Trigger(new FailingStep()).Name("checkout")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Error, run.Step("checkout").LastResult.State);
         Assert.Equal(["starting:checkout:1", "failed:checkout:1"], observer.CallsFor("checkout"));
@@ -56,7 +56,7 @@ public class StepObserverTests(ITestOutputHelper output)
                 .WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("slow")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Timeout, run.Step("slow").LastResult.State);
 
@@ -77,7 +77,7 @@ public class StepObserverTests(ITestOutputHelper output)
                 .ExpectExceptions(typeof(InvalidOperationException)).Name("tolerated")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("tolerated").LastResult.State);
         Assert.Equal(["starting:tolerated:1"], observer.CallsFor("tolerated"));
@@ -91,7 +91,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Trigger(new PassingStep()).Name("passes")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("passes").LastResult.State);
     }
@@ -105,7 +105,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Trigger(new FailingStep()).Name("fails")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output.WriteLine).RunAsync();
 
         StepResultGeneric result = run.Step("fails").LastResult;
 
@@ -123,7 +123,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(new CollectionProvider([new ThrowingObserver(), second]), output)
+            .SetupRun(new CollectionProvider([new ThrowingObserver(), second]), output.WriteLine)
             .RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("passes").LastResult.State);
@@ -142,7 +142,7 @@ public class StepObserverTests(ITestOutputHelper output)
                 .WithRetry(1, CalcDelays.None).Name("retried")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Error, run.Step("retried").LastResult.State);
         Assert.Equal(
@@ -163,7 +163,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Trigger(new WritingStep()).Name("writes")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(Registered(observer), output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         RunContext handed = Assert.IsType<RunContext>(observer.LastRun);
 
@@ -187,7 +187,7 @@ public class StepObserverTests(ITestOutputHelper output)
                 .WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("slow")
             .Build();
 
-        await timeline.SetupRun(Registered(observer), output).RunAsync();
+        await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         RunContext handed = Assert.IsType<RunContext>(observer.LastRun);
 
@@ -208,7 +208,7 @@ public class StepObserverTests(ITestOutputHelper output)
             .Trigger(new PassingStep()).Name("passes")
             .Build();
 
-        await timeline.SetupRun(Registered(observer), output).RunAsync();
+        await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
 
         Assert.Contains("starting:Deconstruct All Artifacts:1", observer.Calls);
     }

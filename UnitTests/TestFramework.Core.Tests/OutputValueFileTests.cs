@@ -135,7 +135,7 @@ public sealed class OutputValueFileTests
     private static async Task<string> Render(DebugValueBody? body, TestIdentity? identity)
     {
         RecordingOutput output = new();
-        OutputRunDebugger debugger = new(output);
+        OutputRunDebugger debugger = new(output.WriteLine);
 
         DebugStepState step = new()
         {

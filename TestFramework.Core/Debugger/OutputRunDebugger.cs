@@ -7,7 +7,6 @@ using Newtonsoft.Json.Linq;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Debugger;
 
@@ -62,9 +61,9 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
     private string? runName;
     private string? projectPath;
 
-    public OutputRunDebugger(ITestOutputHelper outputHelper)
+    public OutputRunDebugger(Action<string> writeLine)
     {
-        writer = new LogLineWriter(outputHelper, "\t");
+        writer = new LogLineWriter(writeLine, "\t");
         useAsciiOutput = IsUnicodeOutputDisabled();
     }
 

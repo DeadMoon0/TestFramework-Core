@@ -1,10 +1,9 @@
 ﻿using System;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Logging;
 
 /// <summary>
-/// Writes formatted log lines to the configured xUnit output helper, with optional buffering support.
+/// Writes formatted log lines to the run's output, when it has one.
 /// </summary>
 public class LogLineWriter
 {
@@ -13,11 +12,11 @@ public class LogLineWriter
     /// </summary>
     public string IndentLevelString { get; }
 
-    private readonly ITestOutputHelper? outputHelper;
+    private readonly Action<string>? writeLine;
 
-    internal LogLineWriter(ITestOutputHelper? outputHelper, string indentLevelString)
+    internal LogLineWriter(Action<string>? writeLine, string indentLevelString)
     {
-        this.outputHelper = outputHelper;
+        this.writeLine = writeLine;
         IndentLevelString = indentLevelString;
     }
 
@@ -28,8 +27,8 @@ public class LogLineWriter
     /// <param name="args">Optional format arguments.</param>
     public void WriteLine(string format, params object[] args)
     {
-        if (outputHelper is null) return;
+        if (writeLine is null) return;
         string line = args.Length == 0 ? format : string.Format(format, args);
-        outputHelper.WriteLine(line);
+        writeLine(line);
     }
 }

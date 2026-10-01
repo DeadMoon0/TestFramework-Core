@@ -101,7 +101,7 @@ Those advanced surfaces are supported by the architecture docs, but they are sec
 The recommended debugging path depends on what you need to see:
 
 1. Name important steps so failures and assertions point to stable labels.
-2. Pass `ITestOutputHelper` into `SetupRun(...)` when you want the timeline log in the test output stream.
+2. Pass the method that writes a line into `SetupRun(...)` when you want the timeline log in the test output stream - `SetupRun(output.WriteLine)` in xunit, `SetupRun(TestContext.WriteLine)` in NUnit or MSTest. Core depends on no test framework.
 3. Inspect the completed `TimelineRun` for stage state, step results, variables, and artifacts.
 
 For most users, that post-run inspection path is the supported debugging workflow.

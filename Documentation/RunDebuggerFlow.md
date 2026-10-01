@@ -200,7 +200,7 @@ This is the final flush point for the debugger transport.
 `CommonDebugger.GetCommon(...)` now assembles a composite debugger endpoint from three sources:
 
 - any `IRunDebugger` registrations from the current service provider
-- the output-helper adapter when an `ITestOutputHelper` is available
+- the rendered-output debugger when `SetupRun` was given a method that writes a line
 - the discovered pipe debugger implementation when the DebugUI adapter assembly is present
 
 `CompositeRunDebugger` forwards every protocol call to every consumer.

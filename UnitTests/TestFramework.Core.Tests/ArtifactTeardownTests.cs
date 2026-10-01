@@ -53,7 +53,7 @@ public class ArtifactTeardownTests
             .RegisterArtifact("observed", new RecordingArtifactReference(recorder, "observed", found: true, canDeconstruct: false))
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
 

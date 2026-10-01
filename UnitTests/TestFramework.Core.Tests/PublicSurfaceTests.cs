@@ -261,6 +261,19 @@ public class PublicSurfaceTests
     }
 
     [Fact]
+    public void CoreDependsOnNoTestFramework()
+    {
+        // Damage: a parameter typed by one test framework's contract shuts every other framework out of the
+        // engine - and replacing it later is a binary break on the most-called method there is. A run writes
+        // its lines to IRunOutput; adapting a framework's own output sink is that framework's package's job.
+        string[] referenced = [.. typeof(ResourceGraph).Assembly.GetReferencedAssemblies().Select(static reference => reference.Name ?? string.Empty)];
+
+        Assert.DoesNotContain(referenced, static name => name.StartsWith("xunit", System.StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(referenced, static name => name.StartsWith("nunit", System.StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(referenced, static name => name.StartsWith("Microsoft.VisualStudio.TestPlatform", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void CoreKeepsItsInternalsToItself()
     {
         // The engine is not exempt from the rule it ships. No piece is special to Core and Core is special

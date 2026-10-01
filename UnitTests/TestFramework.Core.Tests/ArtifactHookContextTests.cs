@@ -38,7 +38,7 @@ public class ArtifactHookContextTests(ITestOutputHelper output)
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(outputHelper: output)
+            .SetupRun(writeLine: output.WriteLine)
             .AddArtifact("data", new RecordingReference(recorder), new RecordingData())
             .RunAsync();
 
@@ -77,7 +77,7 @@ public class ArtifactHookContextTests(ITestOutputHelper output)
                 .Build();
 
             TimelineRun run = await timeline
-                .SetupRun(new SourceProvider(new DeclaringSource(sql, "orders-db", "Server=declared")), output)
+                .SetupRun(new SourceProvider(new DeclaringSource(sql, "orders-db", "Server=declared")), output.WriteLine)
                 .AddArtifact(
                     "data",
                     new RecordingReference(recorder, ValueRef.For(sql.Name, "orders-db", ValueNames.ConnectionString)),

@@ -175,7 +175,7 @@ public class CoreTimelineCoverageTests
             .Name("log")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
         Assert.Contains(output.Lines, line => line.Contains("hello from step", StringComparison.Ordinal));
@@ -191,7 +191,7 @@ public class CoreTimelineCoverageTests
             .GetValue("logicRun")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
         Assert.Contains(output.Lines, line => line.Contains("Timeline Run", StringComparison.Ordinal));
@@ -213,7 +213,7 @@ public class CoreTimelineCoverageTests
             .WithRetry(2, CalcDelays.None)
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
         Assert.Contains(output.Lines, line => line.Contains("retry scheduled", StringComparison.Ordinal));

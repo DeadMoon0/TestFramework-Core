@@ -23,7 +23,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -125,7 +125,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -177,7 +177,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -231,7 +231,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -284,7 +284,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -322,7 +322,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync("true", async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -368,7 +368,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {
@@ -421,7 +421,7 @@ public class OutputRunDebuggerTests
         await WithUnicodeOutputSettingAsync(null, async () =>
         {
             RecordingOutputHelper output = new();
-            OutputRunDebugger debugger = new(output);
+            OutputRunDebugger debugger = new(output.WriteLine);
 
             await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
             {

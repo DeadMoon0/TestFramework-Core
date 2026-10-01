@@ -4,7 +4,6 @@ using TestFramework.Core.Exceptions;
 using TestFramework.Core.Stages;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Timelines.Builder.TimelineRunBuilder;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Timelines;
 
@@ -50,7 +49,7 @@ public class Timeline : IFreezable
     }
 
     /// <summary>
-    /// Creates a run builder for this timeline using default services and no test output helper.
+    /// Creates a run builder for this timeline using default services and no output.
     /// </summary>
     public ITimelineRunBuilder SetupRun(
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
@@ -70,29 +69,29 @@ public class Timeline : IFreezable
         => SetupRun(serviceProvider, null, sourceFilePath, sourceLineNumber);
 
     /// <summary>
-    /// Creates a run builder for this timeline using the provided xUnit output helper.
+    /// Creates a run builder for this timeline that writes its rendered lines with the given method.
     /// </summary>
-    /// <param name="outputHelper">The output helper that receives timeline log output.</param>
+    /// <param name="writeLine">Writes one rendered line, such as <c>output.WriteLine</c> in a test - any method that takes a string will do.</param>
     /// <param name="sourceFilePath">Filled in by the compiler; identifies the calling test's file.</param>
     /// <param name="sourceLineNumber">Filled in by the compiler; identifies the calling line.</param>
     public ITimelineRunBuilder SetupRun(
-        ITestOutputHelper? outputHelper,
+        Action<string>? writeLine,
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
-        => SetupRun(null, outputHelper, sourceFilePath, sourceLineNumber);
+        => SetupRun(null, writeLine, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline.
     /// </summary>
     /// <param name="serviceProvider">The service provider available to steps and environment setup.</param>
-    /// <param name="outputHelper">The output helper that receives timeline log output.</param>
+    /// <param name="writeLine">Writes one rendered line, such as <c>output.WriteLine</c> in a test - any method that takes a string will do.</param>
     /// <param name="sourceFilePath">Filled in by the compiler; identifies the calling test's file.</param>
     /// <param name="sourceLineNumber">Filled in by the compiler; identifies the calling line.</param>
     /// <returns>A run builder that can be configured and executed.</returns>
     /// <exception cref="FrameworkStateException">Thrown when the timeline has not been built completely yet.</exception>
     public ITimelineRunBuilder SetupRun(
         IServiceProvider? serviceProvider,
-        ITestOutputHelper? outputHelper,
+        Action<string>? writeLine,
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
     {
@@ -102,6 +101,6 @@ public class Timeline : IFreezable
         // The caller attributes cost nothing at run time — the compiler bakes them in at each call
         // site — and give an exact source location, which a stack walk can only approximate and
         // only by collecting file info it would otherwise skip.
-        return new TimelineRunBuilder(serviceProvider, outputHelper, this, MainStage, sourceFilePath, sourceLineNumber);
+        return new TimelineRunBuilder(serviceProvider, writeLine, this, MainStage, sourceFilePath, sourceLineNumber);
     }
 }

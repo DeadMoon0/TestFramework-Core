@@ -28,7 +28,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
             .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Name("records")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
 
@@ -47,7 +47,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
             .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Name("records")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(outputHelper: output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
 
         FrameworkStateException refused = Assert.Throws<FrameworkStateException>(
             () => run.EffectiveSettings.Record("ui.browser", "Browser", "firefox"));

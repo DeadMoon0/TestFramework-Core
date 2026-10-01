@@ -53,7 +53,7 @@ public class ArtifactReadonlyTests
             .MarkReadonly()
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
 
         run.EnsureRanToCompletion();
 

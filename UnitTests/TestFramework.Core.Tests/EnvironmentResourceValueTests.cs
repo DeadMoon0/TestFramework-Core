@@ -48,7 +48,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(null, output)
+            .SetupRun(null, output.WriteLine)
             .SetEnv(new PublishingEnvironment())
             .RunAsync();
 
@@ -65,7 +65,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
             .Trigger(new ChannelInspectingStep()).Name("inspects")
             .Build();
 
-        TimelineRun run = await timeline.SetupRun(null, output).RunAsync();
+        TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
 
         Assert.Equal(StepState.Complete, run.Step("inspects").LastResult.State);
         Assert.False(run.VariableStore.GetVariable<bool>("could-publish"));
@@ -81,7 +81,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(null, output)
+            .SetupRun(null, output.WriteLine)
             .SetEnv(new PublishingEnvironment(valueName: "NotOffered"))
             .RunAsync();
 
@@ -102,7 +102,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
             .Build();
 
         TimelineRun run = await timeline
-            .SetupRun(null, output)
+            .SetupRun(null, output.WriteLine)
             .SetEnv(new PublishingEnvironment(withoutVantage: true))
             .RunAsync();
 

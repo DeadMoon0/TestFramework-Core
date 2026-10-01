@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Xunit.Abstractions;
 
 namespace TestFramework.Core.Debugger;
 
@@ -12,22 +11,22 @@ internal static class CommonDebugger
         return GetCommon(null, null);
     }
 
-    internal static IRunDebugger GetCommon(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper)
+    internal static IRunDebugger GetCommon(IServiceProvider? serviceProvider, Action<string>? writeLine)
     {
-        return GetCommon(serviceProvider, outputHelper, out _);
+        return GetCommon(serviceProvider, writeLine, out _);
     }
 
     /// <summary>
     /// Builds the debugger fan-out for one run.
     /// </summary>
     /// <param name="serviceProvider">The service provider that may supply externally registered debuggers.</param>
-    /// <param name="outputHelper">The xunit output helper to mirror the run into, when one is available.</param>
+    /// <param name="writeLine">Writes one line of the run's rendered output, when the caller has somewhere to put it.</param>
     /// <param name="ownedResources">
     /// Receives the debuggers this method constructed, so the caller can release them when the run
     /// ends. Debuggers resolved from the service provider are never included: their lifetime belongs
     /// to the container, not to the run.
     /// </param>
-    internal static IRunDebugger GetCommon(IServiceProvider? serviceProvider, ITestOutputHelper? outputHelper, out IDisposable? ownedResources)
+    internal static IRunDebugger GetCommon(IServiceProvider? serviceProvider, Action<string>? writeLine, out IDisposable? ownedResources)
     {
         List<IRunDebugger> debuggers = [];
         List<IDisposable> owned = [];
@@ -48,8 +47,8 @@ internal static class CommonDebugger
         if (serviceProvider?.GetService(typeof(IRunDebugger)) is IRunDebugger singleDebugger && !ContainsSameInstance(debuggers, singleDebugger))
             debuggers.Add(singleDebugger);
 
-        if (outputHelper is not null)
-            debuggers.Add(new OutputRunDebugger(outputHelper));
+        if (writeLine is not null)
+            debuggers.Add(new OutputRunDebugger(writeLine));
 
         // Skip the pipe debugger when nothing is listening: it would only carry signals to a
         // consumer that is not there. The check is a cheap per-run probe rather than a latch, so a
