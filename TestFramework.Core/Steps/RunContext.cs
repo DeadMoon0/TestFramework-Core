@@ -234,6 +234,6 @@ public sealed class RunContext
             artifacts,
             logger,
             values,
-            new StepDeadline(timeout ?? System.Threading.Timeout.InfiniteTimeSpan, cancellationToken),
+            StepDeadline.Start(timeout ?? System.Threading.Timeout.InfiniteTimeSpan, cancellationToken),
             attempt: null);
 }

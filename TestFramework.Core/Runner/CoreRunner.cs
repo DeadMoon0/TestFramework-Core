@@ -392,14 +392,10 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         // — and on the WaitAsync path the CTS was disposed without ever being cancelled, so the step
         // was never told to stop, its exception went unobserved, and the retry started immediately
         // alongside the attempt it was supposedly replacing.
-        CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stopToken);
-        // The deadline is built before the cancellation is armed, so the moment it says the time is up is
-        // never later than the moment the token fires. The other order leaves a step cancelled while its
-        // own deadline still reports time remaining - which is exactly the disagreement this type exists
-        // to prevent, and it only shows up under load.
-        StepDeadline deadline = new StepDeadline(timeout, cancellationTokenSource.Token);
-
-        cancellationTokenSource.CancelAfter(timeout);
+        // Started, not built: the deadline arms its own token after starting its clock, so the moment it says
+        // the time is up is never later than the moment the token fires.
+        StepDeadline deadline = StepDeadline.Start(timeout, stopToken);
+        CancellationTokenSource cancellationTokenSource = deadline.Source!;
         bool ownsCancellationTokenSource = true;
         Task<object?>? executionTask = null;
 

@@ -140,10 +140,12 @@ internal sealed class StepObservers
 
         foreach (IStepObserver observer in this.observers)
         {
+            // One context each, so two observers cannot spend each other's budget - and released once the
+            // observer is done, so its budget's timer does not outlive the work it bounded.
+            RunContext context = run();
             try
             {
-                // One context each, so two observers cannot spend each other's budget.
-                await AwaitAsync(call(observer, run()), observer, hook, logger).ConfigureAwait(false);
+                await AwaitAsync(call(observer, context), observer, hook, logger).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -155,6 +157,10 @@ internal sealed class StepObservers
                     hook,
                     observation.Label,
                     exception.ToString());
+            }
+            finally
+            {
+                context.Deadline.Release();
             }
         }
     }

@@ -203,25 +203,23 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
         VariableStore variableStore = new(logger, debuggingSession);
         ArtifactStore artifactStore = new(logger, debuggingSession);
 
-        using CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (_persistentSetupTimeout != Timeout.InfiniteTimeSpan)
-            cancellationTokenSource.CancelAfter(_persistentSetupTimeout);
+        // The context's deadline arms itself; arming a token here first, as this did, put the cancellation
+        // ahead of the clock that is supposed to say when the time is up.
+        RunContext context = RunContext.Ambient(
+            _persistentServiceProvider,
+            variableStore,
+            artifactStore,
+            logger,
+
+            // The bootstrap's own resolution, not some later run's: what the persistent services
+            // declared, plus what these components publish as they start - which is how the second one
+            // learns where the first ended up.
+            _persistentPublishing.Resolution,
+            cancellationToken,
+            _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);
 
         try
         {
-            RunContext context = RunContext.Ambient(
-                _persistentServiceProvider,
-                variableStore,
-                artifactStore,
-                logger,
-
-                // The bootstrap's own resolution, not some later run's: what the persistent services
-                // declared, plus what these components publish as they start - which is how the second one
-                // learns where the first ended up.
-                _persistentPublishing.Resolution,
-                cancellationTokenSource.Token,
-                _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);
-
             await EnvComponentLifecycleRunner.CreateAsync(_bootstrapEnvironment, persistentRoots, context, (identifier, state, scope) =>
                 {
                     // Scope is not recorded here on purpose: a bootstrap creates everything it starts, so
@@ -233,10 +231,14 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                         _persistentCreationOrder.Add(identifier);
                 }, _persistentPublishing);
         }
-        catch (OperationCanceledException exception) when (cancellationTokenSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (context.Deadline.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             // Only the configured timeout fired; a caller-driven cancellation stays an OperationCanceledException.
             throw new FrameworkTimeoutException($"Persistent environment setup exceeded the configured timeout of {_persistentSetupTimeout} while bootstrapping roots: {string.Join(", ", persistentRoots)}.", exception);
+        }
+        finally
+        {
+            context.Deadline.Release();
         }
     }
 

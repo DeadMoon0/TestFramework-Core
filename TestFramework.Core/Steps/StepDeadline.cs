@@ -27,6 +27,46 @@ public sealed class StepDeadline
     private readonly bool bounded;
 
     /// <summary>
+    /// Starts a deadline that fires its own token when it runs out, and also when <paramref name="stop"/> fires.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one place a deadline is armed, so no caller repeats the arithmetic or gets the order wrong: the
+    /// deadline is built first and the cancellation armed after it, so the moment the deadline says the time is
+    /// up is never later than the moment its token fires. A deadline built over somebody else's token and never
+    /// armed - which is what a context with a budget used to get - reports the time as gone while its token
+    /// stays silent, and whatever awaits that token is never cut off.
+    /// </para>
+    /// <para>
+    /// The deadline owns the token source behind it. Whoever started it ends it with <see cref="Release"/> once
+    /// the work it bounds is over; a deadline nobody releases is collected once its timer has fired.
+    /// </para>
+    /// </remarks>
+    /// <param name="total">How long the work has; unbounded for <see cref="Timeout.InfiniteTimeSpan"/>.</param>
+    /// <param name="stop">What also stops the work early, such as the run being cancelled.</param>
+    /// <returns>The armed deadline.</returns>
+    internal static StepDeadline Start(TimeSpan total, CancellationToken stop)
+    {
+        CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(stop);
+        StepDeadline deadline = new(total, source.Token) { Source = source };
+
+        if (IsBounded(total))
+            source.CancelAfter(total);
+
+        return deadline;
+    }
+
+    /// <summary>
+    /// The token source this deadline was armed with, when it was started rather than built over a token.
+    /// </summary>
+    internal CancellationTokenSource? Source { get; private init; }
+
+    /// <summary>
+    /// Ends a started deadline: its timer stops and it no longer listens to the token it was linked to.
+    /// </summary>
+    internal void Release() => this.Source?.Dispose();
+
+    /// <summary>
     /// Starts the clock for a step's deadline.
     /// </summary>
     /// <remarks>

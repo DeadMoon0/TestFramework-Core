@@ -83,9 +83,11 @@ internal sealed class WidgetCaptureSources
 
         foreach (IWidgetCaptureSource source in this.sources)
         {
+            // Released once the source is done, so its budget's timer does not outlive the capture.
+            RunContext context = run();
             try
             {
-                await source.CaptureAsync(run()).ConfigureAwait(false);
+                await source.CaptureAsync(context).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -98,6 +100,10 @@ internal sealed class WidgetCaptureSources
                     exception.ToString());
 
                 problem ??= $"{source.GetType().Name} could not capture: {exception.Message}";
+            }
+            finally
+            {
+                context.Deadline.Release();
             }
         }
 

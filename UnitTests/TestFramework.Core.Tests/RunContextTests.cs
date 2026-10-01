@@ -139,6 +139,33 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task ADetachedContextsBudgetCancelsItsTokenWhenItRunsOut()
+    {
+        // Damage: a deadline whose clock runs out while its token stays silent. An observer or a capture
+        // source that awaits its context's token - the right thing to do - was never cut off by the budget
+        // it was promised, because nothing armed the token behind the deadline.
+        RunContext context = RunContext.Detached(timeout: TimeSpan.FromMilliseconds(50));
+
+        Task cancelled = Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, context.Deadline.Token);
+        Task finished = await Task.WhenAny(cancelled, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        Assert.Same(cancelled, finished);
+        Assert.True(context.Deadline.HasExpired, "the token fired before the deadline said the time was up");
+    }
+
+    [Fact]
+    public void AnUnboundedContextKeepsTheCallersToken()
+    {
+        // Without a budget the context stops exactly when its caller says, and not on its own.
+        using System.Threading.CancellationTokenSource caller = new();
+        RunContext context = RunContext.Detached(cancellationToken: caller.Token);
+
+        Assert.False(context.Deadline.Token.IsCancellationRequested);
+        caller.Cancel();
+        Assert.True(context.Deadline.Token.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task APackageCanBuildAContextWithoutReachingIntoCore()
     {
         // The gap this closes, found in Azure's test suite: Ambient needs the run's stores, whose
