@@ -69,7 +69,7 @@ public class SequentialEventCancellationTests
         public override Task<SequentialPollingResult<EmptyStepResultContext>> OnSequentialPolling(RunContext context)
         {
             Interlocked.Increment(ref _pollCount);
-            return Task.FromResult(new SequentialPollingResult<EmptyStepResultContext>(false, null, nextDelay));
+            return Task.FromResult(SequentialPollingResult<EmptyStepResultContext>.NotYet(nextDelay));
         }
     }
 }

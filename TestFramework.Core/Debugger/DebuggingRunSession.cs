@@ -216,7 +216,7 @@ internal class DebuggingRunSession
         TestIdentity identity = Identity!;
         sessionInitialized = true;
 
-        return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, identity.DisplayName, identity.AssemblyPath, runStructure, identity));
+        return EnqueueAndAwait(() => Debugger.SignalInitTimelineRunAsync(SessionId, new DebugRunStart { Identity = identity, RunStructure = runStructure }));
     }
 
     // Transitions are queued, not awaited. The queue is FIFO with a single reader, so ordering
@@ -228,19 +228,19 @@ internal class DebuggingRunSession
 
     internal Task TransitionRunAsync(DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Run, null, null, state, previousState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, new DebugEntityTransition { EntityKind = DebugEntityKind.Run, State = state, PreviousState = previousState }));
         return Task.CompletedTask;
     }
 
     internal Task TransitionStageAsync(string stage, DebugLifecycleState state, DebugLifecycleState? previousState = null)
     {
-        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Stage, stage, null, state, previousState));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = stage, State = state, PreviousState = previousState }));
         return Task.CompletedTask;
     }
 
     internal Task TransitionStepAsync(string stage, int stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
     {
-        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, DebugEntityKind.Step, stage, stepId, state, previousState, outcomeState, failure));
+        Enqueue(() => Debugger.SignalEntityTransitionAsync(SessionId, new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = stage, StepId = stepId, State = state, PreviousState = previousState, OutcomeState = outcomeState, Failure = failure }));
         return Task.CompletedTask;
     }
 
@@ -251,7 +251,7 @@ internal class DebuggingRunSession
 
         string? stage = currentExecutionContext.Value?.Stage;
         int? stepId = currentExecutionContext.Value?.StepId;
-        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Variable, stage, stepId, state.Envelope));
+        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, new DebugValueUpdate { Name = identifier, ValueKind = DebugValueKind.Variable, Stage = stage, StepId = stepId, Value = state.Envelope }));
     }
 
     internal void PublishArtifactUpdate(ArtifactIdentifier identifier, DebugValue state)
@@ -261,7 +261,7 @@ internal class DebuggingRunSession
 
         string? stage = currentExecutionContext.Value?.Stage;
         int? stepId = currentExecutionContext.Value?.StepId;
-        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, identifier, DebugValueKind.Artifact, stage, stepId, state.Envelope));
+        Enqueue(() => Debugger.SignalValueUpdateAsync(SessionId, new DebugValueUpdate { Name = identifier, ValueKind = DebugValueKind.Artifact, Stage = stage, StepId = stepId, Value = state.Envelope }));
     }
 
     /// <summary>

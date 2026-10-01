@@ -39,7 +39,7 @@ internal class CaptureArtifactVersionStep(ArtifactIdentifier identifier, Artifac
 
     public override void DeclareIO(StepIOContract contract)
     {
-        contract.Inputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
-        contract.Outputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
+        contract.InputArtifact(identifier);
+        contract.OutputArtifact(identifier);
     }
 }

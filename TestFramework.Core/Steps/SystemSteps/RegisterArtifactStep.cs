@@ -56,6 +56,6 @@ internal class RegisterArtifactStep<TArtifactDescriber, TArtifactData, TArtifact
     public override void DeclareIO(StepIOContract contract)
     {
         reference.DeclareIO(contract);
-        contract.Outputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
+        contract.OutputArtifact(identifier);
     }
 }

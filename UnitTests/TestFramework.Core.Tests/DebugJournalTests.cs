@@ -180,12 +180,9 @@ public sealed class DebugJournalTests : IDisposable
         ArmJournal();
 
         JournalRunDebugger debugger = new();
-        await debugger.SignalInitTimelineRunAsync(
-            "session-identity",
-            "Named Run",
-            "project.csproj",
-            EmptyStructure(),
-            new TestIdentity
+        await debugger.SignalInitTimelineRunAsync("session-identity", new DebugRunStart
+        {
+            Identity = new TestIdentity
             {
                 DisplayName = "Named Run",
                 Framework = TestFrameworkKind.XUnit,
@@ -194,7 +191,9 @@ public sealed class DebugJournalTests : IDisposable
                 FullyQualifiedName = "Some.Namespace.Tests.NamedRun",
                 AssemblyPath = "testhost.exe",
                 ProjectFilePath = "some/project.csproj"
-            });
+            },
+            RunStructure = EmptyStructure(),
+        });
         await debugger.SignalTimelineRunFinishedAsync("session-identity");
         debugger.Dispose();
 
@@ -215,8 +214,8 @@ public sealed class DebugJournalTests : IDisposable
         ArmJournal();
 
         JournalRunDebugger debugger = new();
-        await debugger.SignalInitTimelineRunAsync("session-4", "Doomed", "project.csproj", EmptyStructure());
-        await debugger.SignalEntityTransitionAsync("session-4", DebugEntityKind.Run, null, null, DebugLifecycleState.Running);
+        await debugger.SignalInitTimelineRunAsync("session-4", new DebugRunStart { Identity = DebugTestIdentity.For("Doomed", "project.csproj"), RunStructure = EmptyStructure() });
+        await debugger.SignalEntityTransitionAsync("session-4", new DebugEntityTransition { EntityKind = DebugEntityKind.Run, State = DebugLifecycleState.Running });
 
         // Deliberately no finish and no dispose.
         DebugRunMetadata metadata = ReadMetadata(MetadataFiles().Single());
@@ -287,16 +286,23 @@ public sealed class DebugJournalTests : IDisposable
 
     private static async Task EmitRunAsync(JournalRunDebugger debugger, string sessionId, string name = "Run", string projectPath = "project.csproj")
     {
-        await debugger.SignalInitTimelineRunAsync(sessionId, name, projectPath, EmptyStructure());
-        await debugger.SignalEntityTransitionAsync(sessionId, DebugEntityKind.Run, null, null, DebugLifecycleState.Running);
-        await debugger.SignalValueUpdateAsync(sessionId, "answer", DebugValueKind.Variable, "Main", 0, new DebugValueEnvelope
+        await debugger.SignalInitTimelineRunAsync(sessionId, new DebugRunStart { Identity = DebugTestIdentity.For(name, projectPath), RunStructure = EmptyStructure() });
+        await debugger.SignalEntityTransitionAsync(sessionId, new DebugEntityTransition { EntityKind = DebugEntityKind.Run, State = DebugLifecycleState.Running });
+        await debugger.SignalValueUpdateAsync(sessionId, new DebugValueUpdate
         {
-            Kind = DebugValueKind.Variable,
-            TypeName = "System.Int32",
-            Description = new DebugValueDescription { Summary = "42", Shape = DebugValueShape.Scalar },
-            SchemaKey = "tf.variable:System.Int32"
+            Name = "answer",
+            ValueKind = DebugValueKind.Variable,
+            Stage = "Main",
+            StepId = 0,
+            Value = new DebugValueEnvelope
+            {
+                Kind = DebugValueKind.Variable,
+                TypeName = "System.Int32",
+                Description = new DebugValueDescription { Summary = "42", Shape = DebugValueShape.Scalar },
+                SchemaKey = "tf.variable:System.Int32"
+            },
         });
-        await debugger.SignalEntityTransitionAsync(sessionId, DebugEntityKind.Run, null, null, DebugLifecycleState.Complete);
+        await debugger.SignalEntityTransitionAsync(sessionId, new DebugEntityTransition { EntityKind = DebugEntityKind.Run, State = DebugLifecycleState.Complete });
         await debugger.SignalTimelineRunFinishedAsync(sessionId);
     }
 

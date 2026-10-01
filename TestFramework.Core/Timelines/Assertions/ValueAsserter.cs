@@ -109,8 +109,14 @@ public class ValueAsserter<T>
     /// Asserts that the value satisfies the provided predicate.
     /// </summary>
     /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
+    public ValueAsserter<T> Match(Func<T, bool> predicate) => this.Match(predicate, "custom predicate");
+
+    /// <summary>
+    /// Asserts that the value satisfies the provided predicate, saying what it checks.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
-    public ValueAsserter<T> Match(Func<T, bool> predicate, string description = "custom predicate")
+    public ValueAsserter<T> Match(Func<T, bool> predicate, string description)
     {
         if (!predicate(_value))
             return Fail(nameof(Match), $"value {V(_value)} did not satisfy: {description}", ("description", description));
@@ -121,8 +127,14 @@ public class ValueAsserter<T>
     /// Asserts that the value does not satisfy the provided predicate.
     /// </summary>
     /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
+    public ValueAsserter<T> NotMatch(Func<T, bool> predicate) => this.NotMatch(predicate, "custom predicate");
+
+    /// <summary>
+    /// Asserts that the value does not satisfy the provided predicate, saying what it checks.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
-    public ValueAsserter<T> NotMatch(Func<T, bool> predicate, string description = "custom predicate")
+    public ValueAsserter<T> NotMatch(Func<T, bool> predicate, string description)
     {
         if (predicate(_value))
             return Fail(nameof(NotMatch), $"value {V(_value)} unexpectedly satisfied: {description}", ("description", description));

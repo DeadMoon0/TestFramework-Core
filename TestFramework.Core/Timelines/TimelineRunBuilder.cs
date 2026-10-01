@@ -235,7 +235,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 return;
 
             if (!step.IOContract.Inputs.Any(input => input.Key == identifier.Identifier && input.Kind == StepIOKind.Variable))
-                step.IOContract.Inputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Variable, true, type));
+                step.IOContract.Input(identifier, type);
         }
     }
 
@@ -403,7 +403,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                     foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
                     {
                         if (!step.Step.IOContract.Outputs.Any(output => output.Key == binding.Variable.Identifier && output.Kind == StepIOKind.Variable))
-                            step.Step.IOContract.Outputs.Add(new StepIOEntry(binding.Variable.Identifier, StepIOKind.Variable, false, binding.DeclaredType));
+                            step.Step.IOContract.OptionalOutput(binding.Variable, binding.DeclaredType);
                     }
                     if (step.RedirectToCleanUp)
                         bufferedCleanupSteps.Add(step.Step);

@@ -154,7 +154,7 @@ public sealed class RunContext
     /// <remarks>
     /// <para>
     /// For a package's own unit test driving one step: no timeline, no environment, nothing to clean up.
-    /// The alternative was not "use Ambient" - <see cref="Ambient"/> needs the run's stores, and their
+    /// The alternative was not "use Ambient" - <c>Ambient</c> needs the run's stores, and their
     /// constructors are internal, so a package could not build one at all. Azure's test suite had been
     /// reflecting over Core's internals to make them, which is the kind of workaround that means the
     /// public surface is missing something.
@@ -164,23 +164,33 @@ public sealed class RunContext
     /// and writes land in stores only this context can see.
     /// </para>
     /// </remarks>
-    /// <param name="services">The services the step should resolve from, or null for none.</param>
-    /// <param name="debugger">
-    /// Something to watch what the step does, when the test is about that. The same socket a run debugger
-    /// plugs into, so a package can assert on what its own step reported.
-    /// </param>
-    /// <param name="cancellationToken">What stops the work, when anything does.</param>
-    /// <param name="timeout">How long the step has, or null for no deadline.</param>
     /// <returns>The context.</returns>
-    public static RunContext Detached(
-        IServiceProvider? services = null,
-        IRunDebugger? debugger = null,
-        System.Threading.CancellationToken cancellationToken = default,
-        TimeSpan? timeout = null)
+    public static RunContext Detached()
+        => Detached(new DetachedContextOptions());
+
+    /// <summary>
+    /// Builds a context that belongs to no run, resolving what the step needs from <paramref name="services"/>.
+    /// </summary>
+    /// <param name="services">The services the step should resolve from.</param>
+    /// <returns>The context.</returns>
+    public static RunContext Detached(IServiceProvider services)
     {
-        DebuggingRunSession session = new DebuggingRunSession(debugger ?? new EmptyRunDebugger());
+        ArgumentNullException.ThrowIfNull(services);
+        return Detached(new DetachedContextOptions { Services = services });
+    }
+
+    /// <summary>
+    /// Builds a context that belongs to no run, set up as <paramref name="options"/> says.
+    /// </summary>
+    /// <param name="options">The services, the debugger, the token and the budget, each optional.</param>
+    /// <returns>The context.</returns>
+    public static RunContext Detached(DetachedContextOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        DebuggingRunSession session = new DebuggingRunSession(options.Debugger ?? new EmptyRunDebugger());
         ScopedLogger logger = ScopedLogger.CreateWithDebuggerSession(session);
-        IServiceProvider resolvedServices = services ?? new EmptyServiceProvider();
+        IServiceProvider resolvedServices = options.Services ?? new EmptyServiceProvider();
 
         // Composed from whatever the caller registered, the same way a real run composes its own. A detached
         // context exists to drive a step without a timeline around it, and a step reads the configuration it
@@ -192,8 +202,8 @@ public sealed class RunContext
             new ArtifactStore(logger, session),
             logger,
             Environment.Graph.RunResources.Compose(resolvedServices, environment: null).Resolution,
-            cancellationToken,
-            timeout);
+            options.CancellationToken,
+            options.Timeout ?? System.Threading.Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>
@@ -214,11 +224,24 @@ public sealed class RunContext
     /// The resource values. Inside a real run this is that run's own resolution; a step being tested on
     /// its own can use <see cref="ValueResolution.Empty"/>.
     /// </param>
-    /// <param name="cancellationToken">What stops the work, when anything does.</param>
-    /// <param name="timeout">
-    /// How long the work has, when the caller has a budget of its own - a persistent environment
-    /// bootstrap does. Left out, the deadline is unbounded and only the token stops anything.
-    /// </param>
+    /// <returns>The context.</returns>
+    public static RunContext Ambient(
+        IServiceProvider services,
+        VariableStore variables,
+        ArtifactStore artifacts,
+        ScopedLogger logger,
+        ValueResolution values)
+        => Ambient(services, variables, artifacts, logger, values, System.Threading.CancellationToken.None, System.Threading.Timeout.InfiniteTimeSpan);
+
+    /// <summary>
+    /// Builds a context for code that runs outside a step and stops when <paramref name="cancellationToken"/> does.
+    /// </summary>
+    /// <param name="services">The registered services.</param>
+    /// <param name="variables">The variables.</param>
+    /// <param name="artifacts">The artifacts.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="values">The resource values.</param>
+    /// <param name="cancellationToken">What stops the work.</param>
     /// <returns>The context.</returns>
     public static RunContext Ambient(
         IServiceProvider services,
@@ -226,14 +249,35 @@ public sealed class RunContext
         ArtifactStore artifacts,
         ScopedLogger logger,
         ValueResolution values,
-        System.Threading.CancellationToken cancellationToken = default,
-        TimeSpan? timeout = null)
+        System.Threading.CancellationToken cancellationToken)
+        => Ambient(services, variables, artifacts, logger, values, cancellationToken, System.Threading.Timeout.InfiniteTimeSpan);
+
+    /// <summary>
+    /// Builds a context for code that runs outside a step with a budget of its own - a persistent environment
+    /// bootstrap has one.
+    /// </summary>
+    /// <param name="services">The registered services.</param>
+    /// <param name="variables">The variables.</param>
+    /// <param name="artifacts">The artifacts.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="values">The resource values.</param>
+    /// <param name="cancellationToken">What stops the work.</param>
+    /// <param name="timeout">How long the work has, or <see cref="System.Threading.Timeout.InfiniteTimeSpan"/> for no limit.</param>
+    /// <returns>The context.</returns>
+    public static RunContext Ambient(
+        IServiceProvider services,
+        VariableStore variables,
+        ArtifactStore artifacts,
+        ScopedLogger logger,
+        ValueResolution values,
+        System.Threading.CancellationToken cancellationToken,
+        TimeSpan timeout)
         => new RunContext(
             services,
             variables,
             artifacts,
             logger,
             values,
-            StepDeadline.Start(timeout ?? System.Threading.Timeout.InfiniteTimeSpan, cancellationToken),
+            StepDeadline.Start(timeout, cancellationToken),
             attempt: null);
 }

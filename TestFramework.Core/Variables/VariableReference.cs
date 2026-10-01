@@ -18,9 +18,16 @@ public abstract class VariableReference<T> : VariableReferenceGeneric
     /// Resolves the value and throws when the result is <see langword="null"/>.
     /// </summary>
     /// <param name="store">The variable store used for resolution.</param>
+    /// <returns>The resolved non-null value.</returns>
+    public T GetRequiredValue(VariableStore store) => this.GetRequiredValue(store, string.Empty);
+
+    /// <summary>
+    /// Resolves the referenced value and throws, saying why it was needed, when the result is <see langword="null"/>.
+    /// </summary>
+    /// <param name="store">The variable store used for resolution.</param>
     /// <param name="requiredReason">Additional context included in the exception message.</param>
     /// <returns>The resolved non-null value.</returns>
-    public T GetRequiredValue(VariableStore store, string requiredReason = "") => GetValue(store) ?? throw new VariableResolvedToNullException(Identifier?.Identifier ?? "ConstVariable", requiredReason);
+    public T GetRequiredValue(VariableStore store, string requiredReason) => GetValue(store) ?? throw new VariableResolvedToNullException(Identifier?.Identifier ?? "ConstVariable", requiredReason);
 
     /// <summary>
     /// Resolves the referenced value from the provided store.

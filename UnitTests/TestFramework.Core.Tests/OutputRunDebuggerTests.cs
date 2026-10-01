@@ -25,40 +25,51 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = "Primary execution flow",
-                        Steps =
-                        [
-                            CreateStep("FetchUsers", phase: StepExecutionPhase.Prepare),
-                            CreateStep("RenderSummary", phase: StepExecutionPhase.Prepare)
-                        ]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = "Primary execution flow",
+                            Steps =
+                            [
+                                CreateStep("FetchUsers", phase: StepExecutionPhase.Prepare),
+                                CreateStep("RenderSummary", phase: StepExecutionPhase.Prepare)
+                            ]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Running });
             // The console renders from the event, not from what the transport carries, so this is the channel
             // a log reaches it on. A transported entry is for a consumer that builds its own display.
             debugger.WriteRenderedLog(["starting fetch"], new LogPlacement("Main", 0, 1, 0));
-            await debugger.SignalValueUpdateAsync("session", "count", DebugValueKind.Variable, "Main", 1, new DebugValueEnvelope
+            await debugger.SignalValueUpdateAsync("session", new DebugValueUpdate
             {
-                Kind = DebugValueKind.Variable,
-                TypeName = "System.Int32",
-                Description = new DebugValueDescription { Summary = "2", Shape = DebugValueShape.Scalar },
-                SchemaKey = "int32"
+                Name = "count",
+                ValueKind = DebugValueKind.Variable,
+                Stage = "Main",
+                StepId = 1,
+                Value = new DebugValueEnvelope
+                {
+                    Kind = DebugValueKind.Variable,
+                    TypeName = "System.Int32",
+                    Description = new DebugValueDescription { Summary = "2", Shape = DebugValueShape.Scalar },
+                    SchemaKey = "int32"
+                },
             });
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Error, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Error, PreviousState = DebugLifecycleState.Running });
             await debugger.SignalAssertionAsync("session", new DebugAssertionEntry
             {
                 OccurredAtUtc = DateTimeOffset.UtcNow,
@@ -127,39 +138,43 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = "Rapid phase changes",
-                        Steps =
-                        [
-                            CreateStep("Prepare", phase: StepExecutionPhase.Prepare),
-                            CreateStep("Act", phase: StepExecutionPhase.Act),
-                            CreateStep("Observe", phase: StepExecutionPhase.Observe),
-                            CreateStep("Materialize Left", phase: StepExecutionPhase.Materialize),
-                            CreateStep("Materialize Right", phase: StepExecutionPhase.Materialize)
-                        ]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = "Rapid phase changes",
+                            Steps =
+                            [
+                                CreateStep("Prepare", phase: StepExecutionPhase.Prepare),
+                                CreateStep("Act", phase: StepExecutionPhase.Act),
+                                CreateStep("Observe", phase: StepExecutionPhase.Observe),
+                                CreateStep("Materialize Left", phase: StepExecutionPhase.Materialize),
+                                CreateStep("Materialize Right", phase: StepExecutionPhase.Materialize)
+                            ]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 2, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 2, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 3, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 4, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 3, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 4, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 2, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 2, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 3, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 4, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 3, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 4, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
             await debugger.SignalTimelineRunFinishedAsync("session");
 
@@ -179,42 +194,46 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = "ForEach flow",
-                        Steps =
-                        [
-                            CreateSetVariableStep("Set item", "item", "Ada"),
-                            CreateMessageStep("Message A", "item"),
-                            CreateSetVariableStep("Set item", "item", "Grace"),
-                            CreateMessageStep("Message B", "item")
-                        ]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = "ForEach flow",
+                            Steps =
+                            [
+                                CreateSetVariableStep("Set item", "item", "Ada"),
+                                CreateMessageStep("Message A", "item"),
+                                CreateSetVariableStep("Set item", "item", "Grace"),
+                                CreateMessageStep("Message B", "item")
+                            ]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalValueUpdateAsync("session", "item", DebugValueKind.Variable, "Main", 0, CreateValueEnvelope("Ada"));
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalValueUpdateAsync("session", new DebugValueUpdate { Name = "item", ValueKind = DebugValueKind.Variable, Stage = "Main", StepId = 0, Value = CreateValueEnvelope("Ada") });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 2, DebugLifecycleState.Running);
-            await debugger.SignalValueUpdateAsync("session", "item", DebugValueKind.Variable, "Main", 2, CreateValueEnvelope("Grace"));
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 2, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 2, State = DebugLifecycleState.Running });
+            await debugger.SignalValueUpdateAsync("session", new DebugValueUpdate { Name = "item", ValueKind = DebugValueKind.Variable, Stage = "Main", StepId = 2, Value = CreateValueEnvelope("Grace") });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 2, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 3, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 3, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 3, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 3, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
             await debugger.SignalTimelineRunFinishedAsync("session");
 
@@ -233,32 +252,36 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Retries",
-                        Description = "Retry and skip paths",
-                        Steps =
-                        [
-                            CreateStep("FlakyCall"),
-                            CreateStep("OptionalCleanup")
-                        ]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Retries",
+                            Description = "Retry and skip paths",
+                            Steps =
+                            [
+                                CreateStep("FlakyCall"),
+                                CreateStep("OptionalCleanup")
+                            ]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Retries", null, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 0, DebugLifecycleState.WaitingForRetry, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 0, DebugLifecycleState.Running, DebugLifecycleState.WaitingForRetry);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 1, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Retries", 1, DebugLifecycleState.Skipped, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Retries", State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 0, State = DebugLifecycleState.WaitingForRetry, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 0, State = DebugLifecycleState.Running, PreviousState = DebugLifecycleState.WaitingForRetry });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 1, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Retries", StepId = 1, State = DebugLifecycleState.Skipped, PreviousState = DebugLifecycleState.Running });
 
             await debugger.SignalTimelineRunFinishedAsync("session");
 
@@ -286,28 +309,32 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = "Breakpoint suppression",
-                        Steps =
-                        [
-                            CreateStep("Set Variable", label: "set intro", phase: StepExecutionPhase.Prepare)
-                        ]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = "Breakpoint suppression",
+                            Steps =
+                            [
+                                CreateStep("Set Variable", label: "set intro", phase: StepExecutionPhase.Prepare)
+                            ]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
             await debugger.SignalAndWaitBreakpointHitAsync("session", "Main", 0);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
             await debugger.SignalTimelineRunFinishedAsync("session");
 
             string rendered = string.Join(System.Environment.NewLine, output.Lines);
@@ -324,24 +351,28 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = string.Empty,
-                        Steps = [CreateStep("FetchUsers")]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = string.Empty,
+                            Steps = [CreateStep("FetchUsers")]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
             await debugger.SignalTimelineRunFinishedAsync("session");
 
             string rendered = string.Join(System.Environment.NewLine, output.Lines);
@@ -370,30 +401,34 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = "A description long enough that the renderer has to break it across more than one line of the panel before it can be shown at all.",
-                        Steps = [CreateStep("FetchUsers"), CreateStep("RenderSummary")]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = "A description long enough that the renderer has to break it across more than one line of the panel before it can be shown at all.",
+                            Steps = [CreateStep("FetchUsers"), CreateStep("RenderSummary")]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
             debugger.WriteRenderedLog(["\tStage activity behind a tab"], new LogPlacement("Main", null, null, 0));
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
             debugger.WriteRenderedLog(["\t\tA log line behind two tabs, long enough that it has to be broken across lines as well"], new LogPlacement("Main", 0, 1, 0));
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 1, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 1, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
 
             await debugger.SignalTimelineRunFinishedAsync("session");
 
@@ -423,24 +458,28 @@ public class OutputRunDebuggerTests
             RecordingOutputHelper output = new();
             OutputRunDebugger debugger = new(output.WriteLine);
 
-            await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+            await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
             {
-                Stages =
-                [
-                    new DebugStageState
-                    {
-                        Name = "Main",
-                        Description = string.Empty,
-                        Steps = [CreateStep("FetchUsers")]
-                    }
-                ],
-                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                Identity = DebugTestIdentity.For("timeline", "project"),
+                RunStructure = new TimelineRunStructure
+                {
+                    Stages =
+                    [
+                        new DebugStageState
+                        {
+                            Name = "Main",
+                            Description = string.Empty,
+                            Steps = [CreateStep("FetchUsers")]
+                        }
+                    ],
+                    Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                    Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+                },
             });
 
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-            await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+            await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
             await debugger.SignalTimelineRunFinishedAsync("session");
 
             string columnRow = Assert.Single(output.Lines.Where(line => line.Contains("INPUTS")));

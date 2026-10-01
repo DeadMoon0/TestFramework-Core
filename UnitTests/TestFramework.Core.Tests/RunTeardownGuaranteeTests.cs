@@ -120,9 +120,9 @@ public sealed class RunTeardownGuaranteeTests
             ? Task.FromException(new InvalidOperationException("The debugger's consumer is gone."))
             : Task.CompletedTask;
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null) => Signal();
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null) => Signal();
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value) => Signal();
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Signal();
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition) => Signal();
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Signal();
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Signal();
         public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry) => Signal();
         public Task SignalTimelineRunFinishedAsync(string sessionId) => Signal();

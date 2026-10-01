@@ -134,69 +134,51 @@ public sealed class ResourceKindBuilder
     internal ResourceKindBuilder(string name) => this.name = name;
 
     /// <summary>
-    /// Declares a value every instance may offer, built for each viewpoint separately.
+    /// Declares a value every instance offers, built for each viewpoint separately.
     /// </summary>
     /// <remarks>
     /// The usual shape for a coordinate: an address or a connection string reads one way from the test
     /// process and another from inside the network, and the node that starts the resource publishes both.
     /// </remarks>
     /// <param name="valueName">Which value, from <see cref="ValueNames"/> or the package's own list.</param>
-    /// <param name="optional">True when an instance may legitimately not have it.</param>
     /// <returns>The builder.</returns>
-    public ResourceKindBuilder OffersPerVantage(string valueName, bool optional = false)
-        => this.Add(valueName, perVantage: true, optional, secret: false);
+    public ResourceKindBuilder OffersPerVantage(string valueName)
+        => this.Add(valueName, perVantage: true, ValueTraits.None);
 
     /// <summary>
-    /// Declares a per-viewpoint value, saying whether it must never be printed.
+    /// Declares a per-viewpoint value with the traits it has.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A separate overload rather than a third optional parameter, and the reason is worth keeping: an
-    /// optional argument is baked into the <em>call site</em> when it compiles, so widening
-    /// <c>OffersPerVantage(string, bool)</c> in place made every already-compiled package call a method that
-    /// no longer existed. Source-compatible, binary-incompatible - and in a family of independently versioned
-    /// packages that lands on a user holding one new package and one old, as a
-    /// <c>MissingMethodException</c> at runtime rather than an error at build.
-    /// </para>
-    /// <para>
-    /// Found by the suites that consume this package as a package rather than as a project, which is the only
-    /// place it can be found.
+    /// The traits are one flags value rather than a boolean each, and the reason is binary rather than
+    /// cosmetic: an optional argument is baked into the <em>call site</em> when it compiles, so the boolean
+    /// this used to take for "secret" was added the only safe way - as a second overload - and the next trait
+    /// would have needed a third. A new trait is a new <see cref="ValueTraits"/> member, which no compiled
+    /// package notices. It also reads: <c>ValueTraits.Secret</c> instead of <c>optional: false, secret: true</c>.
     /// </para>
     /// </remarks>
     /// <param name="valueName">Which value.</param>
-    /// <param name="optional">True when an instance may legitimately not have it.</param>
-    /// <param name="secret">
-    /// True when the value must never be printed. A connection string is the usual case: it is a coordinate
-    /// and a credential in one indivisible string, so it travels as a value and is redacted everywhere values
-    /// are listed.
-    /// </param>
+    /// <param name="traits">Whether an instance may lack it, and whether it must never be printed.</param>
     /// <returns>The builder.</returns>
-    public ResourceKindBuilder OffersPerVantage(string valueName, bool optional, bool secret)
-        => this.Add(valueName, perVantage: true, optional, secret);
+    public ResourceKindBuilder OffersPerVantage(string valueName, ValueTraits traits)
+        => this.Add(valueName, perVantage: true, traits);
 
     /// <summary>
-    /// Declares a value every instance may offer, which reads the same from every viewpoint.
+    /// Declares a value every instance offers, which reads the same from every viewpoint.
     /// </summary>
     /// <param name="valueName">Which value.</param>
-    /// <param name="optional">True when an instance may legitimately not have it.</param>
     /// <returns>The builder.</returns>
-    public ResourceKindBuilder Offers(string valueName, bool optional = false)
-        => this.Add(valueName, perVantage: false, optional, secret: false);
+    public ResourceKindBuilder Offers(string valueName)
+        => this.Add(valueName, perVantage: false, ValueTraits.None);
 
     /// <summary>
-    /// Declares a viewpoint-free value, saying whether it must never be printed.
+    /// Declares a viewpoint-free value with the traits it has.
     /// </summary>
-    /// <remarks>
-    /// An overload rather than a third optional parameter - see
-    /// <see cref="OffersPerVantage(string, bool, bool)"/> for why that distinction is binary rather than
-    /// cosmetic.
-    /// </remarks>
     /// <param name="valueName">Which value.</param>
-    /// <param name="optional">True when an instance may legitimately not have it.</param>
-    /// <param name="secret">True when the value must never be printed.</param>
+    /// <param name="traits">Whether an instance may lack it, and whether it must never be printed.</param>
     /// <returns>The builder.</returns>
-    public ResourceKindBuilder Offers(string valueName, bool optional, bool secret)
-        => this.Add(valueName, perVantage: false, optional, secret);
+    public ResourceKindBuilder Offers(string valueName, ValueTraits traits)
+        => this.Add(valueName, perVantage: false, traits);
 
     /// <summary>
     /// Completes the kind, or hands back the one already declared under this name.
@@ -218,7 +200,7 @@ public sealed class ResourceKindBuilder
         return builder.Build();
     }
 
-    private ResourceKindBuilder Add(string valueName, bool perVantage, bool optional, bool secret)
+    private ResourceKindBuilder Add(string valueName, bool perVantage, ValueTraits traits)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(valueName);
 
@@ -227,7 +209,7 @@ public sealed class ResourceKindBuilder
             throw new ArgumentException($"'{this.name}' already offers '{valueName}'.", nameof(valueName));
         }
 
-        this.values.Add(new ResourceValue(this.name, valueName, perVantage, optional) { Secret = secret });
+        this.values.Add(new ResourceValue(this.name, valueName, perVantage, traits.HasFlag(ValueTraits.Optional)) { Secret = traits.HasFlag(ValueTraits.Secret) });
 
         return this;
     }

@@ -331,7 +331,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractViolationException_IncludesFriendlyMessage()
     {
-        var missingVariable = new StepIOEntry("userId", StepIOKind.Variable);
+        var missingVariable = new StepIOEntry("userId", StepIOKind.Variable, true, null);
         var precedingSteps = new[] { "step1", "step2" };
         var availableKeys = new[] { "orderId", "sessionId" };
         var similarKeys = new[] { "user_id" };
@@ -353,7 +353,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractViolationException_RecoveryGuidanceIsActionable()
     {
-        var missingArtifact = new StepIOEntry("response", StepIOKind.Artifact);
+        var missingArtifact = new StepIOEntry("response", StepIOKind.Artifact, true, null);
         var precedingSteps = Array.Empty<string>();
         var availableKeys = new[] { "request" };
         var similarKeys = Array.Empty<string>();
@@ -374,7 +374,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractViolationException_SuggestsSimilarKeys()
     {
-        var missingVariable = new StepIOEntry("totalPrice", StepIOKind.Variable);
+        var missingVariable = new StepIOEntry("totalPrice", StepIOKind.Variable, true, null);
         var availableKeys = new[] { "itemPrice", "taxAmount" };
         var similarKeys = new[] { "total_amount", "final_amount" };
 
@@ -395,7 +395,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractTypeViolationException_IncludesFriendlyMessage()
     {
-        var input = new StepIOEntry("count", StepIOKind.Variable, DeclaredType: typeof(int));
+        var input = new StepIOEntry("count", StepIOKind.Variable, true, typeof(int));
 
         var ex = new IOContractTypeViolationException(
             "ProcessCountStep",
@@ -414,7 +414,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractTypeViolationException_RecoveryGuidanceIsSpecific()
     {
-        var input = new StepIOEntry("timeout", StepIOKind.Variable, DeclaredType: typeof(TimeSpan));
+        var input = new StepIOEntry("timeout", StepIOKind.Variable, true, typeof(TimeSpan));
 
         var ex = new IOContractTypeViolationException(
             "WaitStep",
@@ -433,7 +433,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractTypeViolationException_ExternalInputRecovery()
     {
-        var input = new StepIOEntry("data", StepIOKind.Variable, DeclaredType: typeof(List<string>));
+        var input = new StepIOEntry("data", StepIOKind.Variable, true, typeof(List<string>));
 
         var ex = new IOContractTypeViolationException(
             "ProcessDataStep",
@@ -452,7 +452,7 @@ public class ExceptionTests
     [Fact]
     public void IOContractExceptions_FollowFrameworkFormat()
     {
-        var input = new StepIOEntry("x", StepIOKind.Variable);
+        var input = new StepIOEntry("x", StepIOKind.Variable, true, null);
 
         var ex1 = new IOContractViolationException(
             "Step1", input, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());

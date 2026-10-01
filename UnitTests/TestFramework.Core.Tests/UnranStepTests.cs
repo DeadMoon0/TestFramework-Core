@@ -167,7 +167,7 @@ public sealed class UnranStepTests
             => throw new InvalidOperationException("the writer failed on purpose");
 
         public override Step<EmptyStepResultContext> Clone() => new FailingWriterStep().WithClonedOptions(this);
-        public override void DeclareIO(StepIOContract contract) => contract.Outputs.Add(new StepIOEntry("shared", StepIOKind.Variable));
+        public override void DeclareIO(StepIOContract contract) => contract.Output(new VariableIdentifier("shared"));
         public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 
@@ -181,7 +181,7 @@ public sealed class UnranStepTests
             => Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
 
         public override Step<EmptyStepResultContext> Clone() => new ReaderStep().WithClonedOptions(this);
-        public override void DeclareIO(StepIOContract contract) => contract.Inputs.Add(new StepIOEntry("shared", StepIOKind.Variable));
+        public override void DeclareIO(StepIOContract contract) => contract.Input(new VariableIdentifier("shared"));
         public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
     }
 

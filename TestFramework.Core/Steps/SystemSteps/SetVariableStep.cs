@@ -32,8 +32,7 @@ internal class SetVariableStep(VariableIdentifier identifier, VariableReferenceG
 
     public override void DeclareIO(StepIOContract contract)
     {
-        if (reference.HasIdentifier)
-            contract.Inputs.Add(new StepIOEntry(reference.Identifier!.Identifier, StepIOKind.Variable));
-        contract.Outputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Variable));
+        contract.Input(reference);
+        contract.Output(identifier);
     }
 }

@@ -89,17 +89,17 @@ public class DebuggerAssertionSignalTests
     {
         internal List<string> Events { get; } = [];
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null) => Task.CompletedTask;
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
 
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
         {
-            if (entityKind == DebugEntityKind.Step)
-                Events.Add($"step:{stepId}");
+            if (transition.EntityKind == DebugEntityKind.Step)
+                Events.Add($"step:{transition.StepId}");
 
             return Task.CompletedTask;
         }
 
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value) => Task.CompletedTask;
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Task.CompletedTask;
 
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
         {
@@ -123,9 +123,9 @@ public class DebuggerAssertionSignalTests
         internal List<DebugAssertionEntry> Assertions { get; } = [];
         internal List<DebugLogEntry> LogEntries { get; } = [];
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null) => Task.CompletedTask;
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null) => Task.CompletedTask;
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value) => Task.CompletedTask;
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition) => Task.CompletedTask;
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Task.CompletedTask;
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
         {
             LogEntries.Add(entry);

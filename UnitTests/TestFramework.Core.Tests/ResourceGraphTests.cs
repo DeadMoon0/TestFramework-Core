@@ -20,7 +20,7 @@ public class ResourceGraphTests
     // Declared the way a package declares its kinds: once, with the values every instance may offer.
     private static readonly ResourceKind Api = ResourceKind.Named("web.restapi")
         .OffersPerVantage(ValueNames.BaseUrl)
-        .Offers("HealthPath", optional: true);
+        .Offers("HealthPath", ValueTraits.Optional);
 
     private static readonly ResourceKind Sql = ResourceKind.Named("web.sql")
         .OffersPerVantage(ValueNames.ConnectionString)

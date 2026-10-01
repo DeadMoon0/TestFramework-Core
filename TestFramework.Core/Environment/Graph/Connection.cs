@@ -43,18 +43,28 @@ public sealed record ValueRoute
     public string ValuePath { get; }
 
     /// <summary>
-    /// Routes a value into a generated document.
+    /// Routes a value into a generated document, as the configured thing itself sees it.
     /// </summary>
     /// <param name="value">Which value of which resource, from the owning kind's schema.</param>
     /// <param name="documentPath">Which document.</param>
     /// <param name="valuePath">Where inside it.</param>
-    /// <param name="vantage">Whose viewpoint - the configured thing's own, unless stated otherwise.</param>
+    /// <returns>The route.</returns>
+    public static ValueRoute To(ValueRef value, string documentPath, string valuePath)
+        => To(value, documentPath, valuePath, ResourceVantage.Network);
+
+    /// <summary>
+    /// Routes a value into a generated document, as seen from <paramref name="vantage"/>.
+    /// </summary>
+    /// <param name="value">Which value of which resource, from the owning kind's schema.</param>
+    /// <param name="documentPath">Which document.</param>
+    /// <param name="valuePath">Where inside it.</param>
+    /// <param name="vantage">Whose viewpoint.</param>
     /// <returns>The route.</returns>
     public static ValueRoute To(
         ValueRef value,
         string documentPath,
         string valuePath,
-        ResourceVantage vantage = ResourceVantage.Network)
+        ResourceVantage vantage)
     {
         ArgumentNullException.ThrowIfNull(value);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);

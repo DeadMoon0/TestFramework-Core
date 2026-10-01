@@ -111,13 +111,13 @@ public sealed class RunValueOutputTests : IDisposable
 
         internal IReadOnlyDictionary<string, DebugValueEnvelope> Envelopes => envelopes;
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null) => Task.CompletedTask;
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
 
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null) => Task.CompletedTask;
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition) => Task.CompletedTask;
 
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
         {
-            envelopes[name] = value;
+            envelopes[update.Name] = update.Value;
             return Task.CompletedTask;
         }
 

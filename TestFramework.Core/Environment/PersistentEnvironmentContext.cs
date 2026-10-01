@@ -232,7 +232,7 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
             // learns where the first ended up.
             _persistentPublishing.Resolution,
             cancellationToken,
-            _persistentSetupTimeout == Timeout.InfiniteTimeSpan ? null : _persistentSetupTimeout);
+            _persistentSetupTimeout);
 
         try
         {

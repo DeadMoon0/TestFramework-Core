@@ -5,7 +5,7 @@ using System;
 
 namespace TestFramework.Core;
 
-internal class FreezableCollection<T> : IFreezableCollection<T>
+internal class FreezableCollection<T> : IFreezableCollection<T>, IReadOnlyCollection<T>
 {
     private readonly ICollection<T> _collection = [];
 

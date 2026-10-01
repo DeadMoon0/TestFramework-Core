@@ -144,7 +144,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         // Damage: a deadline whose clock runs out while its token stays silent. An observer or a capture
         // source that awaits its context's token - the right thing to do - was never cut off by the budget
         // it was promised, because nothing armed the token behind the deadline.
-        RunContext context = RunContext.Detached(timeout: TimeSpan.FromMilliseconds(50));
+        RunContext context = RunContext.Detached(new DetachedContextOptions { Timeout = TimeSpan.FromMilliseconds(50) });
 
         Task cancelled = Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, context.Deadline.Token);
         Task finished = await Task.WhenAny(cancelled, Task.Delay(TimeSpan.FromSeconds(5)));
@@ -158,7 +158,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
     {
         // Without a budget the context stops exactly when its caller says, and not on its own.
         using System.Threading.CancellationTokenSource caller = new();
-        RunContext context = RunContext.Detached(cancellationToken: caller.Token);
+        RunContext context = RunContext.Detached(new DetachedContextOptions { CancellationToken = caller.Token });
 
         Assert.False(context.Deadline.Token.IsCancellationRequested);
         caller.Cancel();
@@ -173,7 +173,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         // over Core's internals to make one. Public API only, one call.
         Recorder recorder = new Recorder();
 
-        RunContext context = RunContext.Detached(timeout: TimeSpan.FromSeconds(30));
+        RunContext context = RunContext.Detached(new DetachedContextOptions { Timeout = TimeSpan.FromSeconds(30) });
 
         await new CountingStep(recorder).Execute(context);
 

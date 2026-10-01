@@ -217,7 +217,7 @@ public class ResourceValueTests
         // and it must never appear in the list of what the run knows.
         ResourceKind kind = ResourceKind
             .Named("test.secretsql")
-            .OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true)
+            .OffersPerVantage(ValueNames.ConnectionString, ValueTraits.Secret)
             .Offers("DatabaseName")
             .Build();
 
@@ -252,8 +252,8 @@ public class ResourceValueTests
         // the run knows, and that list is built from the snapshot.
         ResourceKind kind = ResourceKind
             .Named("test.secretbus")
-            .OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true)
-            .Offers("QueueName", optional: true)
+            .OffersPerVantage(ValueNames.ConnectionString, ValueTraits.Secret)
+            .Offers("QueueName", ValueTraits.Optional)
             .Build();
 
         ResourceValueStore store = new ResourceValueStore();
@@ -275,7 +275,7 @@ public class ResourceValueTests
     {
         // Secrecy is part of a kind's schema, so it is held to the same rule as the rest of it: one meaning
         // per name. Otherwise the package that declared it last would decide whether a password is printed.
-        ResourceKind.Named("test.disputedsecret").OffersPerVantage(ValueNames.ConnectionString, optional: false, secret: true).Build();
+        ResourceKind.Named("test.disputedsecret").OffersPerVantage(ValueNames.ConnectionString, ValueTraits.Secret).Build();
 
         FrameworkConfigurationException failure = Assert.Throws<FrameworkConfigurationException>(
             () => ResourceKind.Named("test.disputedsecret").OffersPerVantage(ValueNames.ConnectionString).Build());

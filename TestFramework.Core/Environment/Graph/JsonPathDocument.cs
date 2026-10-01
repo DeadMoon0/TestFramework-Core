@@ -32,16 +32,26 @@ public sealed class JsonPathDocument : ConfigDocument
     private readonly Func<string?> readExisting;
 
     /// <summary>
-    /// Creates a JSON document.
+    /// Creates a JSON document the payload does not already ship.
     /// </summary>
     /// <param name="path">Where it goes, relative to the payload.</param>
-    /// <param name="readExisting">How to read what the payload already ships there, or null when it ships nothing.</param>
-    public JsonPathDocument(string path, Func<string?>? readExisting = null)
+    public JsonPathDocument(string path)
+        : this(path, static () => null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a JSON document on top of what the payload already ships there.
+    /// </summary>
+    /// <param name="path">Where it goes, relative to the payload.</param>
+    /// <param name="readExisting">How to read what the payload already ships there.</param>
+    public JsonPathDocument(string path, Func<string?> readExisting)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(readExisting);
 
         this.Path = path;
-        this.readExisting = readExisting ?? (static () => null);
+        this.readExisting = readExisting;
     }
 
     /// <inheritdoc />

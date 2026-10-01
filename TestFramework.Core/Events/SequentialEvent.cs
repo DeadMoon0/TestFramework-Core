@@ -11,11 +11,51 @@ namespace TestFramework.Core.Events;
 /// <summary>
 /// Represents the outcome of a single polling iteration for a <see cref="SequentialEvent{TEvent, TResult}"/>.
 /// </summary>
+/// <remarks>
+/// Built with <see cref="Done"/> or <see cref="NotYet"/>, because the two halves never mix: a finished poll has
+/// a result and no next delay, an unfinished one has a delay and no result. The positional constructor this
+/// replaced took all three, so <c>(false, null, delay)</c> was how a poll said "not yet", and nothing stopped a
+/// result being passed with <c>false</c> and silently dropped.
+/// </remarks>
 /// <typeparam name="TStepResultContext">The result context type produced by the event.</typeparam>
-/// <param name="IsDone">Indicates whether polling is complete.</param>
-/// <param name="Result">The result value when polling is complete.</param>
-/// <param name="NextDelay">The delay before the next polling iteration when polling is not complete.</param>
-public record SequentialPollingResult<TStepResultContext>(bool IsDone, TStepResultContext? Result, TimeSpan NextDelay) where TStepResultContext : StepResultContext;
+public sealed record SequentialPollingResult<TStepResultContext> where TStepResultContext : StepResultContext
+{
+    private SequentialPollingResult(bool isDone, TStepResultContext? result, TimeSpan nextDelay)
+    {
+        this.IsDone = isDone;
+        this.Result = result;
+        this.NextDelay = nextDelay;
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether polling is complete.
+    /// </summary>
+    public bool IsDone { get; }
+
+    /// <summary>
+    /// Gets the result, once polling is complete; <see langword="null"/> for an event that returns nothing.
+    /// </summary>
+    public TStepResultContext? Result { get; }
+
+    /// <summary>
+    /// Gets how long to wait before polling again, while polling is not complete.
+    /// </summary>
+    public TimeSpan NextDelay { get; }
+
+    /// <summary>
+    /// Polling is complete.
+    /// </summary>
+    /// <param name="result">What the event produced, or <see langword="null"/> for an event that returns nothing.</param>
+    /// <returns>The finished poll.</returns>
+    public static SequentialPollingResult<TStepResultContext> Done(TStepResultContext? result) => new(true, result, TimeSpan.Zero);
+
+    /// <summary>
+    /// The condition has not been reached yet; poll again after <paramref name="nextDelay"/>.
+    /// </summary>
+    /// <param name="nextDelay">How long to wait before polling again.</param>
+    /// <returns>The unfinished poll.</returns>
+    public static SequentialPollingResult<TStepResultContext> NotYet(TimeSpan nextDelay) => new(false, null, nextDelay);
+}
 
 /// <summary>
 /// Represents an event step that polls repeatedly until a terminating condition is reached.

@@ -168,18 +168,18 @@ public sealed class DebugFailureDetailTests
 
         public bool IsCapturing => true;
 
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
         {
-            if (failure is not null)
+            if (transition.Failure is not null)
             {
-                lock (Failures) Failures.Add(failure);
+                lock (Failures) Failures.Add(transition.Failure);
             }
 
             return Task.CompletedTask;
         }
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null) => Task.CompletedTask;
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value) => Task.CompletedTask;
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Task.CompletedTask;
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Task.CompletedTask;
         public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry) => Task.CompletedTask;
         public Task SignalTimelineRunFinishedAsync(string sessionId) => Task.CompletedTask;

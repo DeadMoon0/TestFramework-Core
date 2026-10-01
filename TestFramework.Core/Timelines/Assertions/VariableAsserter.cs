@@ -112,16 +112,30 @@ public class VariableAsserter<T>
     /// Asserts that the variable value satisfies the provided predicate.
     /// </summary>
     /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
+    public VariableAsserter<T> Match(System.Func<T?, bool> predicate)
+    { ValueOrFail()?.Match(predicate); return this; }
+
+    /// <summary>
+    /// Asserts that the variable value satisfies the provided predicate, saying what it checks.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="true"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
-    public VariableAsserter<T> Match(System.Func<T?, bool> predicate, string description = "custom predicate")
+    public VariableAsserter<T> Match(System.Func<T?, bool> predicate, string description)
     { ValueOrFail()?.Match(predicate, description); return this; }
 
     /// <summary>
     /// Asserts that the variable value does not satisfy the provided predicate.
     /// </summary>
     /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
+    public VariableAsserter<T> NotMatch(System.Func<T?, bool> predicate)
+    { ValueOrFail()?.NotMatch(predicate); return this; }
+
+    /// <summary>
+    /// Asserts that the variable value does not satisfy the provided predicate, saying what it checks.
+    /// </summary>
+    /// <param name="predicate">The predicate that must return <see langword="false"/>.</param>
     /// <param name="description">A short description included in assertion output.</param>
-    public VariableAsserter<T> NotMatch(System.Func<T?, bool> predicate, string description = "custom predicate")
+    public VariableAsserter<T> NotMatch(System.Func<T?, bool> predicate, string description)
     { ValueOrFail()?.NotMatch(predicate, description); return this; }
 
     /// <summary>

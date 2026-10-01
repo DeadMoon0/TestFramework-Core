@@ -34,8 +34,7 @@ internal class TransformStep<TFrom, TTo>(VariableIdentifier toVariable, Variable
 
     public override void DeclareIO(StepIOContract contract)
     {
-        if (fromVariable.HasIdentifier)
-            contract.Inputs.Add(new StepIOEntry(fromVariable.Identifier!.Identifier, StepIOKind.Variable, true, typeof(TFrom)));
-        contract.Outputs.Add(new StepIOEntry(toVariable.Identifier, StepIOKind.Variable, true, typeof(TTo)));
+        contract.Input(fromVariable);
+        contract.Output(toVariable, typeof(TTo));
     }
 }

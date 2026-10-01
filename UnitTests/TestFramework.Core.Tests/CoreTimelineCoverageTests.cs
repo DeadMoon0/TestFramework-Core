@@ -364,7 +364,7 @@ public class CoreTimelineCoverageTests
 
         public override void DeclareIO(StepIOContract contract)
         {
-            contract.Inputs.Add(new StepIOEntry(variableName, StepIOKind.Variable, true, typeof(string)));
+            contract.Input(new VariableIdentifier(variableName), typeof(string));
         }
 
         public override Step<EmptyStepResultContext> Clone() => new CaptureVariableStep(variableName, seen).WithClonedOptions(this);
@@ -437,8 +437,8 @@ public class CoreTimelineCoverageTests
         public override Task<SequentialPollingResult<TextResultContext>> OnSequentialPolling(RunContext context)
         {
             return Task.FromResult(polls.Next() == 1
-            ? new SequentialPollingResult<TextResultContext>(false, null, TimeSpan.Zero)
-            : new SequentialPollingResult<TextResultContext>(true, new TextResultContext("done"), TimeSpan.Zero));
+            ? SequentialPollingResult<TextResultContext>.NotYet(TimeSpan.Zero)
+            : SequentialPollingResult<TextResultContext>.Done(new TextResultContext("done")));
         }
 
         public override void DeclareIO(StepIOContract contract)

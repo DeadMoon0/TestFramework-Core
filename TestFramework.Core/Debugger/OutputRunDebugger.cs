@@ -67,11 +67,11 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
         useAsciiOutput = IsUnicodeOutputDisabled();
     }
 
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
+    public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start)
     {
         lock (renderGate)
         {
-            HandleInitTimelineRun(name, projectPath, runStructure, identity);
+            HandleInitTimelineRun(start.Identity.DisplayName, start.Identity.AssemblyPath, start.RunStructure, start.Identity);
         }
 
         return Task.CompletedTask;
@@ -104,11 +104,11 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
             artifactsByKey[artifact.Key] = artifact;
     }
 
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
     {
         lock (renderGate)
         {
-            HandleEntityTransition(entityKind, stage, stepId, state, previousState, outcomeState);
+            HandleEntityTransition(transition.EntityKind, transition.Stage, transition.StepId, transition.State, transition.PreviousState, transition.OutcomeState);
         }
 
         return Task.CompletedTask;
@@ -165,11 +165,11 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
         }
     }
 
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+    public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
     {
         lock (renderGate)
         {
-            HandleValueUpdate(name, valueKind, stage, stepId, value);
+            HandleValueUpdate(update.Name, update.ValueKind, update.Stage, update.StepId, update.Value);
         }
 
         return Task.CompletedTask;

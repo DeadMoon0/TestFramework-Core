@@ -22,7 +22,7 @@ public class CoreAdvancedTests
     public void Validate_ThrowsWhenAReadVariableWasNeverProduced()
     {
         TestStep consumer = new("consumer");
-        consumer.IOContract.Inputs.Add(new StepIOEntry("user", StepIOKind.Variable, true));
+        consumer.IOContract.Input(new VariableIdentifier("user"));
 
         Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer], [], []));
     }
@@ -31,10 +31,10 @@ public class CoreAdvancedTests
     public void Validate_ThrowsWhenAVariableIsReadBeforeTheStepThatProducesIt()
     {
         TestStep consumer = new("consumer");
-        consumer.IOContract.Inputs.Add(new StepIOEntry("user", StepIOKind.Variable, true));
+        consumer.IOContract.Input(new VariableIdentifier("user"));
 
         TestStep producer = new("producer");
-        producer.IOContract.Outputs.Add(new StepIOEntry("user", StepIOKind.Variable));
+        producer.IOContract.Output(new VariableIdentifier("user"));
 
         // Reading before the producer runs is a violation; the same pair in the other order is fine.
         Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer, producer], [], []));
@@ -82,7 +82,7 @@ public class CoreAdvancedTests
     public void IOContractValidator_ThrowsWhenRequiredInputIsMissing()
     {
         TestStep consumer = new("consumer");
-        consumer.IOContract.Inputs.Add(new StepIOEntry("input", StepIOKind.Variable, true, typeof(string)));
+        consumer.IOContract.Input(new VariableIdentifier("input"), typeof(string));
 
         IOContractViolationException exception = Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([consumer], [], []));
 
@@ -95,9 +95,9 @@ public class CoreAdvancedTests
     public void IOContractValidator_MissingInput_IncludesAvailableKeysAndSuggestions()
     {
         TestStep producer = new("produce-user-id");
-        producer.IOContract.Outputs.Add(new StepIOEntry("userId", StepIOKind.Variable, true, typeof(string)));
+        producer.IOContract.Output(new VariableIdentifier("userId"), typeof(string));
         TestStep consumer = new("consumer");
-        consumer.IOContract.Inputs.Add(new StepIOEntry("userIdentifier", StepIOKind.Variable, true, typeof(string)));
+        consumer.IOContract.Input(new VariableIdentifier("userIdentifier"), typeof(string));
 
         IOContractViolationException exception = Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
 
@@ -110,9 +110,9 @@ public class CoreAdvancedTests
     public void IOContractValidator_ThrowsWhenProducerTypeDoesNotMatchConsumer()
     {
         TestStep producer = new("producer");
-        producer.IOContract.Outputs.Add(new StepIOEntry("input", StepIOKind.Variable, true, typeof(int)));
+        producer.IOContract.Output(new VariableIdentifier("input"), typeof(int));
         TestStep consumer = new("consumer");
-        consumer.IOContract.Inputs.Add(new StepIOEntry("input", StepIOKind.Variable, true, typeof(string)));
+        consumer.IOContract.Input(new VariableIdentifier("input"), typeof(string));
 
         IOContractTypeViolationException exception = Assert.Throws<IOContractTypeViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
 

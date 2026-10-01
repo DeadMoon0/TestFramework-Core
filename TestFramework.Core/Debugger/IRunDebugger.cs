@@ -22,15 +22,15 @@ public interface IRunDebugger
     /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null);
+    public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start);
     /// <summary>
     /// Signals that a runtime entity has transitioned to a new lifecycle state.
     /// </summary>
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null);
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition);
     /// <summary>
     /// Signals that a debugger-visible value has changed.
     /// </summary>
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value);
+    public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update);
     /// <summary>
     /// Signals that a structured log entry has been emitted for the active run.
     /// </summary>

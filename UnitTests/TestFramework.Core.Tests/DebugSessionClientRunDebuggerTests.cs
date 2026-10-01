@@ -16,13 +16,17 @@ public class DebugSessionClientRunDebuggerTests
     {
         PipeRunDebugger debugger = new();
 
-        await debugger.SignalInitTimelineRunAsync("session-1", "Run", "project.csproj", new TimelineRunStructure
+        await debugger.SignalInitTimelineRunAsync("session-1", new DebugRunStart
         {
-            Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, DebugValue>(),
-            Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, DebugValue>(),
-            Stages = []
+            Identity = DebugTestIdentity.For("Run", "project.csproj"),
+            RunStructure = new TimelineRunStructure
+            {
+                Variables = new Dictionary<TestFramework.Core.Variables.VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<TestFramework.Core.Artifacts.ArtifactIdentifier, DebugValue>(),
+                Stages = []
+            },
         });
-        await debugger.SignalEntityTransitionAsync("session-1", DebugEntityKind.Run, null, null, DebugLifecycleState.Running);
+        await debugger.SignalEntityTransitionAsync("session-1", new DebugEntityTransition { EntityKind = DebugEntityKind.Run, State = DebugLifecycleState.Running });
         await debugger.SignalTimelineRunFinishedAsync("session-1");
         await debugger.SignalAndWaitBreakpointHitAsync("session-1", "Main", 2);
     }
@@ -258,17 +262,17 @@ public class DebugSessionClientRunDebuggerTests
         public string InitializedRunName { get; private set; } = string.Empty;
         public string InitializedProjectPath { get; private set; } = string.Empty;
 
-        public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start)
         {
-            InitializedRunName = name;
-            InitializedProjectPath = projectPath;
+            InitializedRunName = start.Identity.DisplayName;
+            InitializedProjectPath = start.Identity.AssemblyPath;
             return Task.CompletedTask;
         }
 
-        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
             => Task.CompletedTask;
 
-        public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
             => Task.CompletedTask;
 
         public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)

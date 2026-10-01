@@ -92,9 +92,9 @@ public sealed class OutputValueFileTests
     }
 
     [Fact]
-    public async Task ARunWithNoIdentityStillNamesWhateverItWasGiven()
+    public async Task ARunWhoseIdentityKnowsNoProjectStillNamesWhateverItWasGiven()
     {
-        // Nothing resolved the identity, so the announced path is all there is. Showing nothing
+        // Nothing resolved a project, so the assembly path is all there is. Showing nothing
         // would be worse than showing the host.
         string output = await Render(body: null, identity: null);
 
@@ -147,35 +147,46 @@ public sealed class OutputValueFileTests
             Outputs = [new DebugStepIo { Key = "report", Kind = StepIOKind.Variable, DeclaredType = nameof(String) }]
         };
 
-        await debugger.SignalInitTimelineRunAsync("session", "timeline", "project", new TimelineRunStructure
+        await debugger.SignalInitTimelineRunAsync("session", new DebugRunStart
         {
-            Stages = [new DebugStageState { Name = "Main", Description = string.Empty, Steps = [step] }],
-            Variables = new Dictionary<VariableIdentifier, DebugValue>(),
-            Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
-        }, identity);
-
-        await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Stage, "Main", null, DebugLifecycleState.Running);
-        await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Running);
-
-        await debugger.SignalValueUpdateAsync("session", "report", DebugValueKind.Variable, "Main", 0, new DebugValueEnvelope
-        {
-            Kind = DebugValueKind.Variable,
-            TypeName = "System.String",
-            SchemaKey = DebugValueSchemaKeys.Text,
-            Description = new DebugValueDescription
+            Identity = identity ?? DebugTestIdentity.For("timeline", "project"),
+            RunStructure = new TimelineRunStructure
             {
-                Summary = body is null ? "\"small enough to send\"" : "\"order 1 accepted order 2 accepted\"",
-                Shape = DebugValueShape.Text,
-                Fields =
-                [
-                    new DebugValueField { Name = "type", Value = "String" },
-                    new DebugValueField { Name = "length", Value = body is null ? 20 : 82891 }
-                ],
-                Body = body
-            }
+                Stages = [new DebugStageState { Name = "Main", Description = string.Empty, Steps = [step] }],
+                Variables = new Dictionary<VariableIdentifier, DebugValue>(),
+                Artifacts = new Dictionary<ArtifactIdentifier, DebugValue>()
+            },
         });
 
-        await debugger.SignalEntityTransitionAsync("session", DebugEntityKind.Step, "Main", 0, DebugLifecycleState.Complete, DebugLifecycleState.Running);
+        await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Stage, Stage = "Main", State = DebugLifecycleState.Running });
+        await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Running });
+
+        await debugger.SignalValueUpdateAsync("session", new DebugValueUpdate
+        {
+            Name = "report",
+            ValueKind = DebugValueKind.Variable,
+            Stage = "Main",
+            StepId = 0,
+            Value = new DebugValueEnvelope
+            {
+                Kind = DebugValueKind.Variable,
+                TypeName = "System.String",
+                SchemaKey = DebugValueSchemaKeys.Text,
+                Description = new DebugValueDescription
+                {
+                    Summary = body is null ? "\"small enough to send\"" : "\"order 1 accepted order 2 accepted\"",
+                    Shape = DebugValueShape.Text,
+                    Fields =
+                    [
+                        new DebugValueField { Name = "type", Value = "String" },
+                        new DebugValueField { Name = "length", Value = body is null ? 20 : 82891 }
+                    ],
+                    Body = body
+                }
+            },
+        });
+
+        await debugger.SignalEntityTransitionAsync("session", new DebugEntityTransition { EntityKind = DebugEntityKind.Step, Stage = "Main", StepId = 0, State = DebugLifecycleState.Complete, PreviousState = DebugLifecycleState.Running });
         await debugger.SignalTimelineRunFinishedAsync("session");
 
         return Flatten(output.Lines);

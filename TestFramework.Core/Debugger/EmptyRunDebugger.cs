@@ -11,17 +11,17 @@ internal class EmptyRunDebugger : IRunDebugger
         return Task.CompletedTask;
     }
 
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
     {
         return Task.CompletedTask;
     }
 
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
+    public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start)
     {
         return Task.CompletedTask;
     }
 
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+    public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
     {
         return Task.CompletedTask;
     }

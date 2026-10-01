@@ -122,8 +122,8 @@ public class CoreRunnerParallelizationTests
         TaskCompletionSource consumerStarted = CreateSignal();
 
         StageInstance stage = CreateStageInstance(
-            new BlockingStep("producer", producerStarted, producerRelease, outputs: [new StepIOEntry("user", StepIOKind.Variable)]),
-            new BlockingStep("consumer", consumerStarted, CreateSignal(completed: true), inputs: [new StepIOEntry("user", StepIOKind.Variable)]));
+            new BlockingStep("producer", producerStarted, producerRelease, outputs: [new StepIOEntry("user", StepIOKind.Variable, true, null)]),
+            new BlockingStep("consumer", consumerStarted, CreateSignal(completed: true), inputs: [new StepIOEntry("user", StepIOKind.Variable, true, null)]));
 
         RuntimeContext runtime = RuntimeContext.Create();
         CoreRunner runner = new(StepObservers.None, ValueResolution.Empty);
@@ -256,7 +256,7 @@ public class CoreRunnerParallelizationTests
                 "consumer",
                 consumerStarted,
                 CreateSignal(completed: true),
-                inputs: [new StepIOEntry("artifact-a", StepIOKind.Artifact)]));
+                inputs: [new StepIOEntry("artifact-a", StepIOKind.Artifact, true, null)]));
 
         RuntimeContext runtime = RuntimeContext.Create();
         runtime.ArtifactStore.AddArtifact(new ArtifactInstance<TestSerializedArtifactDescriber, TestSerializedArtifactData, TestSerializedArtifactReference>(
@@ -363,10 +363,18 @@ public class CoreRunnerParallelizationTests
         public override void DeclareIO(StepIOContract contract)
         {
             foreach (var input in inputs)
-                contract.Inputs.Add(input);
+            {
+                _ = input.Kind == StepIOKind.Artifact
+                    ? contract.InputArtifact(new ArtifactIdentifier(input.Key))
+                    : contract.Input(new VariableIdentifier(input.Key));
+            }
 
             foreach (var output in outputs)
-                contract.Outputs.Add(output);
+            {
+                _ = output.Kind == StepIOKind.Artifact
+                    ? contract.OutputArtifact(new ArtifactIdentifier(output.Key))
+                    : contract.Output(new VariableIdentifier(output.Key));
+            }
         }
 
         public override Step<EmptyStepResultContext> Clone() => new BlockingStep(name, started, release, inputs, outputs).WithClonedOptions(this);

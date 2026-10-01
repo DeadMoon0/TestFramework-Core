@@ -58,7 +58,6 @@ internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, boo
 
     public override void DeclareIO(StepIOContract contract)
     {
-        if (variable.HasIdentifier)
-            contract.Inputs.Add(new StepIOEntry(variable.Identifier!.Identifier, StepIOKind.Variable, true, typeof(T)));
+        contract.Input(variable);
     }
 }

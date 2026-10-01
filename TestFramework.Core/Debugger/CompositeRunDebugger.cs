@@ -85,14 +85,14 @@ internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellat
         };
     }
 
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
-        => SignalAllAsync(debugger => debugger.SignalInitTimelineRunAsync(sessionId, name, projectPath, runStructure, identity));
+    public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start)
+        => SignalAllAsync(debugger => debugger.SignalInitTimelineRunAsync(sessionId, start));
 
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
-        => SignalAllAsync(debugger => debugger.SignalEntityTransitionAsync(sessionId, entityKind, stage, stepId, state, previousState, outcomeState, failure));
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
+        => SignalAllAsync(debugger => debugger.SignalEntityTransitionAsync(sessionId, transition));
 
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
-        => SignalAllAsync(debugger => debugger.SignalValueUpdateAsync(sessionId, name, valueKind, stage, stepId, value));
+    public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
+        => SignalAllAsync(debugger => debugger.SignalValueUpdateAsync(sessionId, update));
 
     public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry)
         => SignalAllAsync(debugger => debugger.SignalLogEntryAsync(sessionId, entry));

@@ -46,49 +46,49 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCan
     /// <summary>
     /// Signals that a timeline run has been initialized.
     /// </summary>
-    public Task SignalInitTimelineRunAsync(string sessionId, string name, string projectPath, TimelineRunStructure runStructure, TestIdentity? identity = null)
+    public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start)
     {
         return client.SignalAsync(new PipeInitTimelineRunSignal
         {
             SessionId = sessionId,
-            Name = name,
-            ProjectPath = projectPath,
-            RunStructure = runStructure,
-            Identity = identity
+            Name = start.Identity.DisplayName,
+            ProjectPath = start.Identity.AssemblyPath,
+            RunStructure = start.RunStructure,
+            Identity = start.Identity
         });
     }
 
     /// <summary>
     /// Signals that a runtime entity changed lifecycle state.
     /// </summary>
-    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityKind entityKind, string? stage, int? stepId, DebugLifecycleState state, DebugLifecycleState? previousState = null, DebugLifecycleState? outcomeState = null, DebugFailureDetail? failure = null)
+    public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
     {
         return client.SignalAsync(new PipeEntityTransitionSignal
         {
             SessionId = sessionId,
-            EntityKind = entityKind,
-            Stage = stage,
-            StepId = stepId,
-            PreviousState = previousState,
-            OutcomeState = outcomeState,
-            State = state,
-            Failure = failure
+            EntityKind = transition.EntityKind,
+            Stage = transition.Stage,
+            StepId = transition.StepId,
+            PreviousState = transition.PreviousState,
+            OutcomeState = transition.OutcomeState,
+            State = transition.State,
+            Failure = transition.Failure
         });
     }
 
     /// <summary>
     /// Signals that a debugger-visible value changed.
     /// </summary>
-    public Task SignalValueUpdateAsync(string sessionId, string name, DebugValueKind valueKind, string? stage, int? stepId, DebugValueEnvelope value)
+    public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update)
     {
         return client.SignalAsync(new PipeValueUpdateSignal
         {
             SessionId = sessionId,
-            Name = name,
-            ValueKind = valueKind,
-            Stage = stage,
-            StepId = stepId,
-            Envelope = value
+            Name = update.Name,
+            ValueKind = update.ValueKind,
+            Stage = update.Stage,
+            StepId = update.StepId,
+            Envelope = update.Value
         });
     }
 

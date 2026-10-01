@@ -114,7 +114,7 @@ internal class FindArtifactStep<TArtifactDescriber, TArtifactData, TArtifactRefe
     public override void DeclareIO(StepIOContract contract)
     {
         foreach (var id in _identifiers)
-            contract.Outputs.Add(new StepIOEntry(id.Identifier, StepIOKind.Artifact));
+            contract.OutputArtifact(id);
     }
 
     private void EnsureIdentifierCountMatches(int artifactCount)

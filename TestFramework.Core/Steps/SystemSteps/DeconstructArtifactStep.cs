@@ -38,7 +38,7 @@ internal class DeconstructArtifactStep(ArtifactIdentifier identifier) : Step<Emp
 
     public override void DeclareIO(StepIOContract contract)
     {
-        contract.Inputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
-        contract.Outputs.Add(new StepIOEntry(identifier.Identifier, StepIOKind.Artifact));
+        contract.InputArtifact(identifier);
+        contract.OutputArtifact(identifier);
     }
 }
