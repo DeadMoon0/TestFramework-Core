@@ -52,6 +52,8 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             if (!instance.Stage.IsCleanupStage)
             {
                 instance.Result.State = StageState.Error;
+                string failed = string.Join("', '", layer.Where(x => x.Step.State != StepState.Complete).Select(x => LabelOf(x.Step)));
+                await SkipUnrunStepsAsync(instance, $"It comes after '{failed}' in the {instance.Stage.Name}, which did not complete.", debuggingSession);
                 return;
             }
 
@@ -65,6 +67,46 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     {
         return Task.WhenAll(layer.Select(x => ExecuteStepAsync(stageName, x.Index, x.Step, serviceProvider, logger, variableStore, artifactStore, debuggingSession, isCleanupStage)));
     }
+
+    /// <summary>
+    /// Gives every step of a stage that the run never reached a <see cref="StepState.Skipped"/> outcome and
+    /// the reason it never ran.
+    /// </summary>
+    /// <remarks>
+    /// The one place that happens, for the three ways a step is left behind: its stage was skipped, a layer
+    /// before it failed, or the run was stopped first. A step without a result threw a bare "Sequence contains
+    /// no elements" when a test read its state, and a stage skipped whole left a cancelled run with nothing
+    /// failed in it.
+    /// </remarks>
+    /// <param name="stage">The stage whose untouched steps are skipped.</param>
+    /// <param name="reason">Why they never ran, as one sentence.</param>
+    /// <param name="debuggingSession">Told about each skipped step, so a watcher does not see it waiting.</param>
+    internal static async Task SkipUnrunStepsAsync(StageInstance stage, string reason, DebuggingRunSession debuggingSession)
+    {
+        int index = -1;
+        foreach (StepInstanceGeneric step in stage.Steps)
+        {
+            index++;
+            if (step.IsFrozen || step.RetryResults.Count > 0)
+                continue;
+
+            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped, SkipReason = reason });
+            step.Freeze();
+
+            await debuggingSession.TransitionStepAsync(stage.Stage.Name, index, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
+        }
+    }
+
+    /// <summary>
+    /// Why a step was skipped when the run was stopped, in the words the stop came with.
+    /// </summary>
+    /// <param name="debuggingSession">The run's session, which holds the stop's reason.</param>
+    /// <param name="before">What the stop came before, finishing the sentence.</param>
+    /// <returns>The reason.</returns>
+    internal static string CancelledReason(DebuggingRunSession debuggingSession, string before)
+        => debuggingSession.CancellationReason is { Length: > 0 } reason
+            ? $"The run was cancelled before {before}: {reason}"
+            : $"The run was cancelled before {before}.";
 
     private static bool LayerFailed(IEnumerable<StageExecutionPlanner.ScheduledStep> layer)
     {
@@ -99,10 +141,9 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         // exactly the resources cancellation exists to release.
         if (debuggingSession.IsCancellationRequested && !isCleanupStage)
         {
-            // A skipped step still records an outcome. StepInstance.State reads the last retry
-            // result, so returning without one turns "this step did not run" into an exception when
-            // anything later inspects the run.
-            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped });
+            // A skipped step still records an outcome, and why: a step with no result reads as one that
+            // simply has no state, which sends the reader nowhere.
+            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped, SkipReason = CancelledReason(debuggingSession, "this step started") });
             step.Freeze();
 
             await debuggingSession.TransitionStepAsync(stageName, stepIndex, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);

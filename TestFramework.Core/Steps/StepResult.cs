@@ -88,4 +88,16 @@ public class StepResultGeneric : IFreezable
     /// Gets or sets the total elapsed time spent executing the step attempt.
     /// </summary>
     public TimeSpan TimeSpent { get => _timeSpent; set { ((IFreezable)this).EnsureNotFrozen(); _timeSpent = value; } }
+
+    private string? _skipReason = null;
+
+    /// <summary>
+    /// Gets or sets why the step never ran, when its state is <see cref="StepState.Skipped"/>.
+    /// </summary>
+    /// <remarks>
+    /// A step the run never reached still ends the run with an outcome, and this is the sentence that explains
+    /// it - an earlier stage failed, a step this one depends on failed, the run was cancelled - so the reader is
+    /// sent to the cause instead of left with a step that simply has no state.
+    /// </remarks>
+    public string? SkipReason { get => _skipReason; set { ((IFreezable)this).EnsureNotFrozen(); _skipReason = value; } }
 }

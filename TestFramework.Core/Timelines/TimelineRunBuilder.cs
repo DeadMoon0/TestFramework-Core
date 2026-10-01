@@ -139,7 +139,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 [.. _newArtifactStore.GetAll().Select(instance => (instance.Identifier, instance))],
                 newRun.Stages,
                 mainStageSteps));
-            bool anEarlierStageFailed = false;
+            string? failedStageName = null;
 
             foreach (var stage in newRun.Stages)
             {
@@ -149,11 +149,15 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 // the one failure worth reading. Both always reach teardown - deconstructing artifacts and
                 // tearing down environment components is precisely what killing the process would have
                 // skipped.
-                if ((_debuggingSession.IsCancellationRequested || anEarlierStageFailed) && !stage.Stage.IsCleanupStage)
+                if ((_debuggingSession.IsCancellationRequested || failedStageName is not null) && !stage.Stage.IsCleanupStage)
                 {
-                    if (anEarlierStageFailed)
-                        logger.LogWarning("Stage '{0}' was skipped because an earlier stage failed.", stage.Stage.Name);
+                    string reason = failedStageName is not null
+                        ? $"The {failedStageName} failed, so the {stage.Stage.Name} never ran."
+                        : CoreRunner.CancelledReason(_debuggingSession, $"the {stage.Stage.Name} began");
 
+                    logger.LogWarning("Stage '{0}' was skipped. {1}", stage.Stage.Name, reason);
+                    stage.Result.State = StageState.Skipped;
+                    await CoreRunner.SkipUnrunStepsAsync(stage, reason, _debuggingSession);
                     await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
                     continue;
                 }
@@ -174,17 +178,21 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                     // the loop ending with it, because the stage after the last one is the run's teardown.
                     logger.LogError("Stage '{0}' ended because the runner failed, so the run goes straight to its Cleanup stage.\n{1}", stage.Stage.Name, exception.ToString());
                     stage.Result.State = StageState.Error;
+                    await CoreRunner.SkipUnrunStepsAsync(stage, $"The runner failed during the {stage.Stage.Name} before this step started.", _debuggingSession);
                 }
                 stageStopwatch.Stop();
                 logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
                 await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
 
                 if (stage.Result.State != StageState.Complete)
-                    anEarlierStageFailed = true;
+                    failedStageName ??= stage.Stage.Name;
             }
-            DebugLifecycleState finalRunState = newRun.Stages.Any(stage => stage.Result.State == StageState.Error)
-                ? DebugLifecycleState.Error
-                : DebugLifecycleState.Complete;
+
+            // Complete only when every stage completed. A skipped stage did not, whatever skipped it - a run
+            // cancelled between stages has no failed step, and used to read as complete for exactly that reason.
+            DebugLifecycleState finalRunState = newRun.Stages.All(stage => stage.Result.State == StageState.Complete)
+                ? DebugLifecycleState.Complete
+                : DebugLifecycleState.Error;
             await _debuggingSession.TransitionRunAsync(finalRunState, DebugLifecycleState.Running);
             runTransitionCompleted = true;
         }

@@ -20,7 +20,13 @@ public enum StageState
     /// <summary>
     /// The stage ended with an error.
     /// </summary>
-    Error
+    Error,
+
+    /// <summary>
+    /// The stage never ran: an earlier stage failed, or the run was cancelled before it began. Each of its steps
+    /// is <see cref="Steps.StepState.Skipped"/> and says why.
+    /// </summary>
+    Skipped
 }
 
 /// <summary>

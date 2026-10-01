@@ -187,10 +187,22 @@ public class TimelineRun : IFreezable
         {
             foreach (var step in stage.Steps)
             {
-                if (!step.RetryResults.Any()) continue;
+                // A step that never ran did not complete either. Passing over it is how a run cancelled
+                // between stages - with nothing failed in it - used to pass here.
+                if (step.RetryResults.Count == 0)
+                {
+                    failedSteps.Add(new FailedStepInfo(stage.Stage.Name, step.Step.Name, null) { SkipReason = "It has no result: the run never reached it." });
+                    continue;
+                }
+
                 var lastResult = step.RetryResults.Last();
-                if (lastResult.State != StepState.Complete)
-                    failedSteps.Add(new FailedStepInfo(stage.Stage.Name, step.Step.Name, lastResult.Exception));
+                if (lastResult.State == StepState.Complete)
+                    continue;
+
+                failedSteps.Add(new FailedStepInfo(stage.Stage.Name, step.Step.Name, lastResult.Exception)
+                {
+                    SkipReason = lastResult.State == StepState.Skipped ? lastResult.SkipReason ?? "It was skipped." : null,
+                });
             }
         }
         if (failedSteps.Count > 0)

@@ -58,12 +58,18 @@ public class StepInstanceGeneric : IFreezable
     /// <summary>
     /// Gets the last recorded execution result for the step.
     /// </summary>
-    public StepResultGeneric LastResult { get => RetryResults.Last(); }
+    /// <exception cref="Exceptions.FrameworkStateException">The step has no result yet, because it has not run.</exception>
+    public StepResultGeneric LastResult => RetryResults.Count > 0
+        ? RetryResults.Last()
+        : throw new Exceptions.FrameworkStateException(
+            $"Step '{Step.LabelOptions.Label ?? Step.Name}' has no result yet, because it has not run.",
+            ["Read State instead: it answers NotRun for a step that has not run.", "After a run, every step has a result - a step the run never reached is Skipped, and its SkipReason says why."]);
 
     /// <summary>
-    /// Gets the current state of the step based on its last recorded result.
+    /// Gets the current state of the step: the state of its last attempt, or <see cref="StepState.NotRun"/>
+    /// when it has none.
     /// </summary>
-    public StepState State { get => LastResult.State; }
+    public StepState State => RetryResults.Count > 0 ? RetryResults.Last().State : StepState.NotRun;
 
     /// <summary>
     /// Initializes a new runtime step instance for the provided step definition.
