@@ -153,6 +153,15 @@ internal sealed class RunChannel
     /// </summary>
     internal static RunChannel Widget { get; } = new("widget", isEvidence: true);
 
+    /// <summary>
+    /// A package's own record of what something did during the run - a mock's calls, say. Evidence like a
+    /// widget: it is written by code the run does not control, often on that code's own threads, so a refusal
+    /// is dropped and reported rather than thrown into it.
+    /// </summary>
+    /// <param name="name">The record's name, for messages.</param>
+    /// <returns>The channel.</returns>
+    internal static RunChannel Record(string name) => new($"record '{name}'", isEvidence: true);
+
     internal string Name { get; }
 
     /// <summary>
