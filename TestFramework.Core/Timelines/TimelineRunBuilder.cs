@@ -405,6 +405,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, null))
                 {
                     step.Step.DeclareIO(step.Step.IOContract);
+                    if (step.Step is SetupArtifactStep setup)
+                        setup.DeclareHeldReferenceIO(artifactStore);
                     DeclareRetryInputs(step.Step);
                     foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
                     {

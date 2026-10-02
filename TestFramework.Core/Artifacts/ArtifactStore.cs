@@ -237,6 +237,65 @@ public class ArtifactStore
     }
 
     /// <summary>
+    /// Records on a reference what its setup learned only by creating the artifact - a key the database
+    /// assigned, say.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A pin is made before setup, from what the test supplied. Some artifacts are only addressable afterwards:
+    /// the database numbers the row, the service names the resource. This is the second pin for that half, and
+    /// it goes through the same gate as the first, because it aims the same cleanup - an attempt the run has
+    /// stopped waiting for would otherwise point teardown at what <em>it</em> created, and the live attempt's
+    /// artifact would be the one left behind.
+    /// </para>
+    /// <para>
+    /// The change itself is the reference's own code, run inside <paramref name="assign"/> with an
+    /// <see cref="ArtifactAssignment"/> that exists only for that call, so a reference can take the proof in the
+    /// method that records its identity and nothing else can call that method.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TReference">The reference type.</typeparam>
+    /// <param name="reference">The reference of an artifact this store holds.</param>
+    /// <param name="assign">Records the identity on the reference.</param>
+    /// <returns><see langword="false"/> when the run no longer takes this writer's writes, so nothing was
+    /// recorded; the artifact the caller created is then not the run's to clean up, and the caller should say
+    /// which one it was.</returns>
+    /// <exception cref="FrameworkConfigurationException">No artifact this store holds has that reference.</exception>
+    public bool Assign<TReference>(TReference reference, Action<TReference, ArtifactAssignment> assign)
+        where TReference : ArtifactReferenceGeneric
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        ArgumentNullException.ThrowIfNull(assign);
+
+        ArtifactInstanceGeneric? held;
+        lock (syncRoot)
+        {
+            held = _artifacts.Values.FirstOrDefault(instance => ReferenceEquals(instance.Reference, reference));
+        }
+
+        // Keyed on the instance the store holds, like a version capture: accepted for a reference it does not
+        // hold, the assignment would be judged by this run's gates and aim another run's cleanup.
+        if (held is null)
+        {
+            throw new FrameworkConfigurationException(
+                $"'{reference}' is not the reference of an artifact this run's store holds, so this run may not assign it.")
+            {
+                RecoverySteps = ["Assign from the artifact's own setup, through context.Artifacts of the run that holds it."],
+            };
+        }
+
+        ArtifactAssignment proof = new();
+        try
+        {
+            return this.Write(held.Identifier, _ => assign(reference, proof), held);
+        }
+        finally
+        {
+            proof.Close();
+        }
+    }
+
+    /// <summary>
     /// The one place a change to the run's artifacts happens.
     /// </summary>
     /// <remarks>
@@ -247,12 +306,12 @@ public class ArtifactStore
     /// <param name="target">What is being written, for the warning a refused write produces.</param>
     /// <param name="change">The change to make.</param>
     /// <param name="published">The artifact to publish afterwards, or null when there is nothing to show yet.</param>
-    private void Write(ArtifactIdentifier target, Action<RunWriteTicket> change, ArtifactInstanceGeneric? published)
+    private bool Write(ArtifactIdentifier target, Action<RunWriteTicket> change, ArtifactInstanceGeneric? published)
     {
         // The run's gate decides, as it does for every channel: an attempt the runner has stopped waiting
         // for must not reach the stores a later test reads, and a finished run takes nothing new.
         if (!writer.TryAdmit(RunChannel.Artifact, target.Identifier, logger, out RunWriteTicket? ticket))
-            return;
+            return false;
 
         using (ticket)
         {
@@ -261,12 +320,13 @@ public class ArtifactStore
 
         // Building the debug state serialises the reference and the data. Skip it when nothing reads it.
         if (published is null || !debuggingSession.IsCapturing)
-            return;
+            return true;
 
         // Every change is published, not just the ones that arrive through AddArtifact. A version landing
         // on an instance the store already holds used to be invisible to a debugger, which made watching
         // a value evolve across a run - the whole point of capturing versions - impossible to see.
         debuggingSession.PublishArtifactUpdate(published.Identifier, WithBody(GetDebuggingStateFromInstance(published), published));
+        return true;
     }
 
     private void Hold(ArtifactInstanceGeneric instance, RunWriteTicket ticket)
@@ -397,6 +457,20 @@ public class ArtifactStore
         where TArtifactReference : ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData>
     {
         return (ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactReference>)GetArtifact(identifier);
+    }
+
+    /// <summary>
+    /// Gets an artifact instance by identifier, when the store holds one.
+    /// </summary>
+    /// <param name="identifier">The artifact identifier.</param>
+    /// <param name="instance">The instance, when held.</param>
+    /// <returns>Whether the store holds it.</returns>
+    internal bool TryGetArtifact(ArtifactIdentifier identifier, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ArtifactInstanceGeneric? instance)
+    {
+        lock (syncRoot)
+        {
+            return _artifacts.TryGetValue(identifier, out instance);
+        }
     }
 
     /// <summary>
