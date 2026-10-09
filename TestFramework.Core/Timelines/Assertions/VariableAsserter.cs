@@ -1,4 +1,5 @@
-﻿using TestFramework.Core.Logging;
+﻿using TestFramework.Core.Variables;
+using TestFramework.Core.Logging;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Debugger;
 
@@ -14,24 +15,29 @@ public class VariableAsserter<T>
     private readonly bool _exists;
     private readonly string _display;
     private readonly ScopedLogger? _logger;
+    private readonly bool _secret;
 
-    internal VariableAsserter(T? value, bool exists, string name, ScopedLogger? logger)
+    internal VariableAsserter(T? value, bool exists, string name, ScopedLogger? logger, bool secret)
     {
+        _secret = secret;
         _value = value;
         _exists = exists;
         _display = $"'{name}'";
         _logger = logger;
     }
 
+    // A secret variable is asserted on like any other; only what the assertion says about it is redacted.
+    private object? Shown => _secret ? VariableStore.Secret : _value;
+
     private VariableAsserter<T> Pass(string assertion)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], true, _exists ? _value : "<unset>");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], true, _exists ? Shown : "<unset>");
         return this;
     }
 
     private VariableAsserter<T> Fail(string assertion, string reason)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], false, _exists ? _value : "<unset>");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], false, _exists ? Shown : "<unset>");
         var message = $"Variable {_display}: {assertion} failed \u2014 {reason}";
         if (_logger?.CurrentScope is { } scope)
         {
@@ -59,7 +65,7 @@ public class VariableAsserter<T>
     public VariableAsserter<T> NotExist()
     {
         if (_exists)
-            return Fail(nameof(NotExist), $"variable exists with value '{_value}'");
+            return Fail(nameof(NotExist), $"variable exists with value '{Shown}'");
         return Pass(nameof(NotExist));
     }
 
@@ -80,7 +86,7 @@ public class VariableAsserter<T>
     private ValueAsserter<T?>? ValueOrFail([System.Runtime.CompilerServices.CallerMemberName] string assertion = "")
     {
         if (_exists)
-            return new ValueAsserter<T?>(_value, _display, _logger);
+            return new ValueAsserter<T?>(_value, _display, _logger, _secret);
 
         Fail(assertion, "variable was not set");
         return null;

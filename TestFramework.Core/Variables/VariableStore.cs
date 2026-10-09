@@ -17,6 +17,11 @@ public class VariableStore
     private readonly object syncRoot;
 
     private readonly Dictionary<VariableIdentifier, object?> _variables;
+
+    /// <summary>
+    /// The variables written as secrets. Shared with every attempt's view, like the values.
+    /// </summary>
+    private readonly HashSet<VariableIdentifier> _secrets;
     private readonly ScopedLogger logger;
     private readonly DebuggingRunSession debuggingSession;
 
@@ -92,6 +97,7 @@ public class VariableStore
         // Shared by reference on purpose: one store, many writers, each able to say who it is.
         this.syncRoot = source.syncRoot;
         this._variables = source._variables;
+        this._secrets = source._secrets;
         this.logger = source.logger;
         this.debuggingSession = source.debuggingSession;
         this.changeTokens = source.changeTokens;
@@ -105,6 +111,7 @@ public class VariableStore
     {
         this.syncRoot = new object();
         this._variables = [];
+        this._secrets = [];
         this.changeTokens = [];
         this.changeTokenLock = new object();
         this.logger = logger;
@@ -129,14 +136,22 @@ public class VariableStore
 
         // Hold the lock only for the dictionary read and write. Formatting a value can be arbitrarily
         // expensive, and it used to happen up to three times per write with the lock held.
+        bool secret;
         using (ticket)
         lock (syncRoot)
         {
             _variables[identifier] = value;
+            secret = _secrets.Contains(identifier);
         }
 
         if (!debuggingSession.IsCapturing)
             return;
+
+        if (secret)
+        {
+            debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(Secret, identifier));
+            return;
+        }
 
         // Described and fingerprinted in one pass. Content fingerprint, not display text: the display
         // form is truncated, so using it as the change rule silently dropped updates whose values
@@ -155,6 +170,60 @@ public class VariableStore
             identifier,
             GetDebuggingStateFromValue(value, identifier, described with { Description = WithBody(described, identifier) }));
     }
+
+    /// <summary>
+    /// Sets a variable whose value is a credential - a session cookie, a token - so the run uses it and nothing
+    /// describes it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The value reaches whatever reads it, unchanged: a later step, and the test through <c>run.Variable&lt;T&gt;</c>.
+    /// What changes is every place that <em>describes</em> it - the debugger's variable view, the value files a
+    /// large value is written to, and an assertion's signal and failure text all say <c>(secret)</c>. It is the
+    /// variable counterpart of a resource value a kind declares secret, and it exists for the same reason: a value
+    /// read into a variable was the one road a captured credential could still take into a log in clear.
+    /// </para>
+    /// <para>
+    /// Once secret, always secret for the run: a later <see cref="SetVariable{T}"/> under the same name keeps the mark,
+    /// because the second value is very likely the same kind of thing as the first.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="T">The variable value type.</typeparam>
+    /// <param name="identifier">The variable identifier to set.</param>
+    /// <param name="value">The value to store.</param>
+    public void SetSecretVariable<T>(VariableIdentifier identifier, T value)
+    {
+        if (!writer.TryAdmit(RunChannel.Variable, identifier.Identifier, logger, out RunWriteTicket? ticket))
+            return;
+
+        using (ticket)
+        lock (syncRoot)
+        {
+            _secrets.Add(identifier);
+            _variables[identifier] = value;
+        }
+
+        if (debuggingSession.IsCapturing)
+            debuggingSession.PublishVariableUpdate(identifier, GetDebuggingStateFromValue(Secret, identifier));
+    }
+
+    /// <summary>
+    /// Whether the variable was written as a secret.
+    /// </summary>
+    /// <param name="identifier">The variable identifier.</param>
+    /// <returns>Whether every description of it says <c>(secret)</c>.</returns>
+    public bool IsSecret(VariableIdentifier identifier)
+    {
+        lock (syncRoot)
+        {
+            return _secrets.Contains(identifier);
+        }
+    }
+
+    /// <summary>
+    /// What a secret value is described as, everywhere.
+    /// </summary>
+    internal const string Secret = "(secret)";
 
     /// <summary>
     /// Writes the value out and points the description at it, when the preview could not carry it.

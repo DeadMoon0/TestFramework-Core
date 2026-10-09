@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TestFramework.Core.Variables;
+using System;
 using System.Collections;
 using System.Linq;
 using TestFramework.Core.Debugger;
@@ -16,9 +17,16 @@ public class ValueAsserter<T>
     private readonly T _value;
     private readonly string _expression;
     private readonly ScopedLogger? _logger;
+    private readonly bool _secret;
 
     internal ValueAsserter(T value, string expression, ScopedLogger? logger)
+        : this(value, expression, logger, false)
     {
+    }
+
+    internal ValueAsserter(T value, string expression, ScopedLogger? logger, bool secret)
+    {
+        _secret = secret;
         _value = value;
         _expression = expression;
         _logger = logger;
@@ -38,17 +46,25 @@ public class ValueAsserter<T>
 
     private ValueAsserter<T> Pass(string assertionName, params (string Name, object? Value)[] arguments)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, arguments, true, _value);
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), true, Shown());
         return this;
     }
 
+    // A secret is compared like any other value; what the assertion reports about it - the actual value, the
+    // expected one the test wrote, and the reason that would quote them - is redacted.
+    private object? Shown() => _secret ? VariableStore.Secret : _value;
+
+    private (string Name, object? Value)[] Shown((string Name, object? Value)[] arguments)
+        => _secret ? [.. arguments.Select(static argument => (argument.Name, (object?)VariableStore.Secret))] : arguments;
+
     private ValueAsserter<T> Fail(string assertionName, string reason, params (string Name, object? Value)[] arguments)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, arguments, false, _value);
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), false, Shown());
 
         // The thrown message is for whoever is reading a failed test, so it is rendered here - from the same
         // name and arguments the transport carries, rather than from a second string built beside them.
-        var message = $"{_expression}: {Call(assertionName, arguments)} failed \u2014 {reason}";
+        string shownReason = _secret ? "the value is secret, so it is not shown" : reason;
+        var message = $"{_expression}: {Call(assertionName, Shown(arguments))} failed \u2014 {shownReason}";
         if (_logger?.CurrentScope is { } scope)
         {
             scope.RecordFailure(message);

@@ -12,9 +12,16 @@ public class ValueHandle<T>
     private readonly T _value;
     private readonly string _expression;
     private readonly ScopedLogger? _logger;
+    private readonly bool _secret;
 
     internal ValueHandle(T value, string expression, ScopedLogger? logger)
+        : this(value, expression, logger, false)
     {
+    }
+
+    internal ValueHandle(T value, string expression, ScopedLogger? logger, bool secret)
+    {
+        _secret = secret;
         _value = value;
         // Ensure the expression is presented consistently in logs (wrapped in single quotes)
         _expression = string.IsNullOrEmpty(expression) ? expression : (expression.StartsWith("'") ? expression : $"'{expression}'");
@@ -24,7 +31,7 @@ public class ValueHandle<T>
     /// <summary>
     /// Starts an assertion chain for the wrapped value.
     /// </summary>
-    public ValueAsserter<T> Should() => new ValueAsserter<T>(_value, _expression, _logger);
+    public ValueAsserter<T> Should() => new ValueAsserter<T>(_value, _expression, _logger, _secret);
 
     /// <summary>
     /// Projects the wrapped value to another value while preserving the logging context.
@@ -32,5 +39,5 @@ public class ValueHandle<T>
     /// <typeparam name="TNew">The projected value type.</typeparam>
     /// <param name="selector">Maps the wrapped value to a new value.</param>
     public ValueHandle<TNew> Select<TNew>(Func<T, TNew> selector)
-        => new ValueHandle<TNew>(selector(_value), _expression, _logger);
+        => new ValueHandle<TNew>(selector(_value), _expression, _logger, _secret);
 }

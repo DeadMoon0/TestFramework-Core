@@ -14,9 +14,11 @@ public class VariableHandle<T>
     private readonly string _name;
     private readonly ScopedLogger? _logger;
     private readonly Func<Exception> _missing;
+    private readonly bool _secret;
 
-    internal VariableHandle(T? value, bool exists, string name, ScopedLogger? logger, Func<Exception> missing)
+    internal VariableHandle(T? value, bool exists, string name, ScopedLogger? logger, Func<Exception> missing, bool secret)
     {
+        _secret = secret;
         _value = value;
         _exists = exists;
         _name = name;
@@ -27,7 +29,7 @@ public class VariableHandle<T>
     /// <summary>
     /// Starts an assertion chain for the resolved variable.
     /// </summary>
-    public VariableAsserter<T> Should() => new VariableAsserter<T>(_value, _exists, _name, _logger);
+    public VariableAsserter<T> Should() => new VariableAsserter<T>(_value, _exists, _name, _logger, _secret);
 
     /// <summary>
     /// Projects the resolved variable value to another value while preserving the logging context.
@@ -37,6 +39,6 @@ public class VariableHandle<T>
     /// <exception cref="Exceptions.MissingVariableException">The variable was never set, so there is nothing to project.</exception>
     public ValueHandle<TNew> Select<TNew>(Func<T, TNew> selector)
         => _exists
-            ? new ValueHandle<TNew>(selector(_value!), _name, _logger)
+            ? new ValueHandle<TNew>(selector(_value!), _name, _logger, _secret)
             : throw _missing();
 }
