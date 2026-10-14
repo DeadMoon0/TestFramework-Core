@@ -44,7 +44,7 @@
 | 2 | **Immutability** | After build/run all structures are frozen — no accidental mutations |
 | 3 | **Extensibility** | New services (Azure, local I/O, …) attach as extension projects without touching Core |
 | 4 | **Readability** | Fluent builder API makes test plans understandable even for non-developers |
-| 5 | **Traceability** | Full logging of every step, retry, timing, and result via `ITestOutputHelper` |
+| 5 | **Traceability** | Full logging of every step, retry, timing, and result through the method passed to `SetupRun` (`output.WriteLine` in xunit) |
 
 ### 1.3 Stakeholders
 
@@ -62,16 +62,15 @@
 
 | Constraint | Detail |
 |------------|--------|
-| Runtime | .NET 8.0 |
-| Test framework | xUnit (via `xunit.abstractions` for `ITestOutputHelper`) |
+| Runtime | .NET 8.0 and .NET 10.0 (multi-targeted) |
+| Test framework | None. The run writes its log through any `Action<string>` - `output.WriteLine` in xunit, `TestContext.WriteLine` in NUnit or MSTest |
 | Serialisation | Newtonsoft.Json (debug state output) |
-| Build system | MSBuild with `WriteLinesToFile` task for `BuildInfo.g.cs` |
 
 ### 2.2 Organisational
 
 | Constraint | Detail |
 |------------|--------|
-| Extension projects | `TestFramework.Azure`, `TestFramework.LocalIO`, `TestFrameworkArtifactTracker` depend on Core |
+| Extension projects | `TestFramework.Azure`, `TestFramework.Web`, `TestFramework.LocalIO`, `TestFramework.UI.Browser`, `TestFramework.Mock` and the Container packages depend on Core |
 | Configuration | Provided by `TestFramework.Config.ConfigInstance` — not part of Core itself |
 
 ---
@@ -89,15 +88,13 @@ C4Context
     System_Ext(azure, "TestFramework.Azure", "Azure-specific triggers, artifacts, events")
     System_Ext(localio, "TestFramework.LocalIO", "Local I/O artifacts")
     System_Ext(config, "TestFramework.Config", "Configuration builder (ConfigInstance)")
-    System_Ext(tracker, "ArtifactTracker", "Artifact emitter tracking (IL patching)")
-    System_Ext(xunit, "xUnit", "Test runner")
+    System_Ext(xunit, "Test framework", "xunit, NUnit or MSTest - any runner")
 
     Rel(dev, core, "Defines timelines, steps, variables, artifacts")
-    Rel(core, xunit, "Logs output via ITestOutputHelper")
+    Rel(core, xunit, "Writes the run log through the Action<string> it was given")
     Rel(azure, core, "Implements steps, ArtifactDescribers, Events")
     Rel(localio, core, "Implements local artifact describers")
     Rel(config, core, "Supplies IServiceProvider + IConfiguration")
-    Rel(tracker, core, "Uses ArtifactStore API")
 ```
 
 ### 3.2 Technical Context
@@ -112,7 +109,7 @@ graph LR
         TR[TimelineRun]
     end
     subgraph Dependencies
-        XU[xunit.abstractions / ITestOutputHelper]
+        XU["Action&lt;string&gt; for the run log"]
         NJ[Newtonsoft.Json / debug serialisation]
         DI[IServiceProvider from ConfigInstance]
     end
@@ -197,7 +194,7 @@ classDiagram
     class Timeline {
         +Create() ITimelineBuilder
         +SetupRun() ITimelineRunBuilder
-        +SetupRun(IServiceProvider, ITestOutputHelper) ITimelineRunBuilder
+        +SetupRun(IServiceProvider, Action~string~) ITimelineRunBuilder
     }
     class TimelineBuilder {
         +Trigger(Step) ITimelineBuilderModifier
@@ -479,13 +476,14 @@ After `.Build()` or `.RunAsync()`, no structural changes are allowed.
 
 ### 8.2 IO Contract Validation
 
-Each step declares inputs and outputs via `DeclareIO(StepIOContract)`:
+Each step declares the variables it reads and writes in `DeclareIO(StepIOContract)`:
 
+<!-- snippet: arc42-declare-io -->
 ```csharp
 public override void DeclareIO(StepIOContract contract)
 {
-    contract.Inputs.Add(new("orderId", StepIOKind.Variable, Required: true, typeof(string)));
-    contract.Outputs.Add(new("result", StepIOKind.Variable, Required: false, typeof(int)));
+    contract.Input(new VariableIdentifier("orderId"), typeof(string));
+    contract.Output(new VariableIdentifier("result"), typeof(int));
 }
 ```
 
@@ -498,7 +496,7 @@ graph TD
     CR[CoreRunner] -->|emits| LE[LogEvent subclasses]
     LE --> SL[ScopedLogger]
     SL --> LLW[LogLineWriter indentation]
-    LLW --> TOH[ITestOutputHelper]
+    LLW --> TOH["Action&lt;string&gt; (output.WriteLine)"]
 ```
 
 Every stage/step entry increases the indent level. Step outcome, timing, and retry details are logged automatically.
@@ -517,10 +515,11 @@ graph LR
     ASC -->|collects| MAE[MultipleAssertionsFailedException]
 ```
 
+<!-- snippet: arc42-assertions -->
 ```csharp
-run.Step("upload").Should().HaveCompleted().And().NotHaveThrown();
+run.Step("upload").Should().HaveCompleted();
 run.Variable<int>("count").Should().Exist().And().BeGreaterThan(0);
-run.Artifact<BlobData>("file").Should().HaveBeenSetUp();
+run.Artifact<OrderData>("order").Should().Exist();
 ```
 
 ### 8.5 Exception Hierarchy
@@ -546,13 +545,15 @@ run.Artifact<BlobData>("file").Should().HaveBeenSetUp();
 
 **Context:** Artifacts consist of three related types (Reference, Data, Describer). Mixing them must be caught at compile time.
 
-**Decision:** CRTP with circular generic constraints:
+**Decision:** CRTP with circular generic constraints. Each of the three names the other two, so a consumer's artifact is three declarations that only fit together:
 
+<!-- snippet: arc42-crtp -->
 ```csharp
-class ArtifactData<TData, TDescriber, TReference>
-    where TData      : ArtifactData<TData, TDescriber, TReference>
-    where TDescriber : ArtifactDescriber<TDescriber, TData, TReference>, new()
-    where TReference : ArtifactReference<TReference, TDescriber, TData>
+public sealed class OrderData : ArtifactData<OrderData, OrderDescriber, OrderReference>
+
+public sealed class OrderDescriber : ArtifactDescriber<OrderDescriber, OrderData, OrderReference>
+
+public sealed class OrderReference : ArtifactReference<OrderReference, OrderDescriber, OrderData>
 ```
 
 **Consequence:** High type safety at the cost of complex signatures. Extension projects encapsulate this.
@@ -611,7 +612,7 @@ mindmap
 | Artifact setup fails | Reliability | Cleanup stage still attempts teardown of all artifacts; errors are logged |
 | Type mismatch in artifact | Usability | Compiler error via CRTP or `IOContractTypeViolationException` before execution |
 | New Azure service needed | Maintainability | Only the extension project changes; Core is untouched |
-| Test fails | Traceability | Full log of all steps, retries, timing, and errors via `ITestOutputHelper` |
+| Test fails | Traceability | Full log of all steps, retries, timing, and errors through the method passed to `SetupRun` |
 
 ---
 
@@ -657,21 +658,18 @@ mindmap
 
 ### 13.1 Add References
 
-```xml
-<!-- Minimal — Core only -->
-<PackageReference Include="TestFramework.Core" Version="0.1.0" />
-
-<!-- Add when you need DI/config composition for runs -->
-<PackageReference Include="TestFramework.Config" Version="0.1.0" />
-
-<!-- Add for lightweight helper triggers -->
-<PackageReference Include="TestFramework.Simple" Version="0.1.0" />
+```bash
+dotnet add package TestFramework.Core     # minimal
+dotnet add package TestFramework.Config   # DI and configuration composition for runs
+dotnet add package TestFramework.Simple   # lightweight helper triggers
 ```
 
 ### 13.2 First Test
 
+<!-- snippet: arc42-first-test -->
 ```csharp
 using TestFramework.Core.Timelines;
+using TestFramework.Core.Timelines.Assertions;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Steps.Options;
 using Xunit;
@@ -682,21 +680,21 @@ public class MyFirstTest(ITestOutputHelper output)
     [Fact]
     public async Task Simple_Timeline_Test()
     {
-        // 1. BUILD — define the test plan
-        var timeline = Timeline.Create()
+        // 1. BUILD - define the test plan
+        Timeline timeline = Timeline.Create()
             .SetVariable("greeting", Var.Const("Hello World"))
             .Trigger(new MyCustomStep())
                 .WithTimeOut(TimeSpan.FromSeconds(30))
                 .WithRetry(2, CalcDelays.Exponential)
             .Build();
 
-        // 2. RUN — configure inputs and execute
-        var run = await timeline
-            .SetupRun(output)          // pass output helper; no DI needed for pure steps
+        // 2. RUN - configure inputs and execute; the run's log goes wherever this method writes
+        TimelineRun run = await timeline
+            .SetupRun(output.WriteLine)
             .AddVariable("extraParam", 42)
             .RunAsync();
 
-        // 3. ASSERT — evaluate the frozen result
+        // 3. ASSERT - evaluate the frozen result
         run.EnsureRanToCompletion();
         run.Variable<string>("greeting").Should().Exist().And().Be("Hello World");
     }
@@ -705,84 +703,90 @@ public class MyFirstTest(ITestOutputHelper output)
 
 ### 13.3 Writing a Custom Step
 
+<!-- snippet: arc42-custom-step -->
 ```csharp
-using TestFramework.Core.Steps;
-using TestFramework.Core.Steps.Options;
-
-public class MyCustomStep : Step<string>
+public class MyCustomStep : Step<EmptyStepResultContext>
 {
     public override string Name => "My Custom Step";
 
+    public override string Description => "Reads the greeting and writes what it made of it.";
+
+    public override bool DoesReturn => false;
+
     public override void DeclareIO(StepIOContract contract)
     {
-        contract.Inputs.Add(new("greeting", StepIOKind.Variable, Required: true, typeof(string)));
-        contract.Outputs.Add(new("result",  StepIOKind.Variable, Required: false, typeof(string)));
+        contract.Input(new VariableIdentifier("greeting"), typeof(string));
+        contract.Output(new VariableIdentifier("result"), typeof(string));
     }
 
-    public override async Task<string?> Execute(RunContext context)
+    public override Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        var greeting = context.Variables.GetVariable<string>("greeting");
+        string? greeting = context.Variables.GetVariable<string>("greeting");
         context.Logger.LogInformation($"Greeting: {greeting}");
         context.Variables.SetVariable("result", $"Processed: {greeting}");
-        return greeting;
+        return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
+
+    public override Step<EmptyStepResultContext> Clone() => new MyCustomStep().WithClonedOptions(this);
+
+    public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 }
 ```
 
 ### 13.4 Using Artifacts
 
+<!-- snippet: arc42-artifacts -->
 ```csharp
-var timeline = Timeline.Create()
-    .SetupArtifact("myBlob")             // setup (upload)
-    .Trigger(new ProcessingStep())
-    .CaptureArtifactVersion("myBlob")    // snapshot state after processing
+Timeline timeline = Timeline.Create()
+    .SetupArtifact("order")                // set up before the steps that need it
+    .Trigger(new MyCustomStep())
+    .CaptureArtifactVersion("order")       // snapshot its state after processing
     .Build();
 
-var run = await timeline
-    .SetupRun(serviceProvider, _output)
-    .AddArtifact("myBlob", myRef, myData)
+TimelineRun run = await timeline
+    .SetupRun(serviceProvider, writeLine)
+    .AddArtifact("order", myRef, myData)
     .RunAsync();
 
 run.EnsureRanToCompletion();
-run.Artifact<MyData>("myBlob").Should().HaveBeenSetUp();
-// Artifact is automatically deleted in the cleanup stage
+run.Artifact<OrderData>("order").Should().Exist();
+// Torn down in the cleanup stage; MarkReadonly() on the finder keeps a found artifact.
 ```
 
 ### 13.5 Retry Delay Strategies
 
+<!-- snippet: arc42-retry -->
 ```csharp
-// Predefined helpers
-.WithRetry(3, CalcDelays.Exponential)                       // 2 s, 4 s, 8 s (default)
-.WithRetry(3, CalcDelays.Fixed(TimeSpan.FromSeconds(5)))    // 5 s, 5 s, 5 s
-.WithRetry(3, CalcDelays.Linear(TimeSpan.FromSeconds(3)))   // 3 s, 6 s, 9 s
-.WithRetry(3, CalcDelays.None)                              // no delay
-
-// Custom — iteration starts at 1
-.WithRetry(3, i => TimeSpan.FromSeconds(i * 10))
+return Timeline.Create()
+    .Trigger(new MyCustomStep()).WithRetry(3, CalcDelays.Exponential)                       // 2 s, 4 s, 8 s
+    .Trigger(new MyCustomStep()).WithRetry(3, CalcDelays.Fixed(TimeSpan.FromSeconds(5)))    // 5 s, 5 s, 5 s
+    .Trigger(new MyCustomStep()).WithRetry(3, CalcDelays.Linear(TimeSpan.FromSeconds(3)))   // 3 s, 6 s, 9 s
+    .Trigger(new MyCustomStep()).WithRetry(3, CalcDelays.None)                              // no delay
+    .Trigger(new MyCustomStep()).WithRetry(3, i => TimeSpan.FromSeconds(i * 10))            // custom; i starts at 1
+    .Build();
 ```
 
 ### 13.6 Configuration via ConfigInstance
 
+<!-- snippet: arc42-config -->
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-using TestFramework.Config;
-
-// Load config, register services, then build IServiceProvider for SetupRun(...)
-var sp = ConfigInstance
+ConfigInstance config = ConfigInstance
     .FromJsonFile("local.testSettings.json")
     .AddService(services =>
     {
-        services.AddHttpClient();
+        services.AddSingleton<IOrderClient, OrderClient>();
     })
-    .BuildServiceProvider();
+    .Build();
 
-var run = await timeline
-    .SetupRun(sp, _output)
+// The run builds its services from the configuration and disposes them when it ends.
+TimelineRun run = await timeline
+    .SetupRun(config)
     .RunAsync();
 ```
 
 ### 13.7 Collecting Multiple Assertions
 
+<!-- snippet: arc42-assertion-scope -->
 ```csharp
 // All assertions run; a single exception lists every failure
 using (var scope = run.AssertionScope())

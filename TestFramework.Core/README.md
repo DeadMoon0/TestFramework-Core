@@ -16,6 +16,7 @@ dotnet add package TestFramework.Core
 
 ## Quick Start
 
+<!-- snippet: quick-start -->
 ```csharp
 using TestFramework.Core.Timelines;
 using TestFramework.Core.Timelines.Assertions;
@@ -24,13 +25,13 @@ using Xunit;
 
 public class CoreSample
 {
-	private const string InputValue = "Alex";
+    private const string InputValue = "Alex";
 
-	private static readonly Timeline _timeline = Timeline.Create()
-		.SetVariable("name", Var.Const(InputValue))
-		.Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
-		.AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
-		.Build();
+    private static readonly Timeline _timeline = Timeline.Create()
+        .SetVariable("name", Var.Const(InputValue))
+        .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+        .AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
+        .Build();
 
     [Fact]
     public async Task RunTimeline()
@@ -109,17 +110,26 @@ The lower-level debugger integration seam (`IRunDebugger` and related state type
 
 ## Run Evidence (Widgets)
 
-Post-run inspection tells you what a run did. `run.Widgets` is where it says what things looked like:
+Post-run inspection tells you what a run did. Widgets are where it says what things looked like - published from inside a step, through `context.Widgets`:
 
+<!-- snippet: widgets-publish -->
 ```csharp
-run.Widgets.Publish(new Widget
+public override async Task<EmptyStepResultContext?> Execute(RunContext context)
 {
-    Kind = WidgetKinds.Screenshot,
-    Name = "after-login",
-    Form = DebugPreviewForm.Image,
-    Bytes = png,
-    Summary = "The dashboard, logged in"
-});
+    byte[] png = await CaptureAsync();
+
+    // Attributed to this step and this attempt; the file lands in the run's own output.
+    context.Widgets.Publish(new Widget
+    {
+        Kind = WidgetKinds.Screenshot,
+        Name = "after-login",
+        Form = DebugPreviewForm.Image,
+        Bytes = png,
+        Summary = "The dashboard, logged in"
+    });
+
+    return EmptyStepResultContext.Instance;
+}
 ```
 
 The file lands in the run's own output and is attributed to the step and the attempt that produced it, so

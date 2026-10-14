@@ -37,6 +37,7 @@ dotnet add package TestFramework.Simple
 The following example shows the end-to-end path that a new team member needs:
 installation, configuration via `ConfigInstance`, timeline definition, run execution, and assertion.
 
+<!-- snippet: readme-first-run -->
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using TestFramework.Config;
@@ -47,38 +48,39 @@ using Xunit;
 
 public class SampleIntegrationTest
 {
-	private const string InputValue = "Alex";
+    private const string InputValue = "Alex";
 
-	private static readonly Timeline _timeline = Timeline.Create()
-		.SetVariable("name", Var.Const(InputValue))
-		.Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
-		.AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
-		.Build();
+    private static readonly Timeline _timeline = Timeline.Create()
+        .SetVariable("name", Var.Const(InputValue))
+        .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+        .AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
+        .Build();
 
-	[Fact]
-	public async Task CanRunTimeline()
-	{
-		using var serviceProvider = ConfigInstance
-			.Create()
-			.OverrideConfig("TestSettings:Environment", "Local")
-			.AddService(services =>
-			{
-				services.AddSingleton<ISystemClock, SystemClock>();
-			})
-			.BuildServiceProvider();
+    [Fact]
+    public async Task CanRunTimeline()
+    {
+        ConfigInstance config = ConfigInstance
+            .Create()
+            .OverrideConfig("TestSettings:Environment", "Local")
+            .AddService(services =>
+            {
+                services.AddSingleton<ISystemClock, SystemClock>();
+            })
+            .Build();
 
-		TimelineRun run = await _timeline.SetupRun(serviceProvider).RunAsync();
+        // The run owns the services it builds from the configuration, and disposes them when it ends.
+        TimelineRun run = await _timeline.SetupRun(config).RunAsync();
 
-		run.EnsureRanToCompletion();
+        run.EnsureRanToCompletion();
 
-		using (var assertionScope = run.AssertionScope())
-		{
-			run.Variable<string>("greeting").Should().Exist().And().Be($"Hello {InputValue}");
-		}
-	}
+        using (var assertionScope = run.AssertionScope())
+        {
+            run.Variable<string>("greeting").Should().Exist().And().Be($"Hello {InputValue}");
+        }
+    }
 
-	private interface ISystemClock { }
-	private sealed class SystemClock : ISystemClock { }
+    private interface ISystemClock { }
+    private sealed class SystemClock : ISystemClock { }
 }
 ```
 
@@ -150,15 +152,24 @@ like*. Widgets are that second half: a file the run produced, described, and att
 the attempt that produced it, so a step that retried three times has one picture per attempt instead of
 only the last.
 
+<!-- snippet: widgets-publish -->
 ```csharp
-run.Widgets.Publish(new Widget
+public override async Task<EmptyStepResultContext?> Execute(RunContext context)
 {
-    Kind = WidgetKinds.Screenshot,
-    Name = "after-login",
-    Form = DebugPreviewForm.Image,
-    Bytes = png,
-    Summary = "The dashboard, logged in"
-});
+    byte[] png = await CaptureAsync();
+
+    // Attributed to this step and this attempt; the file lands in the run's own output.
+    context.Widgets.Publish(new Widget
+    {
+        Kind = WidgetKinds.Screenshot,
+        Name = "after-login",
+        Form = DebugPreviewForm.Image,
+        Bytes = png,
+        Summary = "The dashboard, logged in"
+    });
+
+    return EmptyStepResultContext.Instance;
+}
 ```
 
 `Publish` returns where the file was written, or `null` when it could not be - useful when a failure
