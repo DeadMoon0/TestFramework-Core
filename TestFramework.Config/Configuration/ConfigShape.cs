@@ -133,23 +133,15 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     /// alone. A value the record cannot do without and the run does not have is a failure naming it.
     /// </para>
     /// <para>
-    /// Virtual only while the packages migrate one resource at a time. It becomes abstract once every shape
-    /// implements it, and the transitional state is deliberately loud rather than silently returning an
-    /// empty record.
+    /// Abstract. It was virtual - throwing - while the packages migrated one resource at a time, with the stated
+    /// plan of making it abstract later; every shipped shape now implements it, and later would have been after
+    /// 1.0, where turning a virtual member abstract is a <c>TypeLoadException</c> for every compiled shape.
     /// </para>
     /// </remarks>
     /// <param name="values">What the run knows about one resource, by value name, from one viewpoint.</param>
     /// <param name="identifier">Which resource, for failure messages.</param>
     /// <returns>The record.</returns>
-    public virtual TConfig Read(IReadOnlyDictionary<string, string> values, string identifier)
-        => throw new FrameworkConfigurationException(
-            $"'{this.GetType().Name}' cannot rebuild {typeof(TConfig).Name} from the run's values yet.")
-        {
-            RecoverySteps = [
-                $"Override Read(values, identifier) on {this.GetType().Name} so this resource's configuration can come from the run rather than from a store.",
-                "Until then, whatever reads this record has to keep reading the configuration store.",
-            ],
-        };
+    public abstract TConfig Read(IReadOnlyDictionary<string, string> values, string identifier);
 
     /// <inheritdoc />
     object IConfigShape.Read(IConfiguration configuration, string identifier)

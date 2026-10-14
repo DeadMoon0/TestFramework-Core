@@ -16,7 +16,7 @@
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>BREAKING - needs TestFramework.Core 0.7.0. The blocking ConfigPersistentEnvironmentContext constructors are removed, and CreateAsync no longer takes disposePersistentServiceProvider: the context always disposes the provider it builds. Configured and CreateRunConfig are now overloads instead of optional parameters, which is source-compatible.</PackageReleaseNotes>
+		<PackageReleaseNotes>BREAKING - needs TestFramework.Core 0.7.0. The blocking ConfigPersistentEnvironmentContext constructors are removed, and CreateAsync no longer takes disposePersistentServiceProvider: the context always disposes the provider it builds. Configured and CreateRunConfig are now overloads instead of optional parameters, which is source-compatible. BREAKING - ConfigShape.Read(values, identifier) is abstract: a custom shape must implement it. AddConfigShape registers a shape once, and refuses a different shape for a record that already has one.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>

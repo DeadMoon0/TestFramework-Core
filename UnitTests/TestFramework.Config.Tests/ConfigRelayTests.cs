@@ -104,6 +104,31 @@ public class ConfigRelayTests
     }
 
     [Fact]
+    public void RegisteringTheSameShapeTwice_RegistersItOnce()
+    {
+        // Two packages that both need the same record each register its shape; that is ordinary, and it used to
+        // leave two shapes declaring the same resources and two stores for one record.
+        ServiceCollection services = new();
+        services.AddConfigShape<ApiShape, ApiEntry>();
+        services.AddConfigShape<ApiShape, ApiEntry>();
+
+        Assert.Single(services, service => service.ServiceType == typeof(IConfigShape));
+        Assert.Single(services, service => service.ServiceType == typeof(ConfigStore<ApiEntry>));
+    }
+
+    [Fact]
+    public void ASecondDifferentShapeForTheSameRecord_IsRefusedNamingBoth()
+    {
+        // It used to win silently: the graph took whichever declared last, and the store came from the other.
+        ServiceCollection services = new();
+        services.AddConfigShape<ApiShape, ApiEntry>();
+
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(() => services.AddConfigShape<WrongShape, ApiEntry>());
+
+        Assert.Contains("'ApiShape' is registered, and 'WrongShape' was added", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnAbsentSectionIsNoResourcesRatherThanAFailure()
     {
         // A run may configure nothing at all and still be a valid run.
@@ -157,6 +182,12 @@ public class ConfigRelayTests
             };
         }
 
+        public override ApiEntry Read(IReadOnlyDictionary<string, string> values, string identifier) => new()
+        {
+            BaseUrl = values.GetValueOrDefault(ValueNames.BaseUrl),
+            HealthPath = values.GetValueOrDefault("HealthPath"),
+        };
+
         public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
         {
             Dictionary<ValueKey, string> values = [];
@@ -195,6 +226,12 @@ public class ConfigRelayTests
                 HealthPath = section[nameof(ApiEntry.HealthPath)],
             };
         }
+
+        public override ApiEntry Read(IReadOnlyDictionary<string, string> values, string identifier) => new()
+        {
+            BaseUrl = values.GetValueOrDefault(ValueNames.BaseUrl),
+            HealthPath = values.GetValueOrDefault("HealthPath"),
+        };
 
         public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
             => new Dictionary<ValueKey, string>

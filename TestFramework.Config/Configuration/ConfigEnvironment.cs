@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TestFramework.Core.Environment.Graph;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Config.Configuration;
 
@@ -123,6 +124,21 @@ public static class ConfigShapeRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(shape);
+
+        // One shape per record. Registering the same shape again is a no-op - packages register what they need,
+        // and two of them needing the same record is ordinary. A different shape for the same record is refused:
+        // both used to be kept, the graph took whichever declared last, and the store came from the other.
+        if (services.FirstOrDefault(static service => service.ServiceType == typeof(ConfigShape<TConfig>))?.ImplementationInstance is { } registered)
+        {
+            if (registered.GetType() == shape.GetType())
+                return services.AddConfigRelay();
+
+            throw new FrameworkConfigurationException(
+                $"Two shapes read {typeof(TConfig).Name}: '{registered.GetType().Name}' is registered, and '{shape.GetType().Name}' was added.")
+            {
+                RecoverySteps = [$"Register one shape for {typeof(TConfig).Name}. A second would describe the same resources differently, and only one of them can be what the run reads."],
+            };
+        }
 
         services.AddSingleton<IConfigShape>(shape);
 
