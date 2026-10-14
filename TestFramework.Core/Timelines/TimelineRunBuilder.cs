@@ -107,7 +107,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
         FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
         IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
-        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger);
+        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger) { Environment = _environment };
 
         await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
         await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
@@ -491,7 +491,11 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         if (_environment is not null)
             throw new FrameworkConfigurationException("Only one environment can be configured for a timeline run.");
 
-        _environment = environment;
+        ArgumentNullException.ThrowIfNull(environment);
+
+        // An environment that keeps per-run state hands this run an instance of its own, so a description
+        // shared by several runs is never where one of them writes what it decided.
+        _environment = environment is IRunScopedEnvironmentFactory factory ? factory.CreateForRun() : environment;
         return this;
     }
 

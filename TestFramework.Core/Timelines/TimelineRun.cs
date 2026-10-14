@@ -71,6 +71,16 @@ public class TimelineRun : IFreezable
     public EnvComponentContext EnvironmentContext { get; }
 
     /// <summary>
+    /// Gets the environment this run used, or <see langword="null"/> when it was given none.
+    /// </summary>
+    /// <remarks>
+    /// The instance the run itself used, which for an <see cref="IRunScopedEnvironmentFactory"/> is not the one
+    /// handed to <c>SetEnv</c> but the copy that environment made for this run - so what it records describes this
+    /// run and no other.
+    /// </remarks>
+    public IEnvironmentProvider? Environment { get; internal init; }
+
+    /// <summary>
     /// Gets where this run's resources ended up - the same answer the steps read, kept for assertions.
     /// </summary>
     public ValueResolution Values { get; }
