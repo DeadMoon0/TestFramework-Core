@@ -50,6 +50,9 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     /// </summary>
     private readonly IDisposable? _ownedDebuggerResources;
 
+    /// <summary>Whether the run disposes <see cref="_serviceProvider"/> when it ends (<see cref="RunServices.Owned"/>).</summary>
+    private readonly bool _ownsServices;
+
     private readonly List<VariableIdentifier> _externalVariables = [];
     private readonly List<ArtifactIdentifier> _externalArtifacts = [];
     private IEnvironmentProvider? _environment;
@@ -60,11 +63,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     /// </summary>
     private bool _hasRun;
 
-    internal TimelineRunBuilder(IServiceProvider serviceProvider, Action<string>? writeLine, Timeline timeline, PreProcessableStage mainStage, string? sourceFilePath = null, int sourceLineNumber = 0)
+    internal TimelineRunBuilder(IServiceProvider serviceProvider, Action<string>? writeLine, Timeline timeline, PreProcessableStage mainStage, string? sourceFilePath = null, int sourceLineNumber = 0, bool ownsServices = false)
     {
         _timeline = timeline;
         _mainStage = mainStage;
         _serviceProvider = serviceProvider;
+        _ownsServices = ownsServices;
 
         _debuggingSession = new DebuggingRunSession(
             CommonDebugger.GetCommon(_serviceProvider, writeLine, out _ownedDebuggerResources),
@@ -218,8 +222,20 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
 
             await _debuggingSession.FinishSessionAsync();
             _ownedDebuggerResources?.Dispose();
+
+            // Last: the debugger resources above may have been resolved from these services.
+            if (_ownsServices)
+                await DisposeServicesAsync();
         }
         return newRun;
+    }
+
+    private async Task DisposeServicesAsync()
+    {
+        if (_serviceProvider is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync();
+        else if (_serviceProvider is IDisposable disposable)
+            disposable.Dispose();
     }
 
     /// <summary>

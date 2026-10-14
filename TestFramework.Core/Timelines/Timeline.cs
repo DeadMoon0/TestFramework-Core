@@ -54,7 +54,7 @@ public class Timeline : IFreezable
     public ITimelineRunBuilder SetupRun(
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
-        => SetupRun(null, null, sourceFilePath, sourceLineNumber);
+        => SetupRun((IServiceProvider?)null, null, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline using the provided service provider.
@@ -78,7 +78,7 @@ public class Timeline : IFreezable
         Action<string>? writeLine,
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
-        => SetupRun(null, writeLine, sourceFilePath, sourceLineNumber);
+        => SetupRun((IServiceProvider?)null, writeLine, sourceFilePath, sourceLineNumber);
 
     /// <summary>
     /// Creates a run builder for this timeline.
@@ -101,6 +101,10 @@ public class Timeline : IFreezable
         // The caller attributes cost nothing at run time — the compiler bakes them in at each call
         // site — and give an exact source location, which a stack walk can only approximate and
         // only by collecting file info it would otherwise skip.
-        return new TimelineRunBuilder(serviceProvider, writeLine, this, MainStage, sourceFilePath, sourceLineNumber);
+        //
+        // Services handed over with RunServices.Owned belong to the run; any other provider stays the caller's.
+        return serviceProvider is RunServices owned
+            ? new TimelineRunBuilder(owned.Provider, writeLine, this, MainStage, sourceFilePath, sourceLineNumber, ownsServices: true)
+            : new TimelineRunBuilder(serviceProvider, writeLine, this, MainStage, sourceFilePath, sourceLineNumber);
     }
 }
