@@ -16,7 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\TestFramework.Core\TestFramework.Core.csproj" />
+    <!-- Simple only, no Core project: Core arrives the way a consumer gets it, as the package Simple pins, so a
+         binary break between the two shows up here instead of being papered over by a fresh build of Core. -->
     <ProjectReference Include="..\..\TestFramework.Simple\TestFramework.Simple.csproj" />
   </ItemGroup>
 
