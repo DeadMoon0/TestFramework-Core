@@ -23,7 +23,7 @@ internal static class EnvComponentLifecycleRunner
     /// outside any run - components are handed the context unchanged and see a null channel, which is the same
     /// answer they get for anything else that does not apply to them.
     /// </remarks>
-    internal static async Task CreateAsync(IEnvironmentProvider environment, IEnumerable<EnvComponentIdentifier> rootComponents, RunContext context, Action<EnvComponentIdentifier, object?, EnvComponentScope> setState, ResourcePublishing? publishing = null, IReadOnlyCollection<EnvironmentRequirement>? required = null)
+    internal static async Task CreateAsync(IEnvironmentProvider environment, IEnumerable<EnvComponentIdentifier> rootComponents, RunContext context, Action<EnvComponentIdentifier, object?, EnvComponentScope> setState, Func<EnvComponentIdentifier, (bool Found, object? State)> stateOf, ResourcePublishing? publishing = null, IReadOnlyCollection<EnvironmentRequirement>? required = null)
     {
         IReadOnlyCollection<EnvironmentRequirement> requiredOfEnvironment = required ?? [];
 
@@ -32,7 +32,7 @@ internal static class EnvComponentLifecycleRunner
             IReadOnlyList<EnvComponent> orderedComponents = EnvComponentGraph.Order(environment, rootComponents);
             foreach (EnvComponent component in orderedComponents)
             {
-                object? state = await component.CreateAsync(environment, Publishing(context, publishing, component, requiredOfEnvironment));
+                object? state = await component.CreateAsync(environment, Publishing(context, publishing, component, requiredOfEnvironment, stateOf));
                 setState(component.Id, state, component.Scope);
             }
 
@@ -55,7 +55,7 @@ internal static class EnvComponentLifecycleRunner
             {
                 try
                 {
-                    creations.Add((component, component.CreateAsync(environment, Publishing(context, publishing, component, requiredOfEnvironment))));
+                    creations.Add((component, component.CreateAsync(environment, Publishing(context, publishing, component, requiredOfEnvironment, stateOf))));
                 }
                 catch (Exception exception)
                 {
@@ -87,7 +87,7 @@ internal static class EnvComponentLifecycleRunner
     /// The context one component is given: the run, plus a channel to publish on - carrying what the run
     /// needs from this environment - when there is one.
     /// </summary>
-    private static RunContext Publishing(RunContext context, ResourcePublishing? publishing, EnvComponent component, IReadOnlyCollection<EnvironmentRequirement> required)
+    private static RunContext Publishing(RunContext context, ResourcePublishing? publishing, EnvComponent component, IReadOnlyCollection<EnvironmentRequirement> required, Func<EnvComponentIdentifier, (bool Found, object? State)> stateOf)
     {
         if (publishing is null)
         {
@@ -96,6 +96,7 @@ internal static class EnvComponentLifecycleRunner
 
         EnvironmentResources channel = publishing.ChannelFor(component.Id);
         channel.Required = required;
+        channel.StateOf = stateOf;
         return context.ForEnvironment(channel);
     }
 

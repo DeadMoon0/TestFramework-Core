@@ -59,6 +59,15 @@ public sealed class EnvironmentResources
     public IReadOnlyCollection<EnvironmentRequirement> Required { get; internal set; } = [];
 
     /// <summary>
+    /// What the components this run has already created returned, by component.
+    /// </summary>
+    /// <remarks>
+    /// Internal: a component reads it through <c>EnvComponent.StateOf</c>, which holds the read to the component's
+    /// declared dependencies - the ones the engine is bound to have created first.
+    /// </remarks>
+    internal Func<EnvComponentIdentifier, (bool Found, object? State)> StateOf { get; set; } = static _ => (false, null);
+
+    /// <summary>
     /// Publishes a value a resource now holds, for one viewpoint.
     /// </summary>
     /// <remarks>

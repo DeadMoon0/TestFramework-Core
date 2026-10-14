@@ -253,7 +253,9 @@ public sealed class PersistentEnvironmentContext<TSetup> : IAsyncDisposable
                     _persistentStates[identifier] = state;
                     if (!_persistentCreationOrder.Contains(identifier))
                         _persistentCreationOrder.Add(identifier);
-                }, _persistentPublishing);
+                },
+                identifier => _persistentStates.TryGetValue(identifier, out object? state) ? (true, state) : (false, null),
+                _persistentPublishing);
         }
         catch (OperationCanceledException exception) when (context.Deadline.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
