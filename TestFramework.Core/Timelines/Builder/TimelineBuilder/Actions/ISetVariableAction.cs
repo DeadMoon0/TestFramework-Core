@@ -19,20 +19,13 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// </para>
 /// <para>
 /// A variable is never a value: a reference stored as data could only be read by whatever step unwrapped it later,
-/// which the plan check cannot see. So the hidden overloads below make passing a reference to
-/// <see cref="SetVariable{T}(VariableIdentifier, T)"/> a compile error that names
-/// <see cref="SetVariableFrom{T}(VariableIdentifier, VariableReference{T})"/>, and the value verb refuses one that
-/// reaches it anyway.
+/// which the plan check cannot see. So <see cref="SetVariable{T}(VariableIdentifier, T)"/> refuses a reference
+/// while the timeline is built, naming <see cref="SetVariableFrom{T}(VariableIdentifier, VariableReference{T})"/>.
 /// </para>
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface ISetVariableAction : IImplementedByCore
 {
-    /// <summary>
-    /// What the compiler says when a variable is passed where a value is stored.
-    /// </summary>
-    internal const string NotAValue = "A variable is not a value: SetVariable stores what it is given. Use SetVariableFrom(name, Var.Ref<T>(...)) to copy another variable.";
-
     /// <summary>
     /// Adds a step that stores a value under the identifier.
     /// </summary>
@@ -61,32 +54,4 @@ public interface ISetVariableAction : IImplementedByCore
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ConstVariable<T> value);
 
-    /// <summary>Refused: a variable is not a value. Use <see cref="SetVariableFrom{T}(VariableIdentifier, VariableReference{T})"/>.</summary>
-    /// <typeparam name="T">The value's type.</typeparam>
-    /// <param name="identifier">The variable to set.</param>
-    /// <param name="variable">The variable that was meant to be copied.</param>
-    /// <returns>Never returns.</returns>
-    [Obsolete(NotAValue, error: true)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable);
-
-    /// <summary>Refused: a variable is not a value. Use <see cref="SetVariableFrom{T}(VariableIdentifier, VariableReference{T})"/>.</summary>
-    /// <typeparam name="T">The value's type.</typeparam>
-    /// <param name="identifier">The variable to set.</param>
-    /// <param name="variable">The variable that was meant to be copied.</param>
-    /// <returns>Never returns.</returns>
-    [Obsolete(NotAValue, error: true)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ResolvableVariable<T> variable);
-
-    /// <summary>Refused: a variable is not a value. Use <see cref="SetVariableFrom{T}(VariableIdentifier, VariableReference{T})"/>.</summary>
-    /// <typeparam name="TVar">The wrapped reference.</typeparam>
-    /// <typeparam name="T">The value's type.</typeparam>
-    /// <param name="identifier">The variable to set.</param>
-    /// <param name="variable">The variable that was meant to be copied.</param>
-    /// <returns>Never returns.</returns>
-    [Obsolete(NotAValue, error: true)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<TVar, T>(VariableIdentifier identifier, ImmutableVariable<TVar, T> variable)
-        where TVar : VariableReference<T>;
 }

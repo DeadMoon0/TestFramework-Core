@@ -41,13 +41,6 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
 
     public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ConstVariable<T> value) => builder.SetVariable(identifier, value);
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable) => throw TimelineBuilder.NotAValue(identifier);
-
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ResolvableVariable<T> variable) => throw TimelineBuilder.NotAValue(identifier);
-
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<TVar, T>(VariableIdentifier identifier, ImmutableVariable<TVar, T> variable)
-        where TVar : VariableReference<T> => throw TimelineBuilder.NotAValue(identifier);
-
     public ITimelineBuilderModifier<TNextStepResultContext> Trigger<TNextStepResultContext>(Step<TNextStepResultContext> triggerStep) where TNextStepResultContext : StepResultContext => builder.Trigger(triggerStep);
 
     public ITimelineBuilderModifier<TNextStepResultContext> WaitForEvent<TEvent, TNextStepResultContext>(Event<TEvent, TNextStepResultContext> sourceEvent)

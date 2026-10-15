@@ -74,8 +74,8 @@ internal class TimelineBuilder : ITimelineBuilder
 
     public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, T value)
     {
-        // The compiler refuses the reference types Core ships; this is for one that still arrives as a plain T -
-        // through a caller's own generic helper, or typed as object.
+        // A variable is never stored as data: the step that later unwrapped it would read something the plan check
+        // cannot see. A constant is a value and has its own overload, so anything here that is a variable is a mistake.
         if (value is VariableReferenceGeneric)
             throw NotAValue(identifier);
 
@@ -90,16 +90,7 @@ internal class TimelineBuilder : ITimelineBuilder
 
     public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ConstVariable<T> value) => SetVariableFrom(identifier, value);
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, VariableReference<T> variable) => throw NotAValue(identifier);
-
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<T>(VariableIdentifier identifier, ResolvableVariable<T> variable) => throw NotAValue(identifier);
-
-    public ITimelineBuilderModifier<EmptyStepResultContext> SetVariable<TVar, T>(VariableIdentifier identifier, ImmutableVariable<TVar, T> variable)
-        where TVar : VariableReference<T> => throw NotAValue(identifier);
-
-    // The guard overloads are compile errors, so this is reached by a reference that arrived as a plain T, or past the
-    // compiler by reflection or dynamic dispatch.
-    internal static FrameworkConfigurationException NotAValue(VariableIdentifier identifier)
+    private static FrameworkConfigurationException NotAValue(VariableIdentifier identifier)
         => new($"SetVariable was handed a variable for '{identifier}', and stores what it is given.")
         {
             RecoverySteps = [$"Use SetVariableFrom(\"{identifier}\", ...) to copy another variable's value."],

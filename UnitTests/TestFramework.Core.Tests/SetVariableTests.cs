@@ -46,30 +46,18 @@ public class SetVariableTests
     }
 
     [Fact]
-    public void AVariableThatArrivesAsAPlainValue_IsRefused()
+    public void AVariablePassedAsAValue_IsRefusedWhenTheTimelineIsBuilt()
     {
-        // The compiler catches a reference passed directly; this is one hidden behind a caller's own generic helper.
-        static ITimelineBuilder StoreThrough<T>(ITimelineBuilder builder, T value) => builder.SetVariable("copy", value);
-
         FrameworkConfigurationException refused = Assert.Throws<FrameworkConfigurationException>(
-            () => StoreThrough(Timeline.Create(), Var.Ref<int>("total")));
+            () => Timeline.Create().SetVariable("copy", Var.Ref<int>("total")));
 
         Assert.Contains("SetVariableFrom", refused.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void PassingAShippedReferenceTypeAsAValue_DoesNotCompile()
+    public void ATransformedOrImmutableVariablePassedAsAValue_IsRefusedToo()
     {
-        // Each reference type Core ships has a SetVariable overload the compiler refuses, which overload resolution
-        // prefers over the value verb for that type - so a Var.Ref, a RefImmutable or a transformed reference passed
-        // as a value is a compile error naming SetVariableFrom instead of a variable stored as data.
-        Type[] guarded = [.. typeof(ISetVariableAction).GetMethods()
-            .Where(method => method.Name == nameof(ISetVariableAction.SetVariable))
-            .Where(method => method.GetCustomAttribute<ObsoleteAttribute>() is { IsError: true })
-            .Select(method => method.GetParameters()[1].ParameterType.GetGenericTypeDefinition())];
-
-        Assert.Equal(
-            new[] { typeof(VariableReference<>), typeof(ResolvableVariable<>), typeof(ImmutableVariable<,>) }.OrderBy(type => type.Name),
-            guarded.OrderBy(type => type.Name));
+        Assert.Throws<FrameworkConfigurationException>(() => Timeline.Create().SetVariable("a", Var.RefImmutable<int>("total")));
+        Assert.Throws<FrameworkConfigurationException>(() => Timeline.Create().SetVariable("b", Var.Ref<int>("total").Transform(value => value + 1)));
     }
 }
