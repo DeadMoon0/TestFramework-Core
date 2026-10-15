@@ -1,6 +1,5 @@
 ﻿using TestFramework.Core.Variables;
 using System;
-using System.Collections;
 using System.Linq;
 using TestFramework.Core.Debugger;
 using TestFramework.Core.Logging;
@@ -11,10 +10,18 @@ namespace TestFramework.Core.Timelines.Assertions;
 /// <summary>
 /// Provides fluent assertions for a concrete value.
 /// </summary>
+/// <remarks>
+/// Only what holds for every type lives here. Assertions that only make sense for some types - text, order,
+/// counting - are extension methods in <see cref="ValueAssertions"/>, constrained to those types, so asking a list
+/// whether it starts with "a" does not compile instead of quietly checking the list's type name.
+/// </remarks>
 /// <typeparam name="T">The asserted value type.</typeparam>
 public class ValueAsserter<T>
 {
     private readonly T _value;
+
+    /// <summary>The value asserted on, for the type-specific assertions in <see cref="ValueAssertions"/>.</summary>
+    internal T Value => _value;
     private readonly string _expression;
     private readonly ScopedLogger? _logger;
     private readonly bool _secret;
@@ -44,7 +51,7 @@ public class ValueAsserter<T>
             ? assertionName
             : $"{assertionName}({string.Join(", ", arguments.Select(argument => VariableFormatter.Format(argument.Value)))})";
 
-    private ValueAsserter<T> Pass(string assertionName, params (string Name, object? Value)[] arguments)
+    internal ValueAsserter<T> Pass(string assertionName, params (string Name, object? Value)[] arguments)
     {
         _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), true, Shown());
         return this;
@@ -57,7 +64,7 @@ public class ValueAsserter<T>
     private (string Name, object? Value)[] Shown((string Name, object? Value)[] arguments)
         => _secret ? [.. arguments.Select(static argument => (argument.Name, (object?)VariableStore.Secret))] : arguments;
 
-    private ValueAsserter<T> Fail(string assertionName, string reason, params (string Name, object? Value)[] arguments)
+    internal ValueAsserter<T> Fail(string assertionName, string reason, params (string Name, object? Value)[] arguments)
     {
         _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), false, Shown());
 
@@ -151,187 +158,6 @@ public class ValueAsserter<T>
         if (predicate(_value))
             return Fail(nameof(NotMatch), $"value {V(_value)} unexpectedly satisfied: {description}", ("description", description));
         return Pass(nameof(NotMatch), ("description", description));
-    }
-
-    // ── String ──────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Asserts that the string representation contains the specified substring.
-    /// </summary>
-    /// <param name="substring">The substring that must be present.</param>
-    public ValueAsserter<T> Contain(string substring)
-    {
-        var s = _value?.ToString() ?? "";
-        if (!s.Contains(substring))
-            return Fail(nameof(Contain), $"{V(_value)} does not contain \"{substring}\"", ("substring", substring));
-        return Pass(nameof(Contain), ("substring", substring));
-    }
-
-    /// <summary>
-    /// Asserts that the string representation does not contain the specified substring.
-    /// </summary>
-    /// <param name="substring">The substring that must not be present.</param>
-    public ValueAsserter<T> NotContain(string substring)
-    {
-        var s = _value?.ToString() ?? "";
-        if (s.Contains(substring))
-            return Fail(nameof(NotContain), $"{V(_value)} contains \"{substring}\"", ("substring", substring));
-        return Pass(nameof(NotContain), ("substring", substring));
-    }
-
-    /// <summary>
-    /// Asserts that the string representation starts with the specified prefix.
-    /// </summary>
-    /// <param name="prefix">The required prefix.</param>
-    public ValueAsserter<T> StartWith(string prefix)
-    {
-        var s = _value?.ToString() ?? "";
-        if (!s.StartsWith(prefix, StringComparison.Ordinal))
-            return Fail(nameof(StartWith), $"{V(_value)} does not start with \"{prefix}\"", ("prefix", prefix));
-        return Pass(nameof(StartWith), ("prefix", prefix));
-    }
-
-    /// <summary>
-    /// Asserts that the string representation ends with the specified suffix.
-    /// </summary>
-    /// <param name="suffix">The required suffix.</param>
-    public ValueAsserter<T> EndWith(string suffix)
-    {
-        var s = _value?.ToString() ?? "";
-        if (!s.EndsWith(suffix, StringComparison.Ordinal))
-            return Fail(nameof(EndWith), $"{V(_value)} does not end with \"{suffix}\"", ("suffix", suffix));
-        return Pass(nameof(EndWith), ("suffix", suffix));
-    }
-
-    /// <summary>
-    /// Asserts that the string representation is empty.
-    /// </summary>
-    public ValueAsserter<T> BeEmpty()
-    {
-        var s = _value?.ToString() ?? "";
-        if (s.Length != 0)
-            return Fail(nameof(BeEmpty), $"was {V(_value)}");
-        return Pass(nameof(BeEmpty));
-    }
-
-    /// <summary>
-    /// Asserts that the string representation is not empty.
-    /// </summary>
-    public ValueAsserter<T> NotBeEmpty()
-    {
-        var s = _value?.ToString() ?? "";
-        if (s.Length == 0)
-            return Fail(nameof(NotBeEmpty), "was empty");
-        return Pass(nameof(NotBeEmpty));
-    }
-
-    // ── Numeric / Comparable ────────────────────────────────────────────────
-
-    /// <summary>
-    /// Asserts that the value is greater than the provided threshold.
-    /// </summary>
-    /// <param name="threshold">The lower exclusive bound.</param>
-    public ValueAsserter<T> BeGreaterThan(T threshold)
-    {
-        if (_value is not IComparable<T> c || c.CompareTo(threshold) <= 0)
-            return Fail(nameof(BeGreaterThan), $"expected > {V(threshold)}, was {V(_value)}", ("threshold", threshold));
-        return Pass(nameof(BeGreaterThan), ("threshold", threshold));
-    }
-
-    /// <summary>
-    /// Asserts that the value is greater than or equal to the provided threshold.
-    /// </summary>
-    /// <param name="threshold">The lower inclusive bound.</param>
-    public ValueAsserter<T> BeGreaterThanOrEqualTo(T threshold)
-    {
-        if (_value is not IComparable<T> c || c.CompareTo(threshold) < 0)
-            return Fail(nameof(BeGreaterThanOrEqualTo), $"expected >= {V(threshold)}, was {V(_value)}", ("threshold", threshold));
-        return Pass(nameof(BeGreaterThanOrEqualTo), ("threshold", threshold));
-    }
-
-    /// <summary>
-    /// Asserts that the value is less than the provided threshold.
-    /// </summary>
-    /// <param name="threshold">The upper exclusive bound.</param>
-    public ValueAsserter<T> BeLessThan(T threshold)
-    {
-        if (_value is not IComparable<T> c || c.CompareTo(threshold) >= 0)
-            return Fail(nameof(BeLessThan), $"expected < {V(threshold)}, was {V(_value)}", ("threshold", threshold));
-        return Pass(nameof(BeLessThan), ("threshold", threshold));
-    }
-
-    /// <summary>
-    /// Asserts that the value is less than or equal to the provided threshold.
-    /// </summary>
-    /// <param name="threshold">The upper inclusive bound.</param>
-    public ValueAsserter<T> BeLessThanOrEqualTo(T threshold)
-    {
-        if (_value is not IComparable<T> c || c.CompareTo(threshold) > 0)
-            return Fail(nameof(BeLessThanOrEqualTo), $"expected <= {V(threshold)}, was {V(_value)}", ("threshold", threshold));
-        return Pass(nameof(BeLessThanOrEqualTo), ("threshold", threshold));
-    }
-
-    /// <summary>
-    /// Asserts that the value falls within the inclusive range.
-    /// </summary>
-    /// <param name="min">The inclusive lower bound.</param>
-    /// <param name="max">The inclusive upper bound.</param>
-    public ValueAsserter<T> BeInRange(T min, T max)
-    {
-        if (_value is not IComparable<T> c || c.CompareTo(min) < 0 || c.CompareTo(max) > 0)
-            return Fail(nameof(BeInRange), $"expected in [{V(min)}, {V(max)}], was {V(_value)}", ("min", min), ("max", max));
-        return Pass(nameof(BeInRange), ("min", min), ("max", max));
-    }
-
-    /// <summary>
-    /// Asserts that the value falls outside the inclusive range.
-    /// </summary>
-    /// <param name="min">The inclusive lower bound.</param>
-    /// <param name="max">The inclusive upper bound.</param>
-    public ValueAsserter<T> NotBeInRange(T min, T max)
-    {
-        if (_value is IComparable<T> c && c.CompareTo(min) >= 0 && c.CompareTo(max) <= 0)
-            return Fail(nameof(NotBeInRange), $"expected outside [{V(min)}, {V(max)}], was {V(_value)}", ("min", min), ("max", max));
-        return Pass(nameof(NotBeInRange), ("min", min), ("max", max));
-    }
-
-    // ── Collection ──────────────────────────────────────────────────────────
-
-    private static int CountItems(T value)
-        => value is ICollection col ? col.Count : ((IEnumerable)value!).Cast<object>().Count();
-
-    /// <summary>
-    /// Asserts that the collection has the expected number of items.
-    /// </summary>
-    /// <param name="expected">The expected item count.</param>
-    public ValueAsserter<T> HaveCount(int expected)
-    {
-        int count = CountItems(_value);
-        if (count != expected)
-            return Fail(nameof(HaveCount), $"expected {expected} element(s), was {count}", ("expected", expected));
-        return Pass(nameof(HaveCount), ("expected", expected));
-    }
-
-    /// <summary>
-    /// Asserts that the collection contains no items.
-    /// </summary>
-    public ValueAsserter<T> HaveNoItems()
-    {
-        int count = CountItems(_value);
-        if (count != 0)
-            return Fail(nameof(HaveNoItems), $"expected empty, had {count} element(s)");
-        return Pass(nameof(HaveNoItems));
-    }
-
-    /// <summary>
-    /// Asserts that the collection contains at least one item.
-    /// </summary>
-    public ValueAsserter<T> HaveItems()
-    {
-        int count = CountItems(_value);
-        if (count == 0)
-            return Fail(nameof(HaveItems), "was empty");
-        return Pass(nameof(HaveItems));
     }
 
     // ── Chaining ────────────────────────────────────────────────────────────
