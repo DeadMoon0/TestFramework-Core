@@ -18,11 +18,16 @@ using TestFramework.Core.Runner;
 using TestFramework.Core.Environment;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Steps.SystemSteps;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines;
 
 internal class TimelineRunBuilder : ITimelineRunBuilder
 {
+    void IImplementedByCore.ImplementedByCore()
+    {
+    }
+
     private readonly ScopedLogger logger;
     private readonly Timeline _timeline;
     private readonly PreProcessableStage _mainStage;

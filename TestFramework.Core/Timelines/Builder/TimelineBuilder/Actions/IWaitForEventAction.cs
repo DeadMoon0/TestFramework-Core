@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verb for waiting on an event step.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IWaitForEventAction
+public interface IWaitForEventAction : IImplementedByCore
 {
     /// <summary>
     /// Adds an event step that waits until the event yields a result.

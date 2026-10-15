@@ -4,6 +4,7 @@ using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
 using System.Collections.Generic;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -11,7 +12,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verbs for locating artifacts through artifact finders.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IFindArtifactAction
+public interface IFindArtifactAction : IImplementedByCore
 {
     /// <summary>
     /// Adds a step that finds a single artifact.

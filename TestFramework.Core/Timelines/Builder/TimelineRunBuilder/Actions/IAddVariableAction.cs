@@ -2,6 +2,7 @@
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 
@@ -9,7 +10,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 /// Adds the fluent verb for seeding variables into a timeline run.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IAddVariableAction
+public interface IAddVariableAction : IImplementedByCore
 {
     /// <summary>
     /// Adds an initial variable value to the run configuration.

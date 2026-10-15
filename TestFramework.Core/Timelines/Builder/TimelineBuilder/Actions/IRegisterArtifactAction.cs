@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verb for registering an artifact reference in the timeline.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IRegisterArtifactAction
+public interface IRegisterArtifactAction : IImplementedByCore
 {
     /// <summary>
     /// Registers an artifact reference under the specified identifier.

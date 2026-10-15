@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verbs for composing repeated nested steps over collections.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IForEachAction
+public interface IForEachAction : IImplementedByCore
 {
     /// <summary>
     /// Repeats a nested builder for each item in an immutable enumerable variable reference.

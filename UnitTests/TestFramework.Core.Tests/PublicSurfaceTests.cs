@@ -297,6 +297,22 @@ public class PublicSurfaceTests
         Assert.Equal(1, StepConventions.AssertNoPackageSeesAnothersInternals(typeof(ResourceGraph).Assembly).Checked);
     }
 
+    [Fact]
+    public void NobodyOutsideCoreCanImplementABuilderInterface()
+    {
+        // Damage: a consumer's own builder would break on every verb Core adds, making each new verb a breaking
+        // change. Deriving from IImplementedByCore, whose one member is internal, is what stops the compiler
+        // accepting such a class.
+        Type[] builders = [.. typeof(TestFramework.Core.Timelines.Timeline).Assembly.GetExportedTypes()
+            .Where(type => type.IsInterface && type.Namespace?.StartsWith("TestFramework.Core.Timelines.Builder", StringComparison.Ordinal) == true)
+            .Where(type => type != typeof(TestFramework.Core.Timelines.Builder.IImplementedByCore))];
+
+        Assert.NotEmpty(builders);
+        Assert.All(builders, builder => Assert.True(
+            typeof(TestFramework.Core.Timelines.Builder.IImplementedByCore).IsAssignableFrom(builder),
+            $"{builder.Name} can be implemented outside Core."));
+    }
+
     private static void AssertNotPublic<T>(string method)
         => Assert.Null(typeof(T).GetMethod(method, BindingFlags.Public | BindingFlags.Instance));
 }

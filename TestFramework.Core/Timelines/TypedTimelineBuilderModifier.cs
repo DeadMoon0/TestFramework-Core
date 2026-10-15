@@ -8,12 +8,17 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines;
 
 internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineBuilder builder) : IArtifactTimelineBuilderModifier<TStepResultContext>
     where TStepResultContext : StepResultContext
 {
+    void IImplementedByCore.ImplementedByCore()
+    {
+    }
+
     public Timeline Build() => builder.Build();
 
     public IArtifactTimelineBuilderModifier<EmptyStepResultContext> RegisterArtifact<TArtifactReference, TArtifactDescriber, TArtifactData>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference)

@@ -1,6 +1,7 @@
 using TestFramework.Core.Environment;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 
@@ -8,7 +9,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 /// Adds the fluent verb for assigning the environment provider used by a timeline run.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ISetEnvAction
+public interface ISetEnvAction : IImplementedByCore
 {
     /// <summary>
     /// Sets the environment provider used to resolve run-time environment components.

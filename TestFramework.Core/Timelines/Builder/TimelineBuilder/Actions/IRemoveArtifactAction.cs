@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verb for removing an artifact from the timeline state.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IRemoveArtifactAction
+public interface IRemoveArtifactAction : IImplementedByCore
 {
     /// <summary>
     /// Adds a step that removes the artifact associated with the identifier.

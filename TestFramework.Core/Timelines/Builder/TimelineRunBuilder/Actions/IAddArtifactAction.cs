@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 
@@ -7,7 +8,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 /// Adds the fluent verb for seeding artifacts into a timeline run.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IAddArtifactAction
+public interface IAddArtifactAction : IImplementedByCore
 {
     /// <summary>
     /// Adds an initial artifact and data payload to the run configuration.

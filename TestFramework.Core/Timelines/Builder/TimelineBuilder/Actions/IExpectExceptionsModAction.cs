@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifier for declaring expected exception types on a step.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IExpectExceptionsModAction<TStepResultContext> where TStepResultContext : StepResultContext
+public interface IExpectExceptionsModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Declares the exception types that are considered expected for the current typed step.

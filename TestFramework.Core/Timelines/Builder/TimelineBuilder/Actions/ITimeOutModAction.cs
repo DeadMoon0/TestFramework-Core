@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifier for configuring step timeouts.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ITimeOutModAction<TStepResultContext> where TStepResultContext : StepResultContext
+public interface ITimeOutModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Sets the timeout for the current typed step.

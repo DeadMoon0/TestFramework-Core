@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using TestFramework.Core.Steps;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -7,7 +8,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifier that protects the artifacts of the current step from cleanup.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IMarkReadonlyModAction<TStepResultContext> where TStepResultContext : StepResultContext
+public interface IMarkReadonlyModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Marks every artifact the current step produces readonly, so teardown leaves the underlying

@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verb for assigning a variable in the timeline.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ISetVariableAction
+public interface ISetVariableAction : IImplementedByCore
 {
     /// <summary>
     /// Adds a step that assigns the provided variable reference to the identifier.

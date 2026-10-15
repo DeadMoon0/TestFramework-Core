@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifiers for configuring step retries.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ISetupRetryModAction<TStepResultContext> where TStepResultContext : StepResultContext
+public interface ISetupRetryModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Configures retry count and delay using variable references.

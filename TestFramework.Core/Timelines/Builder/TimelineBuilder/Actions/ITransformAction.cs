@@ -5,6 +5,7 @@ using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -12,7 +13,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verbs for transforming variable values into new variables.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ITransformAction
+public interface ITransformAction : IImplementedByCore
 {
     /// <summary>
     /// Adds a synchronous variable transformation.

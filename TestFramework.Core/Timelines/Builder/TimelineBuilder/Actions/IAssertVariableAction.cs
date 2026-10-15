@@ -4,6 +4,7 @@ using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -11,7 +12,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verb for asserting a variable during timeline composition.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IAssertVariableAction
+public interface IAssertVariableAction : IImplementedByCore
 {
     /// <summary>
     /// Adds a step that asserts a variable against the provided predicate.

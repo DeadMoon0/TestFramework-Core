@@ -2,6 +2,7 @@
 using TestFramework.Core.Timelines;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 
@@ -9,7 +10,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineRunBuilder.Actions;
 /// Adds the fluent verb for executing a configured timeline run.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IRunAsyncAction
+public interface IRunAsyncAction : IImplementedByCore
 {
     /// <summary>
     /// Executes the configured timeline run asynchronously.

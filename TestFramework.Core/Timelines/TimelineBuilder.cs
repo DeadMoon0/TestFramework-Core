@@ -15,11 +15,16 @@ using TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 using TestFramework.Core.Variables;
 using TestFramework.Core.Steps.Preprocessor;
 using TestFramework.Core.Steps.SystemSteps;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines;
 
 internal class TimelineBuilder : ITimelineBuilder
 {
+    void IImplementedByCore.ImplementedByCore()
+    {
+    }
+
     internal readonly PreProcessableStage _mainStageEmitters = new PreProcessableStage() { Name = "Main Stage", Description = "The Stage where all Main Steps are Executed." };
 
     internal TimelineBuilder() { }

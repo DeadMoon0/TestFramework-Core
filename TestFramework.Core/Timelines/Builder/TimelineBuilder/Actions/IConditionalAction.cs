@@ -3,6 +3,7 @@ using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 using TestFramework.Core.Variables;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verbs for conditionally composing nested timeline steps.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IConditionalAction
+public interface IConditionalAction : IImplementedByCore
 {
     /// <summary>
     /// Adds steps that are emitted only when the referenced condition evaluates to <see langword="true"/>.

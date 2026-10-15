@@ -3,6 +3,7 @@ using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Builder.TimelineBuilder;
 
 using System.ComponentModel;
+using TestFramework.Core.Timelines.Builder;
 
 namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 
@@ -10,7 +11,7 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent verbs for capturing artifact versions.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IVersionArtifactAction
+public interface IVersionArtifactAction : IImplementedByCore
 {
     /// <summary>
     /// Captures a new version for the specified artifact using an inferred version identifier.
