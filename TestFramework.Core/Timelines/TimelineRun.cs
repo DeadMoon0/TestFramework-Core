@@ -108,7 +108,7 @@ public class TimelineRun : IFreezable
 
     private bool TryGetWithLabel(string label, out List<StepInstanceGeneric> steps)
     {
-        steps = [.. Stages.SelectMany(x => x.Steps.Where(x => String.Equals(x.Step.LabelOptions.Label, label, StringComparison.OrdinalIgnoreCase)))];
+        steps = [.. Stages.SelectMany(x => x.Steps.Where(x => String.Equals(x.Step.LabelOptions.Label, label, StringComparison.Ordinal)))];
         return steps.Any();
     }
 
@@ -117,7 +117,7 @@ public class TimelineRun : IFreezable
             .Select(x => x.Step.LabelOptions.Label)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Cast<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.Ordinal)
             .OrderBy(x => x)
             .ToArray();
 

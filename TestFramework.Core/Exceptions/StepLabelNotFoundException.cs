@@ -23,7 +23,7 @@ public class StepLabelNotFoundException : TimelineFrameworkException
                 "Use Steps(label) when the label can appear multiple times."
             },
             availableLabels.Any()
-                ? availableLabels.Distinct(System.StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray()
+                ? availableLabels.Distinct(System.StringComparer.Ordinal).OrderBy(x => x).ToArray()
                 : new[] { "No labeled steps were recorded for this run." })
     {
     }

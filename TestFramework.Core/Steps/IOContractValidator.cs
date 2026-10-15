@@ -40,8 +40,8 @@ internal static class IOContractValidator
             ValidateImmutability(variableTracker);
 
         // key -> known producer metadata (external or last declared producer)
-        var knownVars = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
-        var knownArtifacts = new Dictionary<string, KnownContractValue>(StringComparer.OrdinalIgnoreCase);
+        var knownVars = new Dictionary<string, KnownContractValue>(StringComparer.Ordinal);
+        var knownArtifacts = new Dictionary<string, KnownContractValue>(StringComparer.Ordinal);
         List<string> executedStepNames = [];
 
         foreach (var v in externalVariables)
