@@ -111,11 +111,10 @@ Timeline timeline = Timeline.Create()
 `SimpleExt.Trigger.MessageBox(...)` is Windows-only because it calls `user32.dll`. It is for a human
 sitting in front of the run.
 
-- Use it only on Windows test machines.
-- Do not rely on it for unattended CI runs. Set `TESTFRAMEWORK_MESSAGEBOX=off` in CI and the default
-  invoker returns immediately without showing a dialog, so an agent with nobody to click OK does not
-  sit on a modal window until the step times out.
-- Replace `MessageBoxTrigger.Invoker` to route the text somewhere else, or to assert on it in a test.
+- It shows the dialog only where somebody can answer it: an interactive Windows session that is not a build
+  agent (`CI` or `TF_BUILD` set). Anywhere else the step logs the message instead, so an agent with nobody to
+  click OK does not sit on a modal window until the step times out.
+- `TESTFRAMEWORK_MESSAGEBOX=off` never shows the dialog and `on` always does, wherever the run is.
 - Prefer `Message(...)` — the same shape, logged rather than shown — when you need a cross-platform
   step, or `Action(...)` for arbitrary inline work.
 

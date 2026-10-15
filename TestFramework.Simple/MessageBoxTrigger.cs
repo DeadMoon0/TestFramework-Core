@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -67,37 +68,25 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
+    private readonly Func<string, string, int> _present = ShowNative;
+
     /// <summary>
-    /// Gets or sets the delegate that actually presents the message box.
+    /// Creates the trigger with a presenter of its own instead of the native dialog.
     /// </summary>
     /// <remarks>
-    /// The default still shows a real dialog, because that is what a developer running this trigger
-    /// interactively asked for. It makes one exception: when <c>TESTFRAMEWORK_MESSAGEBOX</c> is set
-    /// to <c>off</c> it returns immediately without showing anything, so a CI agent with no one to
-    /// click OK does not sit on a modal dialog until the step times out.
-    /// Replace this to route the message somewhere else, or to assert on it in a test.
+    /// The seam for tests. It used to be a public static anyone could set, which changed every message box in the
+    /// process for whoever ran next; a presenter handed to one trigger changes that trigger.
     /// </remarks>
-    public static Func<string, string, int> Invoker { get; set; } = DefaultInvoker;
-
-    internal static Func<string, string, int> MessageBoxInvoker
+    /// <param name="msg">The message body.</param>
+    /// <param name="caption">The caption.</param>
+    /// <param name="present">Shows the message, in place of the native dialog.</param>
+    internal MessageBoxTrigger(VariableReference<string> msg, VariableReference<string> caption, Func<string, string, int> present)
+        : this(msg, caption)
     {
-        get => Invoker;
-        set => Invoker = value;
+        _present = present ?? throw new ArgumentNullException(nameof(present));
     }
 
-    private static int DefaultInvoker(string text, string title)
-    {
-        if (IsMessageBoxDisabled())
-            return 0;
-
-        return MessageBox(IntPtr.Zero, text, title, (uint)MessageBoxIconWin32.None);
-    }
-
-    private static bool IsMessageBoxDisabled()
-    {
-        string? value = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX");
-        return value is not null && value.Trim().Equals("off", StringComparison.OrdinalIgnoreCase);
-    }
+    private static int ShowNative(string text, string title) => MessageBox(IntPtr.Zero, text, title, (uint)MessageBoxIconWin32.None);
 
     /// <summary>
     /// Gets the display name shown in the timeline output.
@@ -120,7 +109,7 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <returns>A cloned trigger with the same message, caption, and step options.</returns>
     public override Step<EmptyStepResultContext> Clone()
     {
-        return new MessageBoxTrigger(msg, caption).WithClonedOptions(this);
+        return new MessageBoxTrigger(msg, caption, _present).WithClonedOptions(this);
     }
 
     /// <summary>
@@ -132,7 +121,22 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <returns>The step's result.</returns>
     public override Task<EmptyStepResultContext?> Execute(RunContext context)
     {
-        Invoker(msg.GetRequiredValue(context.Variables), caption.GetRequiredValue(context.Variables));
+        string text = msg.GetRequiredValue(context.Variables);
+        string title = caption.GetRequiredValue(context.Variables);
+
+        // Looked at, not asked for: whether anyone could answer the dialog is read from where the run is, and
+        // TESTFRAMEWORK_MESSAGEBOX only overrides that answer.
+        MessageBoxDisplay display = MessageBoxDisplay.Decide(
+            System.Environment.GetEnvironmentVariable(MessageBoxDisplay.SwitchVariable),
+            System.Environment.UserInteractive,
+            MessageBoxDisplay.CiMarkers.Any(marker => !string.IsNullOrWhiteSpace(System.Environment.GetEnvironmentVariable(marker))),
+            OperatingSystem.IsWindows());
+
+        if (display.Show)
+            _present(text, title);
+        else
+            context.Logger.LogInformation("Message box '{0}' not shown ({1}): {2}", title, display.Reason, text);
+
         return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
     }
 

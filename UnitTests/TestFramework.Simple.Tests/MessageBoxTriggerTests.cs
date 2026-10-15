@@ -15,70 +15,74 @@ namespace TestFramework.Simple.Tests;
 
 public class MessageBoxTriggerTests
 {
+    [Theory]
+    [InlineData(null, true, false, true, true)]    // a developer at the screen
+    [InlineData(null, false, false, true, false)]  // a service or a headless test host
+    [InlineData(null, true, true, true, false)]    // a build agent, even an interactive one
+    [InlineData("off", true, false, true, false)]  // the switch overrides an interactive session
+    [InlineData("on", true, true, true, true)]     // and a build agent
+    [InlineData(" OFF ", true, false, true, false)]
+    [InlineData("on", true, false, false, false)]  // nothing overrides there being no dialog to show
+    public void TheDialogIsShown_OnlyWhereSomebodyCanAnswerIt(string? switchValue, bool interactive, bool onCi, bool onWindows, bool shown)
+        => Assert.Equal(shown, MessageBoxDisplay.Decide(switchValue, interactive, onCi, onWindows).Show);
+
     [Fact]
     [SupportedOSPlatform("windows")]
-    public async Task Execute_UsesResolvedMessageAndCaptionValues()
+    public async Task Execute_HandsTheResolvedMessageAndCaptionToItsPresenter()
     {
-        MessageBoxTrigger trigger = new(Var.Const("Hello"), Var.Const("Greeting"));
         List<(string Text, string Caption)> calls = [];
-        Func<string, string, int> originalInvoker = MessageBoxTrigger.MessageBoxInvoker;
+        MessageBoxTrigger trigger = new(Var.Const("Hello"), Var.Const("Greeting"), (text, caption) =>
+        {
+            calls.Add((text, caption));
+            return 0;
+        });
+        string? previous = System.Environment.GetEnvironmentVariable(MessageBoxDisplay.SwitchVariable);
 
         try
         {
-            MessageBoxTrigger.MessageBoxInvoker = (text, caption) =>
-            {
-                calls.Add((text, caption));
-                return 0;
-            };
-
+            System.Environment.SetEnvironmentVariable(MessageBoxDisplay.SwitchVariable, "on");
             await trigger.Execute(RunContext.Detached());
         }
         finally
         {
-            MessageBoxTrigger.MessageBoxInvoker = originalInvoker;
+            System.Environment.SetEnvironmentVariable(MessageBoxDisplay.SwitchVariable, previous);
         }
 
-        Assert.Single(calls);
-        Assert.Equal(("Hello", "Greeting"), calls[0]);
+        Assert.Equal(OperatingSystem.IsWindows() ? [("Hello", "Greeting")] : [], calls);
     }
 
     [Fact]
     [SupportedOSPlatform("windows")]
-    public void DefaultInvoker_ShowsNoDialog_WhenTheEnvironmentSwitchIsOff()
+    public async Task Clone_KeepsThePresenter()
     {
-        // A CI agent has nobody to click OK, so a real dialog would hold the step until it timed out.
-        // Reaching the P/Invoke here would block this test rather than fail it, which is the point.
-        string? previous = System.Environment.GetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX");
+        List<string> calls = [];
+        MessageBoxTrigger original = new(Var.Const("Hello"), Var.Const("Greeting"), (text, _) =>
+        {
+            calls.Add(text);
+            return 0;
+        });
+
+        MessageBoxTrigger clone = (MessageBoxTrigger)original.Clone();
+        string? previous = System.Environment.GetEnvironmentVariable(MessageBoxDisplay.SwitchVariable);
 
         try
         {
-            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX", "off");
-
-            Assert.Equal(0, MessageBoxTrigger.Invoker("Hello", "Greeting"));
+            System.Environment.SetEnvironmentVariable(MessageBoxDisplay.SwitchVariable, "on");
+            await clone.Execute(RunContext.Detached());
         }
         finally
         {
-            System.Environment.SetEnvironmentVariable("TESTFRAMEWORK_MESSAGEBOX", previous);
+            System.Environment.SetEnvironmentVariable(MessageBoxDisplay.SwitchVariable, previous);
         }
+
+        Assert.NotSame(original, clone);
+        Assert.Equal(OperatingSystem.IsWindows() ? ["Hello"] : [], calls);
     }
 
     [Fact]
-    [SupportedOSPlatform("windows")]
-    public void Invoker_AndTheInternalForwarder_AreTheSameSetting()
+    public void NoProcessWideSwitch_ChangesHowEveryMessageBoxIsShown()
     {
-        Func<string, string, int> previous = MessageBoxTrigger.Invoker;
-
-        try
-        {
-            static int Replacement(string text, string caption) => 42;
-            MessageBoxTrigger.Invoker = Replacement;
-
-            Assert.Same((Func<string, string, int>)Replacement, MessageBoxTrigger.MessageBoxInvoker);
-        }
-        finally
-        {
-            MessageBoxTrigger.Invoker = previous;
-        }
+        Assert.Empty(typeof(MessageBoxTrigger).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static));
     }
 
     [Fact]
