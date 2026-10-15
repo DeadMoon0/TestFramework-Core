@@ -4,13 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using TestFramework.Config.Configuration;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
+using TestFramework.Core.Steps;
 
-// Deliberately in RunContext's own namespace rather than this package's. An extension method is invisible
-// until its namespace is imported, and a file holding a RunContext has already imported this one - so putting
-// the family's primary way of reading configuration anywhere else means a reader has to know it exists before
-// they can find it. The same convention the framework libraries use for their own extensions, and nothing
-// about it is special to this package: any package may extend a Core type the same way.
-namespace TestFramework.Core.Steps;
+// In this package's namespace, because this package owns it. It once sat in RunContext's namespace so that it
+// would be found without an import; that made a Config member look like Core's API, and a package that extends a
+// Core type should say so in the name a reader imports.
+namespace TestFramework.Config;
 
 /// <summary>
 /// Reads a resource's configuration from the run that is using it.
