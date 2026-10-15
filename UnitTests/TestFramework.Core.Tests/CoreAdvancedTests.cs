@@ -108,6 +108,23 @@ public class CoreAdvancedTests
     }
 
     [Fact]
+    public void IOContractValidator_MissingInput_ListsEachAvailableKeyOnce_AndSuggestsTheClosest()
+    {
+        TestStep producer = new("produce");
+        producer.IOContract.Output(new VariableIdentifier("userId"), typeof(string));
+        producer.IOContract.Output(new VariableIdentifier("orderId"), typeof(string));
+        TestStep consumer = new("consumer");
+        consumer.IOContract.Input(new VariableIdentifier("userIdentifier"), typeof(string));
+
+        IOContractViolationException exception = Assert.Throws<IOContractViolationException>(() => IOContractValidator.Validate([producer, consumer], [], []));
+
+        // One option per key, so the rendered list under its own "Available:" heading reads as a list.
+        Assert.Equal(["orderId", "userId"], exception.AvailableOptions);
+        Assert.DoesNotContain("Available: ", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(exception.RecoverySteps, step => step.Contains("'userId'", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void IOContractValidator_ThrowsWhenProducerTypeDoesNotMatchConsumer()
     {
         TestStep producer = new("producer");

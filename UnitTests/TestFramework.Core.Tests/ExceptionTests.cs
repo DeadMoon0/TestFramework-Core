@@ -387,10 +387,10 @@ public class ExceptionTests
             availableKeys,
             similarKeys);
 
-        // Should list similar suggestions
-        var optionsText = string.Join(" ", ex.AvailableOptions);
-        Assert.Contains("total_amount", optionsText);
-        Assert.Contains("final_amount", optionsText);
+        // Should suggest the similar keys
+        var recoveryText = string.Join(" ", ex.RecoverySteps);
+        Assert.Contains("total_amount", recoveryText);
+        Assert.Contains("final_amount", recoveryText);
     }
 
     [Fact]

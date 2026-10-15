@@ -19,8 +19,8 @@ public class IOContractViolationException(
     IReadOnlyList<string> similarKeys)
     : TimelineFrameworkException(
         BuildFriendlyMessage(stepName, input, stepIndex),
-        BuildRecoverySteps(input, stepName, precedingStepNames),
-        BuildAvailableOptions(availableKeys, similarKeys))
+        BuildRecoverySteps(input, precedingStepNames, similarKeys),
+        availableKeys.Count == 0 ? ["(none)"] : [.. availableKeys.Order(StringComparer.Ordinal)])
 {
     /// <summary>
     /// Gets the name of the step with the missing input dependency.
@@ -57,11 +57,14 @@ public class IOContractViolationException(
         return $"Step '{stepName}' (index {stepIndex}) requires {input.Kind} '{input.Key}' but it was not produced by earlier steps and not provided externally.";
     }
 
-    private static IReadOnlyList<string> BuildRecoverySteps(StepIOEntry input, string stepName, IReadOnlyList<string> precedingStepNames)
+    private static IReadOnlyList<string> BuildRecoverySteps(StepIOEntry input, IReadOnlyList<string> precedingStepNames, IReadOnlyList<string> similarKeys)
     {
         var steps = new List<string>();
 
-        if (input.Kind.ToString() == "Variable")
+        if (similarKeys.Count > 0)
+            steps.Add($"Did you mean {string.Join(" or ", similarKeys.Order(StringComparer.Ordinal).Select(key => $"'{key}'"))}?");
+
+        if (input.Kind == StepIOKind.Variable)
         {
             steps.Add($"Check that a prior step sets '{input.Key}' as output or add it to external variables");
             steps.Add($"Verify variable name spelling: expected '{input.Key}'");
@@ -70,7 +73,7 @@ public class IOContractViolationException(
                 steps.Add("Add a SetVariable() step before this step to initialize the required variable");
             }
         }
-        else if (input.Kind.ToString() == "Artifact")
+        else if (input.Kind == StepIOKind.Artifact)
         {
             steps.Add($"Check that a prior step registers artifact '{input.Key}' or provide it externally");
             steps.Add($"Verify artifact name spelling: expected '{input.Key}'");
@@ -79,26 +82,5 @@ public class IOContractViolationException(
 
         steps.Add("See ERROR-HANDLING.md for IO contract pattern documentation");
         return steps;
-    }
-
-    private static IReadOnlyList<string> BuildAvailableOptions(IReadOnlyList<string> availableKeys, IReadOnlyList<string> similarKeys)
-    {
-        var options = new List<string>();
-
-        if (availableKeys.Count > 0)
-        {
-            options.Add($"Available: {string.Join(", ", availableKeys.OrderBy(k => k))}");
-        }
-        else
-        {
-            options.Add("Available: (none)");
-        }
-
-        if (similarKeys.Count > 0)
-        {
-            options.Add($"Similar: {string.Join(", ", similarKeys.OrderBy(k => k))}");
-        }
-
-        return options;
     }
 }
