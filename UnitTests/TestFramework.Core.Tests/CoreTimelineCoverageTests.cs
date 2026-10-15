@@ -23,7 +23,7 @@ public class CoreTimelineCoverageTests
     public async Task TimelineRun_SetVariableAndAssertVariable_PersistsPublicRunState()
     {
         Timeline timeline = Timeline.Create()
-            .SetVariable("user", Var.Const("Ada"))
+            .SetVariable("user", "Ada")
             .Label("set-user")
             .AssertVariable(Var.Ref<string>("user"), value => value == "Ada")
             .Label("assert-user")
@@ -41,7 +41,7 @@ public class CoreTimelineCoverageTests
     public async Task TimelineRun_EnsureRanToCompletion_ThrowsWhenAssertionFails()
     {
         Timeline timeline = Timeline.Create()
-            .SetVariable("user", Var.Const("Ada"))
+            .SetVariable("user", "Ada")
             .Label("set-user")
             .AssertVariable(Var.Ref<string>("user"), value => value == "Grace")
             .Label("assert-user")
@@ -134,7 +134,7 @@ public class CoreTimelineCoverageTests
     public async Task Timeline_BuildOnce_CanCreateIndependentRuns_WithSetupRunAtMethodScope()
     {
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Ada"))
+            .SetVariable("name", "Ada")
             .Transform(Var.Ref<string>("name"), "greeting", name => $"Hello {name}")
             .Build();
 

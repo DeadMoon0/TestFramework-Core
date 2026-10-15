@@ -137,7 +137,7 @@ return Timeline.Create()
     .Trigger(myStep)                                   // an action
         .WithRetry(3, i => TimeSpan.FromSeconds(i))    // a modifier on that action
         .WithTimeout(TimeSpan.FromMinutes(5))          // another modifier
-    .SetVariable("key", Var.Const("value"))            // the next action
+    .SetVariable("key", "value")            // the next action
     .Build();
 ```
 
@@ -149,7 +149,7 @@ return Timeline.Create()
     .Conditional(Var.RefImmutable<bool>("flag"), thenBranch =>
     {
         thenBranch.Trigger(someStep);
-        thenBranch.SetVariable("x", Var.Const(42));
+        thenBranch.SetVariable("x", 42);
     })
     .ForEach(Var.RefImmutable<string[]>("items"), "item", loop =>
     {

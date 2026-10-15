@@ -85,7 +85,7 @@ public sealed class RunValueOutputTests : IDisposable
     private static async Task Run(IRunDebugger debugger, string name, string value)
     {
         Timeline timeline = Timeline.Create()
-            .SetVariable(name, Var.Const(value))
+            .SetVariable(name, value)
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();

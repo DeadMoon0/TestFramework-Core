@@ -40,7 +40,7 @@ public class ReadmeSamplesTests
         string? greeting = null;
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Alex"))
+            .SetVariable("name", "Alex")
             .Trigger(SimpleExt.Trigger.Action(vars =>
             {
                 greeting = $"Hello {vars[new VariableIdentifier("name")]}";
@@ -60,7 +60,7 @@ public class ReadmeSamplesTests
         string? captured = null;
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Alex"))
+            .SetVariable("name", "Alex")
             .Trigger(SimpleExt.Trigger.Action((vars, artifacts) =>
             {
                 string? name = (string?)vars[new VariableIdentifier("name")];
@@ -83,7 +83,7 @@ public class ReadmeSamplesTests
         string? captured = null;
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Alex"))
+            .SetVariable("name", "Alex")
             .Trigger(SimpleExt.Trigger.Action((serviceProvider, logger, vars, artifacts) =>
             {
                 captured = $"{serviceProvider is not null}:{logger is not null}:{vars.Count}:{artifacts.Count}";

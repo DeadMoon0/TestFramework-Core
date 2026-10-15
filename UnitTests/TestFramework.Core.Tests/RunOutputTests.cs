@@ -21,7 +21,7 @@ public sealed class RunOutputTests
         List<string> lines = [];
 
         await Timeline.Create()
-            .SetVariable("greeting", Var.Const("hello"))
+            .SetVariable("greeting", "hello")
             .Build()
             .SetupRun(lines.Add)
             .RunAsync();
@@ -35,7 +35,7 @@ public sealed class RunOutputTests
         List<string> lines = [];
 
         await Timeline.Create()
-            .SetVariable("greeting", Var.Const("hello"))
+            .SetVariable("greeting", "hello")
             .Build()
             .SetupRun(new EmptyServiceProvider(), lines.Add)
             .RunAsync();

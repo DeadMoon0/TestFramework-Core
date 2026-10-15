@@ -16,7 +16,7 @@ public class SampleIntegrationTest
     private const string InputValue = "Alex";
 
     private static readonly Timeline _timeline = Timeline.Create()
-        .SetVariable("name", Var.Const(InputValue))
+        .SetVariable("name", InputValue)
         .Transform(Var.Ref<string>("name"), "greeting", name => $"Hello {name}")
         .AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
         .Build();

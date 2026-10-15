@@ -24,7 +24,7 @@ public class MyFirstTest(ITestOutputHelper output)
     {
         // 1. BUILD - define the test plan
         Timeline timeline = Timeline.Create()
-            .SetVariable("greeting", Var.Const("Hello World"))
+            .SetVariable("greeting", "Hello World")
             .Trigger(new MyCustomStep())
                 .WithTimeout(TimeSpan.FromSeconds(30))
                 .WithRetry(2, CalcDelays.Exponential)

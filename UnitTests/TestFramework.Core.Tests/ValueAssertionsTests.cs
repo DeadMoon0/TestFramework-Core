@@ -45,8 +45,8 @@ public class ValueAssertionsTests
     public async Task TextAndOrder_StillWorkWhereTheyMeanSomething()
     {
         TimelineRun run = await Timeline.Create()
-            .SetVariable("name", Var.Const("order-42"))
-            .SetVariable("total", Var.Const(42))
+            .SetVariable("name", "order-42")
+            .SetVariable("total", 42)
             .Build()
             .SetupRun()
             .RunAsync();

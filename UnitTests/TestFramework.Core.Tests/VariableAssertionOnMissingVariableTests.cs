@@ -56,7 +56,7 @@ public sealed class VariableAssertionOnMissingVariableTests
         // The other side of the fix: a variable that does exist is still compared as before, default
         // value included.
         TimelineRun run = await Timeline.Create()
-            .SetVariable("count", Var.Const(0))
+            .SetVariable("count", 0)
             .Build()
             .SetupRun()
             .RunAsync();
@@ -78,7 +78,7 @@ public sealed class VariableAssertionOnMissingVariableTests
 
     private static Task<TimelineRun> EmptyRun()
         => Timeline.Create()
-            .SetVariable("present", Var.Const("here"))
+            .SetVariable("present", "here")
             .Build()
             .SetupRun()
             .RunAsync();

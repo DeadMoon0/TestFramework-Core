@@ -21,7 +21,7 @@ public class IdentifierCaseTests
     public async Task AStepLabel_IsFoundOnlyByItsExactSpelling()
     {
         TimelineRun run = await Timeline.Create()
-            .SetVariable("x", Var.Const(1)).Label("Count")
+            .SetVariable("x", 1).Label("Count")
             .Build()
             .SetupRun()
             .RunAsync();
@@ -36,7 +36,7 @@ public class IdentifierCaseTests
     public async Task AVariableReadWithADifferentCase_IsRefusedBeforeTheRunStarts()
     {
         Timeline timeline = Timeline.Create()
-            .SetVariable("Count", Var.Const(1))
+            .SetVariable("Count", 1)
             .AssertVariable(Var.Ref<int>("count"), value => value == 1)
             .Build();
 

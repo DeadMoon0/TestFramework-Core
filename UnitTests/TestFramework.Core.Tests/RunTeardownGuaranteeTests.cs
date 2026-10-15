@@ -86,7 +86,7 @@ public sealed class RunTeardownGuaranteeTests
         // The other half of the refusal above: declaring the count as an input must not refuse the
         // ordinary case of a variable the run does set.
         Timeline timeline = Timeline.Create()
-            .SetVariable("retries", Var.Const(1))
+            .SetVariable("retries", 1)
             .Trigger(new FailingStep())
             .Label("flaky")
             .WithRetry(Var.Ref<int>("retries"), _ => TimeSpan.Zero)

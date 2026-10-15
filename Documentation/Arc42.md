@@ -359,7 +359,7 @@ sequenceDiagram
     participant TR as TimelineRun
 
     Test->>TB: Timeline.Create()
-    Test->>TB: .SetVariable("url", Var.Const("..."))
+    Test->>TB: .SetVariable("url", "...")
     Test->>TB: .Trigger(myStep).WithRetry(3)
     Test->>TB: .Build()
     TB->>TL: freeze → Timeline
@@ -682,7 +682,7 @@ public class MyFirstTest(ITestOutputHelper output)
     {
         // 1. BUILD - define the test plan
         Timeline timeline = Timeline.Create()
-            .SetVariable("greeting", Var.Const("Hello World"))
+            .SetVariable("greeting", "Hello World")
             .Trigger(new MyCustomStep())
                 .WithTimeout(TimeSpan.FromSeconds(30))
                 .WithRetry(2, CalcDelays.Exponential)

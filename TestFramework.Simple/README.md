@@ -44,7 +44,7 @@ using TestFramework.Core.Variables;
 using TestFramework.Simple;
 
 Timeline timeline = Timeline.Create()
-    .SetVariable("name", Var.Const("Alex"))
+    .SetVariable("name", "Alex")
     .Trigger(SimpleExt.Trigger.Action(vars => Console.WriteLine($"Hello {vars[new VariableIdentifier("name")]}"), Var.Ref<string>("name")))
     .Build();
 ```

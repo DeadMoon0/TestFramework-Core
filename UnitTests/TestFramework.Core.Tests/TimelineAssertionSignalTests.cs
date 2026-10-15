@@ -25,7 +25,7 @@ public sealed class TimelineAssertionSignalTests
         AssertionRecordingDebugger debugger = new();
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Ada"))
+            .SetVariable("name", "Ada")
             .AssertVariable(Var.Ref<string>("name"), name => name == "Ada")
             .Build();
 
@@ -46,7 +46,7 @@ public sealed class TimelineAssertionSignalTests
         AssertionRecordingDebugger debugger = new();
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Grace"))
+            .SetVariable("name", "Grace")
             .AssertVariable(Var.Ref<string>("name"), name => name == "Ada")
             .Build();
 
@@ -66,7 +66,7 @@ public sealed class TimelineAssertionSignalTests
         AssertionRecordingDebugger debugger = new();
 
         Timeline timeline = Timeline.Create()
-            .SetVariable("name", Var.Const("Ada"))
+            .SetVariable("name", "Ada")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();

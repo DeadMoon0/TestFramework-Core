@@ -17,7 +17,7 @@ namespace TestFramework.Core.Tests;
 public class AssertionFailureTests
 {
     private static Task<TimelineRun> RunWithCount(int count) => Timeline.Create()
-        .SetVariable("count", Var.Const(count))
+        .SetVariable("count", count)
         .Build()
         .SetupRun()
         .RunAsync();

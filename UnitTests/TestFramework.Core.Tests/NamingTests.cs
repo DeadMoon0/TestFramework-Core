@@ -64,7 +64,7 @@ public class NamingTests
     public void Name_Throws_When_Label_Is_Blank()
     {
         ArgumentException exception = Assert.Throws<ArgumentException>(() => Timeline.Create()
-            .SetVariable("user", Var.Const("Ada"))
+            .SetVariable("user", "Ada")
             .Label(" "));
 
         Assert.Contains("label", exception.ParamName ?? string.Empty, System.StringComparison.OrdinalIgnoreCase);

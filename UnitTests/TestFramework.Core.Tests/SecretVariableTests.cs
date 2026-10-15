@@ -84,7 +84,7 @@ public class SecretVariableTests
     {
         ITimelineBuilder builder = Timeline.Create();
         if (plain is not null)
-            builder.SetVariable("plain", Var.Const(plain));
+            builder.SetVariable("plain", plain);
 
         Timeline timeline = builder.Trigger(step).Build();
 
