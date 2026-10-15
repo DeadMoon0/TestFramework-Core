@@ -56,7 +56,7 @@ public sealed class ConfigEnvironment : DeclaredNodeSource
                     {
                         Kind = shape.Kind,
                         Identifier = identifier,
-                        Values = shape.Values(shape.Read(this.configuration, identifier)),
+                        Values = shape.Values(shape.Read(this.configuration, identifier), identifier),
                         DeclaredBy = $"section '{shape.Section}'",
                     };
                 }

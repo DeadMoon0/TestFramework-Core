@@ -49,8 +49,9 @@ public interface IConfigShape
     /// and that is a normal entry rather than a gap. Every key must be one the <see cref="Kind"/> offers.
     /// </remarks>
     /// <param name="config">The record <see cref="Read"/> returned.</param>
+    /// <param name="identifier">Which entry, for failure messages.</param>
     /// <returns>The values, keyed the way the owning node names them.</returns>
-    IReadOnlyDictionary<ValueKey, string> Values(object config);
+    IReadOnlyDictionary<ValueKey, string> Values(object config, string identifier);
 }
 
 /// <summary>
@@ -102,9 +103,14 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     /// <summary>
     /// The resource values this entry declares.
     /// </summary>
+    /// <remarks>
+    /// The identifier is here for one reason: an entry that cannot be turned into values has to be refused under
+    /// its own name. Without it a shape could only label the failure with whatever the record happened to hold.
+    /// </remarks>
     /// <param name="config">The record.</param>
+    /// <param name="identifier">Which entry, for failure messages.</param>
     /// <returns>The values.</returns>
-    public abstract IReadOnlyDictionary<ValueKey, string> Values(TConfig config);
+    public abstract IReadOnlyDictionary<ValueKey, string> Values(TConfig config, string identifier);
 
     /// <summary>
     /// The record those values amount to, rebuilt for whoever is asking.
@@ -153,10 +159,11 @@ public abstract class ConfigShape<TConfig> : IConfigShape
     }
 
     /// <inheritdoc />
-    IReadOnlyDictionary<ValueKey, string> IConfigShape.Values(object config)
+    IReadOnlyDictionary<ValueKey, string> IConfigShape.Values(object config, string identifier)
     {
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        return this.Values((TConfig)config);
+        return this.Values((TConfig)config, identifier);
     }
 }

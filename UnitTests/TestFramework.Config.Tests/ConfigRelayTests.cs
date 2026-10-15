@@ -188,7 +188,7 @@ public class ConfigRelayTests
             HealthPath = values.GetValueOrDefault("HealthPath"),
         };
 
-        public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
+        public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config, string identifier)
         {
             Dictionary<ValueKey, string> values = [];
 
@@ -233,7 +233,7 @@ public class ConfigRelayTests
             HealthPath = values.GetValueOrDefault("HealthPath"),
         };
 
-        public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config)
+        public override IReadOnlyDictionary<ValueKey, string> Values(ApiEntry config, string identifier)
             => new Dictionary<ValueKey, string>
             {
                 [new ValueKey(ValueNames.ConnectionString, ResourceVantage.Host)] = "Server=nope",
