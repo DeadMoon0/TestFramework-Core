@@ -21,8 +21,16 @@ public static class SimpleExt
 /// <summary>
 /// Creates lightweight trigger steps for scenarios where a dedicated custom step type would be excessive.
 /// </summary>
-public class SimpleTrigger
+public sealed class SimpleTrigger
 {
+    /// <summary>
+    /// Only <see cref="SimpleExt.Trigger"/> hands one out: the type is a menu of factory methods, not something to
+    /// construct or derive from.
+    /// </summary>
+    internal SimpleTrigger()
+    {
+    }
+
     /// <summary>
     /// Creates a trigger that runs a parameterless action.
     /// </summary>

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TestFramework.Core;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Variables;
 using TestFramework.Simple;
@@ -11,6 +12,34 @@ namespace TestFramework.Simple.Tests;
 
 public class ActionTriggerTests
 {
+    [Fact]
+    public void AConstantPassedAsAVariable_IsRefusedWhenTheTimelineIsBuilt()
+    {
+        // The dictionary the action reads is keyed by identifier, and a constant has none to key it by.
+        FrameworkConfigurationException refused = Assert.Throws<FrameworkConfigurationException>(
+            () => SimpleExt.Trigger.Action(_ => { }, Var.Const("Ada")));
+
+        Assert.Contains("Var.Ref", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheSameVariableNamedTwice_IsRefusedByName()
+    {
+        FrameworkConfigurationException refused = Assert.Throws<FrameworkConfigurationException>(
+            () => SimpleExt.Trigger.Action(_ => { }, Var.Ref<string>("user"), Var.Ref<string>("user")));
+
+        Assert.Contains("'user'", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheSameArtifactNamedTwice_IsRefusedByName()
+    {
+        FrameworkConfigurationException refused = Assert.Throws<FrameworkConfigurationException>(
+            () => SimpleExt.Trigger.Action((_, _) => { }, [], "report", "report"));
+
+        Assert.Contains("'report'", refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Execute_PassesResolvedVariablesToAction()
     {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
@@ -17,8 +18,46 @@ namespace TestFramework.Simple;
 public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> action, VariableReferenceGeneric[] variables, ArtifactIdentifier[] artifacts) : Step<EmptyStepResultContext>
 {
     private readonly Action<IServiceProvider, ScopedLogger, Dictionary<VariableIdentifier, object?>, Dictionary<ArtifactIdentifier, ArtifactInstanceGeneric>> _action = action ?? throw new ArgumentNullException(nameof(action));
-    private readonly VariableReferenceGeneric[] _variables = variables ?? throw new ArgumentNullException(nameof(variables));
-    private readonly ArtifactIdentifier[] _artifacts = artifacts ?? throw new ArgumentNullException(nameof(artifacts));
+    private readonly VariableReferenceGeneric[] _variables = RequireNamedOnce(variables ?? throw new ArgumentNullException(nameof(variables)));
+    private readonly ArtifactIdentifier[] _artifacts = RequireOnce(artifacts ?? throw new ArgumentNullException(nameof(artifacts)));
+
+    /// <summary>
+    /// Refuses, while the timeline is built, the inputs the action's dictionaries could not hold: a constant has no
+    /// identifier to key it by, and a name given twice would be one key.
+    /// </summary>
+    private static VariableReferenceGeneric[] RequireNamedOnce(VariableReferenceGeneric[] variables)
+    {
+        if (variables.Any(variable => variable.Identifier is null))
+        {
+            throw new FrameworkConfigurationException("An Action trigger was handed a constant where it reads variables: the action receives its inputs by identifier, and a constant has none.")
+            {
+                RecoverySteps = ["Pass Var.Ref<T>(\"name\") for a value the run holds, or capture a constant in the action itself."],
+            };
+        }
+
+        if (variables.GroupBy(variable => variable.Identifier!.Identifier, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1) is { } repeated)
+        {
+            throw new FrameworkConfigurationException($"An Action trigger was handed the variable '{repeated.Key}' more than once.")
+            {
+                RecoverySteps = [$"Pass '{repeated.Key}' once; the action reads it from the dictionary under that name."],
+            };
+        }
+
+        return variables;
+    }
+
+    private static ArtifactIdentifier[] RequireOnce(ArtifactIdentifier[] artifacts)
+    {
+        if (artifacts.GroupBy(artifact => artifact.Identifier, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1) is { } repeated)
+        {
+            throw new FrameworkConfigurationException($"An Action trigger was handed the artifact '{repeated.Key}' more than once.")
+            {
+                RecoverySteps = [$"Pass '{repeated.Key}' once; the action reads it from the dictionary under that name."],
+            };
+        }
+
+        return artifacts;
+    }
 
     /// <summary>
     /// Gets the display name shown in the timeline output.
@@ -56,7 +95,7 @@ public class ActionTrigger(Action<IServiceProvider, ScopedLogger, Dictionary<Var
         (
             context.Services,
             context.Logger,
-            _variables.ToDictionary(x => x.Identifier ?? throw new ArgumentNullException("identifier", "A variable passed to Action requires a non-null identifier."), x => x.GetValueGeneric(context.Variables)),
+            _variables.ToDictionary(x => x.Identifier!, x => x.GetValueGeneric(context.Variables)),
             _artifacts.ToDictionary(x => x, context.Artifacts.GetArtifact)
         );
         return Task.FromResult<EmptyStepResultContext?>(EmptyStepResultContext.Instance);
