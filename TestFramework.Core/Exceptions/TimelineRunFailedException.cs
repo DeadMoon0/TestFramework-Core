@@ -46,7 +46,7 @@ public record FailedStepInfo
 /// The <see cref="FailedSteps"/> list contains the full context for each failure so test output
 /// immediately shows which step failed and why.
 /// </summary>
-public class TimelineRunFailedException : Exception
+public class TimelineRunFailedException : TimelineFrameworkException
 {
     /// <summary>
     /// Gets the collection of failed steps captured by the exception.
@@ -57,10 +57,14 @@ public class TimelineRunFailedException : Exception
     /// Initializes the exception from the captured failed steps.
     /// </summary>
     public TimelineRunFailedException(IReadOnlyList<FailedStepInfo> failedSteps)
-        : base(BuildMessage(failedSteps))
+        : base(BuildMessage(failedSteps), [])
     {
         FailedSteps = failedSteps;
     }
+
+    /// <inheritdoc />
+    /// <remarks>Not a framework error: the steps listed failed, each with its own cause shown in full.</remarks>
+    protected override string Heading => "RUN FAILED";
 
     private static string BuildMessage(IReadOnlyList<FailedStepInfo> failedSteps)
     {

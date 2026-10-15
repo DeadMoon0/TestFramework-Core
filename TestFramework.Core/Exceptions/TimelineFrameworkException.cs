@@ -41,6 +41,15 @@ public abstract class TimelineFrameworkException : Exception
     public override string Message => BuildDetailedMessage(this.FriendlyMessage, this.RecoverySteps, this.AvailableOptions);
 
     /// <summary>
+    /// What kind of failure this is, as the first line of <see cref="ToString"/> names it.
+    /// </summary>
+    /// <remarks>
+    /// A framework error unless a subtype says otherwise: a failed assertion is a verdict about the system under
+    /// test, and printing it as a framework error would send its reader to the wrong place.
+    /// </remarks>
+    protected virtual string Heading => "FRAMEWORK ERROR";
+
+    /// <summary>
     /// Initializes a new instance of the TimelineFrameworkException class.
     /// </summary>
     /// <param name="friendlyMessage">Friendly error message with recovery guidance</param>
@@ -126,7 +135,7 @@ public abstract class TimelineFrameworkException : Exception
     {
         var lines = new List<string>
         {
-            $"[FRAMEWORK ERROR] {GetType().Name}",
+            $"[{Heading}] {GetType().Name}",
             new string('=', 70),
             FriendlyMessage,
             ""

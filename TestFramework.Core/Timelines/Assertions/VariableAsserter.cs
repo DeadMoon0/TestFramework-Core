@@ -39,12 +39,8 @@ public class VariableAsserter<T>
     {
         _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], false, _exists ? Shown : "<unset>");
         var message = $"Variable {_display}: {assertion} failed \u2014 {reason}";
-        if (_logger?.CurrentScope is { } scope)
-        {
-            scope.RecordFailure(message);
-            return this;
-        }
-        throw new ValueAssertionException(message);
+        AssertionFailure.Raise(_logger, message, static (text, site) => new ValueAssertionException(text, site));
+        return this;
     }
 
     // ── Existence ────────────────────────────────────────────────────────────

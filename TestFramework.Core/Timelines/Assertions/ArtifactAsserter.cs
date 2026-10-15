@@ -31,12 +31,8 @@ public class ArtifactAsserter
     {
         _logger?.SignalAssertion(DebugAssertionTargetKind.Artifact, _display, assertion, [], false, _instance.VersionCount);
         var message = $"Artifact {_display}: {assertion} failed \u2014 {reason}";
-        if (_logger?.CurrentScope is { } scope)
-        {
-            scope.RecordFailure(message);
-            return this;
-        }
-        throw new ValueAssertionException(message);
+        AssertionFailure.Raise(_logger, message, static (text, site) => new ValueAssertionException(text, site));
+        return this;
     }
 
     /// <summary>

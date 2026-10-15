@@ -65,12 +65,8 @@ public class ValueAsserter<T>
         // name and arguments the transport carries, rather than from a second string built beside them.
         string shownReason = _secret ? "the value is secret, so it is not shown" : reason;
         var message = $"{_expression}: {Call(assertionName, Shown(arguments))} failed \u2014 {shownReason}";
-        if (_logger?.CurrentScope is { } scope)
-        {
-            scope.RecordFailure(message);
-            return this;
-        }
-        throw new ValueAssertionException(message);
+        AssertionFailure.Raise(_logger, message, static (text, site) => new ValueAssertionException(text, site));
+        return this;
     }
 
     // ── Null ────────────────────────────────────────────────────────────────

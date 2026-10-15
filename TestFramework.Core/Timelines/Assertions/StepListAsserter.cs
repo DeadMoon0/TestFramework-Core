@@ -35,12 +35,8 @@ public class StepListAsserter
                 var reason = $"step {i + 1} of {_steps.Count} ('{step.Step.Name}') was {step.State}";
                 var message = $"Steps {_label}: AllHaveCompleted failed \u2014 {reason}.";
                 _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), [("step", i + 1), ("of", _steps.Count), ("name", step.Step.Name)], false, step.State);
-                if (_logger?.CurrentScope is { } scope)
-                {
-                    scope.RecordFailure(message);
-                    continue; // keep checking remaining steps
-                }
-                throw new StepAssertionException(message);
+                // Collected in a scope, every incomplete step is reported; outside one, the first throws.
+                AssertionFailure.Raise(_logger, message, static (text, site) => new StepAssertionException(text, site));
             }
         }
         _logger?.SignalAssertion(DebugAssertionTargetKind.StepList, _label, nameof(AllHaveCompleted), [("of", _steps.Count)], true, StepState.Complete);

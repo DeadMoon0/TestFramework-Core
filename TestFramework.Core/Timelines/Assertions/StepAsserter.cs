@@ -32,12 +32,8 @@ public class StepAsserter
     {
         _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, [], false, ActualFor(assertion));
         var message = $"Step {_display}: {assertion} failed \u2014 {reason}";
-        if (_logger?.CurrentScope is { } scope)
-        {
-            scope.RecordFailure(message);
-            return this; // don't throw — scope collects it
-        }
-        throw new StepAssertionException(message);
+        AssertionFailure.Raise(_logger, message, static (text, site) => new StepAssertionException(text, site));
+        return this;
     }
 
     /// <summary>

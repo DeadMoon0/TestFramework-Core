@@ -13,6 +13,7 @@ public class AssertionScope : IDisposable
 {
     private readonly ScopedLogger? _logger;
     private readonly List<string> _failures = [];
+    private readonly List<string?> _sites = [];
     private bool _disposed = false;
 
     internal AssertionScope(ScopedLogger? logger)
@@ -21,9 +22,10 @@ public class AssertionScope : IDisposable
         _logger?.SetAssertionScope(this);
     }
 
-    internal void RecordFailure(string message)
+    internal void RecordFailure(string message, string? site)
     {
         _failures.Add(message);
+        _sites.Add(site);
     }
 
     /// <summary>
@@ -37,6 +39,6 @@ public class AssertionScope : IDisposable
 
         if (_failures.Count == 0) return;
 
-        throw new MultipleAssertionsFailedException(new ReadOnlyCollection<string>(_failures));
+        throw new MultipleAssertionsFailedException(new ReadOnlyCollection<string>(_failures), new ReadOnlyCollection<string?>(_sites));
     }
 }
