@@ -69,7 +69,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
         // Damage: the modifiers would edit the object the test author is holding, so running the same
         // timeline twice would start the second run already configured by the first.
         Timeline timeline = Timeline.Create()
-            .Trigger(new SelfReturningStep()).Name("shares-itself")
+            .Trigger(new SelfReturningStep()).Label("shares-itself")
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
@@ -85,7 +85,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
         // Damage: the step runs as its base class and silently loses whatever the subclass added, which
         // looks like the step simply not doing its job.
         Timeline timeline = Timeline.Create()
-            .Trigger(new ForgetfulSubclassStep()).Name("collapses")
+            .Trigger(new ForgetfulSubclassStep()).Label("collapses")
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
@@ -100,7 +100,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
         // Damage: two steps, one options object. Configuring either configures both, and freezing either
         // freezes both - so the second run fails on a write the first one allowed.
         Timeline timeline = Timeline.Create()
-            .Trigger(new OptionSharingStep()).Name("shares-options")
+            .Trigger(new OptionSharingStep()).Label("shares-options")
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(
@@ -114,7 +114,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
     {
         // The positive half. A guard that also refused correct clones would be worse than none.
         Timeline timeline = Timeline.Create()
-            .Trigger(new WellBehavedStep()).Name("fine")
+            .Trigger(new WellBehavedStep()).Label("fine")
             .Build();
 
         TimelineRun first = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();

@@ -36,7 +36,7 @@ public class StepObserverTests(ITestOutputHelper output)
         RecordingObserver observer = new RecordingObserver();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new FailingStep()).Name("checkout")
+            .Trigger(new FailingStep()).Label("checkout")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -53,7 +53,7 @@ public class StepObserverTests(ITestOutputHelper output)
 
         Timeline timeline = Timeline.Create()
             .Trigger(new SlowStep())
-                .WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("slow")
+                .WithTimeout(TimeSpan.FromMilliseconds(200)).Label("slow")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -74,7 +74,7 @@ public class StepObserverTests(ITestOutputHelper output)
 
         Timeline timeline = Timeline.Create()
             .Trigger(new FailingStep())
-                .ExpectExceptions(typeof(InvalidOperationException)).Name("tolerated")
+                .ExpectExceptions(typeof(InvalidOperationException)).Label("tolerated")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -88,7 +88,7 @@ public class StepObserverTests(ITestOutputHelper output)
     {
         // A screenshot that failed to save is a worse thing to report than the run it was watching.
         Timeline timeline = Timeline.Create()
-            .Trigger(new PassingStep()).Name("passes")
+            .Trigger(new PassingStep()).Label("passes")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output.WriteLine).RunAsync();
@@ -102,7 +102,7 @@ public class StepObserverTests(ITestOutputHelper output)
         // The direction that actually costs money: a failure that reports itself as a pass because the
         // thing watching it fell over.
         Timeline timeline = Timeline.Create()
-            .Trigger(new FailingStep()).Name("fails")
+            .Trigger(new FailingStep()).Label("fails")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(new ThrowingObserver()), output.WriteLine).RunAsync();
@@ -119,7 +119,7 @@ public class StepObserverTests(ITestOutputHelper output)
         RecordingObserver second = new RecordingObserver();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new PassingStep()).Name("passes")
+            .Trigger(new PassingStep()).Label("passes")
             .Build();
 
         TimelineRun run = await timeline
@@ -139,7 +139,7 @@ public class StepObserverTests(ITestOutputHelper output)
 
         Timeline timeline = Timeline.Create()
             .Trigger(new FailingStep())
-                .WithRetry(1, CalcDelays.None).Name("retried")
+                .WithRetry(1, CalcDelays.None).Label("retried")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -160,7 +160,7 @@ public class StepObserverTests(ITestOutputHelper output)
         RecordingObserver observer = new RecordingObserver();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new WritingStep()).Name("writes")
+            .Trigger(new WritingStep()).Label("writes")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -184,7 +184,7 @@ public class StepObserverTests(ITestOutputHelper output)
 
         Timeline timeline = Timeline.Create()
             .Trigger(new SlowStep())
-                .WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("slow")
+                .WithTimeout(TimeSpan.FromMilliseconds(200)).Label("slow")
             .Build();
 
         await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();
@@ -205,7 +205,7 @@ public class StepObserverTests(ITestOutputHelper output)
         RecordingObserver observer = new RecordingObserver();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new PassingStep()).Name("passes")
+            .Trigger(new PassingStep()).Label("passes")
             .Build();
 
         await timeline.SetupRun(Registered(observer), output.WriteLine).RunAsync();

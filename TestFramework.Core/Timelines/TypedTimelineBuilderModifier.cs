@@ -44,9 +44,9 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
         where TNextStepResultContext : StepResultContext
         => builder.WaitForEvent(sourceEvent);
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer) => builder.Transform(toVariable, fromVariable, transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, TTo> transformer) => builder.Transform(fromVariable, toVariable, transformer);
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer) => builder.Transform(toVariable, fromVariable, transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, Task<TTo>> transformer) => builder.Transform(fromVariable, toVariable, transformer);
 
     public ITimelineBuilderModifier<EmptyStepResultContext> AssertVariable<T>(VariableReference<T> identifier, Func<T?, bool> predicate) => builder.AssertVariable(identifier, predicate);
 
@@ -80,9 +80,9 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
         where TArtifactData : ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference>
         => builder.FindArtifactsAs(identifiers, finder);
 
-    public ITimelineBuilderModifier<TStepResultContext> WithTimeOut(VariableReference<TimeSpan> timeout)
+    public ITimelineBuilderModifier<TStepResultContext> WithTimeout(VariableReference<TimeSpan> timeout)
     {
-        builder.WithTimeOut(timeout);
+        builder.WithTimeout(timeout);
         return this;
     }
 
@@ -104,9 +104,9 @@ internal sealed class TypedTimelineBuilderModifier<TStepResultContext>(TimelineB
         return this;
     }
 
-    public ITimelineBuilderModifier<TStepResultContext> Name(string label)
+    public ITimelineBuilderModifier<TStepResultContext> Label(string label)
     {
-        builder.Name(label);
+        builder.Label(label);
         return this;
     }
 

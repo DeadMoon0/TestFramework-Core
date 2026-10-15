@@ -31,7 +31,7 @@ public sealed class DebugFailureDetailTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ThrowingStep(new InvalidOperationException("boom")))
-            .Name("explodes")
+            .Label("explodes")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
@@ -57,7 +57,7 @@ public sealed class DebugFailureDetailTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ThrowingStep(expected))
-            .Name("framework-failure")
+            .Label("framework-failure")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
@@ -77,7 +77,7 @@ public sealed class DebugFailureDetailTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ThrowingStep(new InvalidOperationException("flaky")))
-            .Name("retries")
+            .Label("retries")
             .WithRetry(2, CalcDelays.None)
             .Build();
 
@@ -101,7 +101,7 @@ public sealed class DebugFailureDetailTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ThrowingStep(new InvalidOperationException("ignored")))
-            .Name("suppressed")
+            .Label("suppressed")
             .ExpectExceptions(typeof(InvalidOperationException))
             .Build();
 
@@ -120,7 +120,7 @@ public sealed class DebugFailureDetailTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new PassingStep())
-            .Name("fine")
+            .Label("fine")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();

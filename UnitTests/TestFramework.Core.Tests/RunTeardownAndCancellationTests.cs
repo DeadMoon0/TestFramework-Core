@@ -35,7 +35,7 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new BlockUntilCancelledStep(started)).Name("blocked")
+            .Trigger(new BlockUntilCancelledStep(started)).Label("blocked")
             .Build();
 
         Task<TimelineRun> running = timeline
@@ -70,7 +70,7 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         CallLog calls = new();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new StepWithFailingCleanup()).Name("owner")
+            .Trigger(new StepWithFailingCleanup()).Label("owner")
             .Build();
 
         TimelineRun run = await timeline.SetupRun()
@@ -95,7 +95,7 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         CallLog calls = new();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new NeverRunsStep()).Name("misconfigured").WithTimeOut(TimeSpan.FromSeconds(seconds))
+            .Trigger(new NeverRunsStep()).Label("misconfigured").WithTimeout(TimeSpan.FromSeconds(seconds))
             .Build();
 
         TimelineRun run = await timeline.SetupRun()
@@ -120,8 +120,8 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         RecordingStep mainStep = new();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new StepWithFailingPreStep()).Name("needs-pre")
-            .Trigger(mainStep).Name("recorder")
+            .Trigger(new StepWithFailingPreStep()).Label("needs-pre")
+            .Trigger(mainStep).Label("recorder")
             .Build();
 
         RecordingStep.Executed = false;
@@ -140,7 +140,7 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         // client's, a driver's. Classifying it by exception type alone booked it as the step running out
         // of time, which misfiles the failure and calls the wrong evidence hook.
         Timeline timeline = Timeline.Create()
-            .Trigger(new DependencyTimeoutStep()).Name("caller").WithTimeOut(TimeSpan.FromMinutes(5))
+            .Trigger(new DependencyTimeoutStep()).Label("caller").WithTimeout(TimeSpan.FromMinutes(5))
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();

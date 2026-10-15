@@ -26,8 +26,8 @@ public sealed class UnranStepTests
     public async Task AStepOfAStageSkippedAfterAFailedPreSetupIsSkippedAndSaysWhy()
     {
         TimelineRun run = await Timeline.Create()
-            .Trigger(new StepWithPreStep(new FailingStep())).Name("needs-pre")
-            .Trigger(new NoOpStep()).Name("main")
+            .Trigger(new StepWithPreStep(new FailingStep())).Label("needs-pre")
+            .Trigger(new NoOpStep()).Label("main")
             .Build()
             .SetupRun()
             .RunAsync();
@@ -43,8 +43,8 @@ public sealed class UnranStepTests
         // The reader reads what the writer writes, so it is planned into the layer after it - and a failed
         // layer ends the stage.
         TimelineRun run = await Timeline.Create()
-            .Trigger(new FailingWriterStep()).Name("writer")
-            .Trigger(new ReaderStep()).Name("reader")
+            .Trigger(new FailingWriterStep()).Label("writer")
+            .Trigger(new ReaderStep()).Label("reader")
             .Build()
             .SetupRun()
             .RunAsync();
@@ -63,8 +63,8 @@ public sealed class UnranStepTests
         StoppingDebugger debugger = new();
 
         TimelineRun run = await Timeline.Create()
-            .Trigger(new StepWithPreStep(new StoppingStep(debugger))).Name("needs-pre")
-            .Trigger(new NoOpStep()).Name("main")
+            .Trigger(new StepWithPreStep(new StoppingStep(debugger))).Label("needs-pre")
+            .Trigger(new NoOpStep()).Label("main")
             .Build()
             .SetupRun(new DebuggerServiceProvider(debugger))
             .RunAsync();
@@ -81,8 +81,8 @@ public sealed class UnranStepTests
     {
         // The skipped steps belong in the report, but not as a pile on top of the one failure worth reading.
         TimelineRun run = await Timeline.Create()
-            .Trigger(new StepWithPreStep(new FailingStep())).Name("needs-pre")
-            .Trigger(new NoOpStep()).Name("main")
+            .Trigger(new StepWithPreStep(new FailingStep())).Label("needs-pre")
+            .Trigger(new NoOpStep()).Label("main")
             .Build()
             .SetupRun()
             .RunAsync();

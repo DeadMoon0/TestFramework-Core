@@ -183,8 +183,8 @@ public class CoreAdvancedTests
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new NonCooperativeStep())
-            .Name("hang")
-            .WithTimeOut(TimeSpan.FromMilliseconds(100))
+            .Label("hang")
+            .WithTimeout(TimeSpan.FromMilliseconds(100))
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();

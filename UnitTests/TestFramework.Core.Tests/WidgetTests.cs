@@ -43,7 +43,7 @@ public sealed class WidgetTests : IDisposable
 
         await RunAsync(debugger, Timeline.Create()
             .Trigger(new CapturingStep(failUntilAttempt: 2))
-                .WithRetry(1, CalcDelays.None).Name("checkout")
+                .WithRetry(1, CalcDelays.None).Label("checkout")
             .Build());
 
         Assert.Equal(2, debugger.Widgets.Count);
@@ -97,7 +97,7 @@ public sealed class WidgetTests : IDisposable
         // Damage: a file in a finished run's output that the run itself says nothing about - the signal is
         // dropped because the run is over, while the file used to be written anyway.
         KeepingStep.Kept = null;
-        await RunAsync(new WidgetRecordingDebugger(), Timeline.Create().Trigger(new KeepingStep()).Name("keeps").Build());
+        await RunAsync(new WidgetRecordingDebugger(), Timeline.Create().Trigger(new KeepingStep()).Label("keeps").Build());
 
         DebugValueBody? body = KeepingStep.Kept!.Widgets.Publish(Shot("after-the-end"));
 
@@ -141,7 +141,7 @@ public sealed class WidgetTests : IDisposable
     {
         WidgetRecordingDebugger debugger = new();
 
-        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Name("shot").Build());
+        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Label("shot").Build());
 
         DebugValueBody body = Assert.Single(debugger.Widgets).Description.Body!;
 
@@ -158,7 +158,7 @@ public sealed class WidgetTests : IDisposable
         // thing to do with a picture, and hex of a PNG is what the alternative renders.
         WidgetRecordingDebugger debugger = new();
 
-        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Name("shot").Build());
+        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Label("shot").Build());
 
         DebugValueDescription description = Assert.Single(debugger.Widgets).Description;
 
@@ -173,7 +173,7 @@ public sealed class WidgetTests : IDisposable
     {
         WidgetRecordingDebugger debugger = new();
 
-        await RunAsync(debugger, Timeline.Create().Trigger(new DocumentStep()).Name("markup").Build());
+        await RunAsync(debugger, Timeline.Create().Trigger(new DocumentStep()).Label("markup").Build());
 
         DebugWidgetEntry entry = Assert.Single(debugger.Widgets);
 
@@ -191,7 +191,7 @@ public sealed class WidgetTests : IDisposable
 
         await RunAsync(debugger, Timeline.Create()
             .Trigger(new CapturingStep(failUntilAttempt: 2))
-                .WithRetry(1, CalcDelays.None).Name("checkout")
+                .WithRetry(1, CalcDelays.None).Label("checkout")
             .Build());
 
         string[] paths = [.. debugger.Widgets.Select(widget => widget.Description.Body!.Path).Distinct()];
@@ -213,7 +213,7 @@ public sealed class WidgetTests : IDisposable
             debugger,
             Timeline.Create()
                 .Trigger(new FailingStep())
-                    .WithRetry(1, CalcDelays.None).Name("checkout")
+                    .WithRetry(1, CalcDelays.None).Label("checkout")
                 .Build(),
             new WatchingObserver());
 
@@ -228,7 +228,7 @@ public sealed class WidgetTests : IDisposable
         // indistinguishable — four widgets filed against the same step with nothing to tell them apart.
         WidgetRecordingDebugger debugger = new();
 
-        await RunAsync(debugger, Timeline.Create().Trigger(new ComponentLogStep()).Name("logs").Build());
+        await RunAsync(debugger, Timeline.Create().Trigger(new ComponentLogStep()).Label("logs").Build());
 
         Assert.Equal("api-container", Assert.Single(debugger.Widgets).Component);
     }
@@ -240,7 +240,7 @@ public sealed class WidgetTests : IDisposable
         // whose screenshots existed only while a tool happened to be attached would be useless on CI.
         using JournalScope journal = JournalScope.Disarmed();
 
-        await Timeline.Create().Trigger(new CapturingStep()).Name("shot").Build().SetupRun().RunAsync();
+        await Timeline.Create().Trigger(new CapturingStep()).Label("shot").Build().SetupRun().RunAsync();
 
         string[] written = [.. Directory.EnumerateFiles(root, "page.png", SearchOption.AllDirectories)];
 
@@ -255,7 +255,7 @@ public sealed class WidgetTests : IDisposable
         // recorded run hands back weeks later.
         WidgetRecordingDebugger debugger = new();
 
-        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Name("shot").Build());
+        await RunAsync(debugger, Timeline.Create().Trigger(new CapturingStep()).Label("shot").Build());
 
         DebugWidgetEntry produced = Assert.Single(debugger.Widgets);
 
@@ -285,7 +285,7 @@ public sealed class WidgetTests : IDisposable
 
         await RunAsync(
             CompositeRunDebugger.Create(carries, cannot),
-            Timeline.Create().Trigger(new CapturingStep()).Name("shot").Build());
+            Timeline.Create().Trigger(new CapturingStep()).Label("shot").Build());
 
         Assert.Single(carries.Widgets);
         Assert.True(cannot.SawSignals, "the older debugger should still have received everything it does understand");

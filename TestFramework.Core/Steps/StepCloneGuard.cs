@@ -48,7 +48,7 @@ internal static class StepCloneGuard
             };
         }
 
-        // Damage: the modifiers about to run - Name(...), WithTimeOut(...) - would edit the object the
+        // Damage: the modifiers about to run - Label(...), WithTimeout(...) - would edit the object the
         // test author is holding, so a second run of the same timeline would start already configured.
         if (ReferenceEquals(source, clone))
         {

@@ -24,9 +24,9 @@ public class CoreTimelineCoverageTests
     {
         Timeline timeline = Timeline.Create()
             .SetVariable("user", Var.Const("Ada"))
-            .Name("set-user")
+            .Label("set-user")
             .AssertVariable(Var.Ref<string>("user"), value => value == "Ada")
-            .Name("assert-user")
+            .Label("assert-user")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
@@ -42,9 +42,9 @@ public class CoreTimelineCoverageTests
     {
         Timeline timeline = Timeline.Create()
             .SetVariable("user", Var.Const("Ada"))
-            .Name("set-user")
+            .Label("set-user")
             .AssertVariable(Var.Ref<string>("user"), value => value == "Grace")
-            .Name("assert-user")
+            .Label("assert-user")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
@@ -72,7 +72,7 @@ public class CoreTimelineCoverageTests
         RetryProbe probe = new();
         Timeline timeline = Timeline.Create()
             .Trigger(new FlakyStep(probe, failuresBeforeSuccess: 2))
-            .Name("flaky")
+            .Label("flaky")
             .WithRetry(2, CalcDelays.None)
             .Build();
 
@@ -88,7 +88,7 @@ public class CoreTimelineCoverageTests
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new ReturnConstantStep("logic-run"))
-            .Name("return-run")
+            .Label("return-run")
             .GetValue("logicRun")
             .Build();
 
@@ -103,7 +103,7 @@ public class CoreTimelineCoverageTests
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new ReturnConstantStep("logic-run"))
-            .Name("return-run")
+            .Label("return-run")
             .GetValue("logicRun")
             .Build();
 
@@ -120,7 +120,7 @@ public class CoreTimelineCoverageTests
         PollCounter polls = new PollCounter();
         Timeline timeline = Timeline.Create()
             .WaitForEvent(new ReturningSequentialProbeEvent(polls))
-            .Name("await-event")
+            .Label("await-event")
             .Build();
 
         TimelineRun run = await timeline.SetupRun().RunAsync();
@@ -135,7 +135,7 @@ public class CoreTimelineCoverageTests
     {
         Timeline timeline = Timeline.Create()
             .SetVariable("name", Var.Const("Ada"))
-            .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+            .Transform(Var.Ref<string>("name"), "greeting", name => $"Hello {name}")
             .Build();
 
         TimelineRun firstRun = await timeline.SetupRun().RunAsync();
@@ -154,7 +154,7 @@ public class CoreTimelineCoverageTests
         Timeline timeline = Timeline.Create()
             .ForEach(new[] { "Ada", "Grace" }, "item", loop =>
             {
-                loop.Trigger(new CaptureVariableStep("item", seen)).Name("capture");
+                loop.Trigger(new CaptureVariableStep("item", seen)).Label("capture");
             })
             .Build();
 
@@ -172,7 +172,7 @@ public class CoreTimelineCoverageTests
         RecordingOutputHelper output = new();
         Timeline timeline = Timeline.Create()
             .Trigger(new LoggingStep("hello from step"))
-            .Name("log")
+            .Label("log")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(output.WriteLine).RunAsync();
@@ -187,7 +187,7 @@ public class CoreTimelineCoverageTests
         RecordingOutputHelper output = new();
         Timeline timeline = Timeline.Create()
             .Trigger(new ReturnConstantStep("logic-run"))
-            .Name("return-run")
+            .Label("return-run")
             .GetValue("logicRun")
             .Build();
 
@@ -209,7 +209,7 @@ public class CoreTimelineCoverageTests
         RetryProbe probe = new();
         Timeline timeline = Timeline.Create()
             .Trigger(new FlakyStep(probe, failuresBeforeSuccess: 1))
-            .Name("flaky")
+            .Label("flaky")
             .WithRetry(2, CalcDelays.None)
             .Build();
 

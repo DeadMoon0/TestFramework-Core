@@ -361,7 +361,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
 
         try
         {
-            timeout = step.Step.TimeOutOptions.TimeOut.GetValue(variableStore);
+            timeout = step.Step.TimeoutOptions.Timeout.GetValue(variableStore);
 
             if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero)
             {

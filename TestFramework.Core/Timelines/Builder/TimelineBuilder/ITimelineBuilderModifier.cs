@@ -8,10 +8,10 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder;
 /// </summary>
 /// <typeparam name="TStepResultContext">The result context type produced by the current step.</typeparam>
 public interface ITimelineBuilderModifier<TStepResultContext> : ITimelineBuilder,
-    ITimeOutModAction<TStepResultContext>,
+    ITimeoutModAction<TStepResultContext>,
     ISetupRetryModAction<TStepResultContext>,
     IExpectExceptionsModAction<TStepResultContext>,
-    INameModAction<TStepResultContext>,
+    ILabelModAction<TStepResultContext>,
     IDoNotParallelizeModAction<TStepResultContext>,
     IStepIOModAction<TStepResultContext>
     where TStepResultContext : StepResultContext;

@@ -58,7 +58,7 @@
     - Keep interaction code inside the timeline whenever the interaction is part of the scenario under test.
     - Outside the timeline, only prepare run-local input values, build providers/config, start the run, and assert on the result.
     - Do not hide remote calls, file operations, message sends, or other scenario interactions in imperative code before or after the run if the timeline can model them.
-    - Keep the timeline vertically readable without turning every call into a staircase: builder actions should stay compact when short, and modifiers such as Name(...), WithTimeOut(...), and WithRetry(...) should stay visually attached to the step they modify.
+    - Keep the timeline vertically readable without turning every call into a staircase: builder actions should stay compact when short, and modifiers such as Label(...), WithTimeout(...), and WithRetry(...) should stay visually attached to the step they modify.
     - Make Conditional(...) and ForEach(...) read as close to normal C# control flow as possible.
 
     Visual shape to prefer:
@@ -112,7 +112,7 @@
 
     Step modifiers the agent should recognize:
     - Name(string) //Use only when nessesary - dont Spam
-    - WithTimeOut(...)
+    - WithTimeout(...)
     - WithRetry(...)
     - ExpectExceptions(...)
     - MarkReadonly() //Only after RegisterArtifact/FindArtifact/FindArtifacts/FindArtifactsAs.

@@ -136,9 +136,9 @@ public sealed class DebugJournalTests : IDisposable
 
         Timeline timeline = Timeline.Create()
             .Trigger(new JournalNoopStep())
-            .Name("first")
+            .Label("first")
             .Trigger(new JournalNoopStep())
-            .Name("second")
+            .Label("second")
             .Build();
 
         await timeline.SetupRun().RunAsync();

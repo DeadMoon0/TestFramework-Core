@@ -34,7 +34,7 @@ public sealed class RunRecordTests
     [Fact]
     public async Task AFinishedRunDropsANewEntryInsteadOfThrowing()
     {
-        await Timeline.Create().Trigger(new KeepingStep()).Name("keeps").Build().SetupRun().RunAsync();
+        await Timeline.Create().Trigger(new KeepingStep()).Label("keeps").Build().SetupRun().RunAsync();
 
         RunRecord<string> record = KeepingStep.Record!;
 

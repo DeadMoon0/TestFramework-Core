@@ -19,7 +19,7 @@ internal static class BuilderShapes
         return Timeline.Create()
             .Trigger(myStep)                                   // an action
                 .WithRetry(3, i => TimeSpan.FromSeconds(i))    // a modifier on that action
-                .WithTimeOut(TimeSpan.FromMinutes(5))          // another modifier
+                .WithTimeout(TimeSpan.FromMinutes(5))          // another modifier
             .SetVariable("key", Var.Const("value"))            // the next action
             .Build();
         #endregion
@@ -215,11 +215,11 @@ internal static class MinimalExample
 
             // Trigger a step and bind part of its result into a named variable.
             .Trigger(new GreetStep(Var.Ref<string>("userName")))
-                .WithTimeOut(TimeSpan.FromSeconds(30))
+                .WithTimeout(TimeSpan.FromSeconds(30))
                 .BindResultProperty(x => x.Greeting, "greeting")
 
             // Transform the projected variable
-            .Transform<string, string>("shout", Var.Ref<string>("greeting"),
+            .Transform<string, string>(Var.Ref<string>("greeting"), "shout",
                 greeting => greeting!.ToUpperInvariant())
 
             // Assert the result

@@ -58,7 +58,7 @@ public sealed class WidgetCaptureTests : IDisposable
 
         Task run = Timeline.Create()
             .Trigger(new QuietStep())
-            .Name("checkout")
+            .Label("checkout")
             .Build()
             .SetupRun(new RunServices(debugger, source))
             .RunAsync();
@@ -106,7 +106,7 @@ public sealed class WidgetCaptureTests : IDisposable
 
         Task run = Timeline.Create()
             .Trigger(new QuietStep())
-            .Name("checkout")
+            .Label("checkout")
             .Build()
             .SetupRun(new RunServices(debugger, source))
             .RunAsync();
@@ -146,7 +146,7 @@ public sealed class WidgetCaptureTests : IDisposable
 
         await Timeline.Create()
             .Trigger(new QuietStep())
-            .Name("checkout")
+            .Label("checkout")
             .Build()
             .SetupRun(new RunServices(debugger, source))
             .RunAsync()

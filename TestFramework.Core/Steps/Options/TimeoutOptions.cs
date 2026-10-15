@@ -7,7 +7,7 @@ namespace TestFramework.Core.Steps.Options;
 /// <summary>
 /// Configures the timeout applied to a step.
 /// </summary>
-public class TimeOutOptions : IFreezable
+public class TimeoutOptions : IFreezable
 {
     /// <summary>
     /// Gets a value indicating whether the options object has been frozen against further mutation.
@@ -19,19 +19,19 @@ public class TimeOutOptions : IFreezable
     /// </summary>
     public void Freeze() { IsFrozen = true; }
 
-    private VariableReference<TimeSpan> _timeOut = TimeSpan.FromMinutes(10);
+    private VariableReference<TimeSpan> _timeout = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// Gets or sets the timeout value applied to the step.
     /// </summary>
-    public VariableReference<TimeSpan> TimeOut { get => _timeOut; set { ((IFreezable)this).EnsureNotFrozen(); _timeOut = value; } }
+    public VariableReference<TimeSpan> Timeout { get => _timeout; set { ((IFreezable)this).EnsureNotFrozen(); _timeout = value; } }
 
     /// <summary>
     /// Copies the current options to another instance.
     /// </summary>
     /// <param name="target">The target options instance.</param>
-    public void CloneTo(TimeOutOptions target)
+    public void CloneTo(TimeoutOptions target)
     {
-        target.TimeOut = TimeOut;
+        target.Timeout = Timeout;
     }
 }

@@ -66,7 +66,7 @@ public class ProtocolReadabilityTests
             DoesReturn = true,
             Parallelization = StepParallelizationMode.Parallelizable,
             MaxRetries = 3,
-            TimeOut = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(30),
             IgnoredExceptions = ["HttpRequestException"],
             Inputs = [new DebugStepIo { Key = "orderId", Kind = StepIOKind.Variable, DeclaredType = nameof(Int32) }]
         };
@@ -75,7 +75,7 @@ public class ProtocolReadabilityTests
         string written = JsonConvert.SerializeObject(step, DebugJson.Settings);
 
         Assert.Contains("\"MaxRetries\":3", written, StringComparison.Ordinal);
-        Assert.Contains("\"TimeOut\":\"00:00:30\"", written, StringComparison.Ordinal);
+        Assert.Contains("\"Timeout\":\"00:00:30\"", written, StringComparison.Ordinal);
         Assert.Contains("\"IgnoredExceptions\":[\"HttpRequestException\"]", written, StringComparison.Ordinal);
         Assert.Contains("\"Phase\":\"Act\"", written, StringComparison.Ordinal);
         Assert.Contains("\"Parallelization\":\"Parallelizable\"", written, StringComparison.Ordinal);

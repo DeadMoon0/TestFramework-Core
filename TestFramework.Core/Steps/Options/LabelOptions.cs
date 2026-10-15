@@ -4,7 +4,7 @@ using TestFramework.Core;
 namespace TestFramework.Core.Steps.Options;
 
 /// <summary>
-/// Internal label configuration used by the fluent <c>Name(...)</c> modifier.
+/// Internal label configuration used by the fluent <c>Label(...)</c> modifier.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public class LabelOptions : IFreezable

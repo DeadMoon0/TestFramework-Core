@@ -34,7 +34,7 @@ The Core is an **engine** that only provides a scaffold — concrete behaviours 
 | **Immutability after construction** | The [Freezable Pattern](#2-freezable-pattern) locks every object after it enters the execution pipeline. |
 | **Separation of Build / Run / Result** | Three distinct phases each with their own types (Builder → Runner → Run). |
 | **Extension-driven** | Core defines abstract base classes (`Step<TResult>`, `Event<TEvent, TResult>`, Artifact triple). Extensions implement them. |
-| **Variable-referenced configuration** | Step options (`RetryOptions`, `TimeOutOptions`) use `VariableReference<T>` — config values can be resolved at runtime. |
+| **Variable-referenced configuration** | Step options (`RetryOptions`, `TimeoutOptions`) use `VariableReference<T>` — config values can be resolved at runtime. |
 
 ### Lifecycle at a Glance
 
@@ -124,7 +124,7 @@ classDiagram
     ITimelineBuilder <|.. IVersionArtifactAction
     ITimelineBuilder <|.. IForEachAction
 
-    ITimelineBuilderModifier <|.. ITimeOutModAction
+    ITimelineBuilderModifier <|.. ITimeoutModAction
     ITimelineBuilderModifier <|.. ISetupRetryModAction
     ITimelineBuilderModifier <|.. IExpectExceptionsModAction
 ```
@@ -136,7 +136,7 @@ classDiagram
 return Timeline.Create()
     .Trigger(myStep)                                   // an action
         .WithRetry(3, i => TimeSpan.FromSeconds(i))    // a modifier on that action
-        .WithTimeOut(TimeSpan.FromMinutes(5))          // another modifier
+        .WithTimeout(TimeSpan.FromMinutes(5))          // another modifier
     .SetVariable("key", Var.Const("value"))            // the next action
     .Build();
 ```
@@ -179,7 +179,7 @@ return Timeline.Create()
 
 | Modifier | Signature | Default |
 |----------|-----------|---------|
-| `WithTimeOut` | `(VariableReference<TimeSpan>)` | 10 minutes |
+| `WithTimeout` | `(VariableReference<TimeSpan>)` | 10 minutes |
 | `WithRetry` | `(VarRef<int>, CalcDelay)` | 0 retries, exponential backoff |
 | `ExpectExceptions` | `(params Type[])` | none |
 
@@ -243,7 +243,7 @@ classDiagram
         +bool DoesReturn
         +RetryOptions RetryOptions
         +ErrorHandlingOptions ErrorHandlingOptions
-        +TimeOutOptions TimeOutOptions
+        +TimeoutOptions TimeoutOptions
         +ExecuteGeneric(RunContext) Task~object?~
         +DeclareIO(StepIOContract)
         +GetInstanceGeneric() StepInstanceGeneric
@@ -309,7 +309,7 @@ Each retry adds a new `StepResult` to `RetryResults`. `LastResult` and `State` a
 |--------|----------------|---------|
 | **RetryOptions** | `VariableReference<int> MaxRetryCount` | 0 |
 |  | `VariableReference<CalcDelay> CalcDelay` | `i => TimeSpan.FromSeconds(Math.Pow(2, i))` |
-| **TimeOutOptions** | `VariableReference<TimeSpan> TimeOut` | `TimeSpan.FromMinutes(10)` |
+| **TimeoutOptions** | `VariableReference<TimeSpan> Timeout` | `TimeSpan.FromMinutes(10)` |
 | **ErrorHandlingOptions** | `IFreezableCollection<Type> IgnoreExceptionTypes` | empty |
 
 `CalcDelay` is a delegate: `delegate TimeSpan CalcDelay(int currentIteration);`
@@ -328,7 +328,7 @@ See [`StepEmitter`](../TestFramework.Core/Steps/Preprocessor/StepEmitter.cs).
 | `ConditionalStepEmitter` | Evaluates a `VariableReference<bool>` at preprocess time. Yields nested builder steps if `true`, nothing if `false`. |
 | `ForEachStepEmitter<TItem>` | Iterates a collection at preprocess time. For each item, emits a `SetVariableStep` + the nested builder body. |
 
-**Modifier chain**: `.WithTimeOut()`, `.WithRetry()`, `.ExpectExceptions()` are stored as modifier callbacks on the last emitter. They are applied when the emitter executes `Emit()`.
+**Modifier chain**: `.WithTimeout()`, `.WithRetry()`, `.ExpectExceptions()` are stored as modifier callbacks on the last emitter. They are applied when the emitter executes `Emit()`.
 
 ### 5.6 System Steps (Built-In)
 
@@ -353,7 +353,7 @@ For each StepInstance in stage:
   │
   ├─ Retry loop (iteration = 1..MaxRetryCount+1)
   │   ├─ If iteration > 1: await CalcDelay(iteration)
-  │   ├─ Create CancellationTokenSource(TimeOut)
+  │   ├─ Create CancellationTokenSource(Timeout)
   │   ├─ Execute step
   │   ├─ On success:
   │   │   ├─ State = Complete
@@ -626,7 +626,7 @@ The self-constraining generic (`TEvent : Event<TEvent, TResult>`) ensures type-s
 [`SequentialEvent`](../TestFramework.Core/Events/SequentialEvent.cs) implements `OnSequentialPolling(RunContext)` and answers
 `SequentialPollingResult<T>.Done(result)` or `.NotYet(delay)`.
 
-The polling loop runs until a poll answers `Done`, waiting the delay `NotYet` named between polls. The step's `TimeOutOptions` cancellation token enforces the overall timeout.
+The polling loop runs until a poll answers `Done`, waiting the delay `NotYet` named between polls. The step's `TimeoutOptions` cancellation token enforces the overall timeout.
 
 ### 8.3 AsyncEvent
 
@@ -786,11 +786,11 @@ Timeline timeline = Timeline.Create()
 
     // Trigger a step and bind part of its result into a named variable.
     .Trigger(new GreetStep(Var.Ref<string>("userName")))
-        .WithTimeOut(TimeSpan.FromSeconds(30))
+        .WithTimeout(TimeSpan.FromSeconds(30))
         .BindResultProperty(x => x.Greeting, "greeting")
 
     // Transform the projected variable
-    .Transform<string, string>("shout", Var.Ref<string>("greeting"),
+    .Transform<string, string>(Var.Ref<string>("greeting"), "shout",
         greeting => greeting!.ToUpperInvariant())
 
     // Assert the result
@@ -856,8 +856,8 @@ public class GreetStep(VariableReference<string> name) : Step<GreetStepResultCon
 | Custom `Step<TResult>` | `GreetStep` with typed result |
 | `Var.Ref<T>()` / `Var.RefImmutable<T>()` | Variable references throughout |
 | Transform chains | `.Transform(n => n + " (verbose)")` |
-| Builder fluent API | `.Trigger().WithTimeOut().Transform().AssertVariable()...` |
-| Modifier chaining | `.WithTimeOut()` after `.Trigger()` |
+| Builder fluent API | `.Trigger().WithTimeout().Transform().AssertVariable()...` |
+| Modifier chaining | `.WithTimeout()` after `.Trigger()` |
 | Conditional emission | `.Conditional(flag, inner => ...)` |
 | ForEach emission | `.ForEach(collection, "iterVar", inner => ...)` |
 | Run setup with variables | `.AddVariable("userName", "Alice")` |

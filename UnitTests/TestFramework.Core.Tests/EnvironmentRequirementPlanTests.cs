@@ -27,7 +27,7 @@ public class EnvironmentRequirementPlanTests
     {
         // Damage without it: the run started, and the step failed later against an address nobody supplied.
         Timeline timeline = Timeline.Create()
-            .Trigger(new NeedsStep(ApiKind.Requirement("billing"))).Name("pay")
+            .Trigger(new NeedsStep(ApiKind.Requirement("billing"))).Label("pay")
             .Build();
 
         FrameworkConfigurationException refusal = await Assert.ThrowsAsync<FrameworkConfigurationException>(
@@ -97,7 +97,7 @@ public class EnvironmentRequirementPlanTests
     public async Task AKindAgnosticRequirement_ThatTwoKindsAnswer_IsRefusedNamingBoth()
     {
         Timeline timeline = Timeline.Create()
-            .Trigger(new NeedsStep(EnvironmentRequirement.AnyKind("shop"))).Name("open")
+            .Trigger(new NeedsStep(EnvironmentRequirement.AnyKind("shop"))).Label("open")
             .Build();
 
         FrameworkConfigurationException refusal = await Assert.ThrowsAsync<FrameworkConfigurationException>(

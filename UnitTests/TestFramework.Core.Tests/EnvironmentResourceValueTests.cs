@@ -44,7 +44,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
         // The whole point, end to end: nobody wrote this address down, a component learned it by starting
         // something, and a later step asks the run for it rather than for somebody's configuration record.
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         TimelineRun run = await timeline
@@ -62,7 +62,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
         // Null rather than empty, and that is the guarantee: a step that could publish a resource value could
         // point a passing test at a different system than the one it was written to prove.
         Timeline timeline = Timeline.Create()
-            .Trigger(new ChannelInspectingStep()).Name("inspects")
+            .Trigger(new ChannelInspectingStep()).Label("inspects")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
@@ -77,7 +77,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
         // The kind is what plan-time validation checked routes against, so producing outside it would make
         // that validation a promise the run does not keep.
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         TimelineRun run = await timeline
@@ -98,7 +98,7 @@ public class EnvironmentResourceValueTests(ITestOutputHelper output)
         // What the test process reaches is not what a peer container reaches, so a kind that says so has to
         // be published that way - otherwise one of the two readers silently gets the other's coordinate.
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         TimelineRun run = await timeline

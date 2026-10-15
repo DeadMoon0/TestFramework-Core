@@ -35,9 +35,9 @@ public sealed class RunCancellationTests
             .RegisterArtifact("owned", new RecordingReference(recorder))
             .SetupArtifact("owned")
             .Trigger(new SignallingStep(debugger))
-            .Name("cancels")
+            .Label("cancels")
             .Trigger(new RecordingStep(recorder, "after-cancel"))
-            .Name("later")
+            .Label("later")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
@@ -58,7 +58,7 @@ public sealed class RunCancellationTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new CancelThenWaitStep(debugger))
-            .Name("waits")
+            .Label("waits")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();

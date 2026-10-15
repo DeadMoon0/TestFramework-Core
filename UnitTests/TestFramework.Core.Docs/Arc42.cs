@@ -26,7 +26,7 @@ public class MyFirstTest(ITestOutputHelper output)
         Timeline timeline = Timeline.Create()
             .SetVariable("greeting", Var.Const("Hello World"))
             .Trigger(new MyCustomStep())
-                .WithTimeOut(TimeSpan.FromSeconds(30))
+                .WithTimeout(TimeSpan.FromSeconds(30))
                 .WithRetry(2, CalcDelays.Exponential)
             .Build();
 

@@ -92,8 +92,8 @@ internal class TimelineBuilder : ITimelineBuilder
         return AsTypedModifier<TStepResultContext>();
     }
 
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer) => Transform(toVariable, fromVariable, (x) => Task.FromResult(transformer(x)));
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer)
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, TTo> transformer) => Transform(fromVariable, toVariable, (x) => Task.FromResult(transformer(x)));
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, Task<TTo>> transformer)
     {
         _mainStageEmitters.Steps.Add(new SingleStepEmitter(new TransformStep<TFrom, TTo>(toVariable, fromVariable, transformer)));
         return AsTypedModifier<EmptyStepResultContext>();
@@ -149,12 +149,12 @@ internal class TimelineBuilder : ITimelineBuilder
         return AsArtifactModifier<EmptyStepResultContext>();
     }
 
-    internal void WithTimeOut(VariableReference<TimeSpan> timeout)
+    internal void WithTimeout(VariableReference<TimeSpan> timeout)
     {
         _mainStageEmitters.Steps.Last().AddModifier((step, variableTracker, artifactTracker) =>
         {
             variableTracker.GetReference(timeout);
-            step.TimeOutOptions.TimeOut = timeout;
+            step.TimeoutOptions.Timeout = timeout;
         });
     }
 
@@ -182,7 +182,7 @@ internal class TimelineBuilder : ITimelineBuilder
         });
     }
 
-    internal void Name(string label)
+    internal void Label(string label)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
 

@@ -29,7 +29,7 @@ public class CoreSample
 
     private static readonly Timeline _timeline = Timeline.Create()
         .SetVariable("name", Var.Const(InputValue))
-        .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+        .Transform(Var.Ref<string>("name"), "greeting", name => $"Hello {name}")
         .AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
         .Build();
 
@@ -53,7 +53,7 @@ public class CoreSample
 - `Timeline.Create()` to start the builder
 - `SetVariable`, `Transform`, `AssertVariable` for variable-driven data flow
 - `Trigger(...)` and `WaitForEvent(...)` for actions and external synchronization
-- `WithTimeOut(...)`, `WithRetry(...)` for reliability on unstable systems
+- `WithTimeout(...)`, `WithRetry(...)` for reliability on unstable systems
 
 ## Consumer-First Contract
 

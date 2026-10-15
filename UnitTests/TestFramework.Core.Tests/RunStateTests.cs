@@ -88,7 +88,7 @@ public class RunStateTests(ITestOutputHelper output)
         // a second browser while the first is still running.
         Timeline timeline = Timeline.Create()
             .Trigger(new RecordingStep(failFirst: true))
-                .WithRetry(1, CalcDelays.None).Name("twice")
+                .WithRetry(1, CalcDelays.None).Label("twice")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();
@@ -104,7 +104,7 @@ public class RunStateTests(ITestOutputHelper output)
         // Damage: a finished run handed out a state table that still took new slots, so a live object could
         // be opened into a run whose cleanup had already run - and nothing would ever close it.
         TimelineRun run = await Timeline.Create()
-            .Trigger(new RecordingStep(failFirst: false)).Name("opens")
+            .Trigger(new RecordingStep(failFirst: false)).Label("opens")
             .Build()
             .SetupRun(null, output.WriteLine)
             .RunAsync();
@@ -121,7 +121,7 @@ public class RunStateTests(ITestOutputHelper output)
     {
         // The other half: reading what a run kept is what a finished run is for.
         TimelineRun run = await Timeline.Create()
-            .Trigger(new RecordingStep(failFirst: false)).Name("opens")
+            .Trigger(new RecordingStep(failFirst: false)).Label("opens")
             .Build()
             .SetupRun(null, output.WriteLine)
             .RunAsync();
@@ -138,7 +138,7 @@ public class RunStateTests(ITestOutputHelper output)
         // The other half, and the one that leaks: a cleanup step reading a state of its own would report
         // that it closed everything, having closed nothing.
         Timeline timeline = Timeline.Create()
-            .Trigger(new RecordingStep(failFirst: false)).Name("opens")
+            .Trigger(new RecordingStep(failFirst: false)).Label("opens")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(null, output.WriteLine).RunAsync();

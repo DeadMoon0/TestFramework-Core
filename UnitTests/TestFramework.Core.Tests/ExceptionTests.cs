@@ -237,7 +237,7 @@ public class ExceptionTests
         StepLabelNotFoundException ex = Assert.Throws<StepLabelNotFoundException>(() => run.Step("missing"));
 
         Assert.Contains("missing", ex.Message);
-        Assert.Contains("Name(\"missing\")", ex.ToString());
+        Assert.Contains("Label(\"missing\")", ex.ToString());
     }
 
     [Fact]

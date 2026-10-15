@@ -10,7 +10,7 @@ namespace TestFramework.Core.Debugger;
 /// <remarks>
 /// <para>
 /// Facts, resolved. This record used to carry the builder objects themselves — <c>RetryOptions</c>,
-/// <c>TimeOutOptions</c>, <c>ExecutionOptions</c> and three more — which meant every step on the wire shipped
+/// <c>TimeoutOptions</c>, <c>ExecutionOptions</c> and three more — which meant every step on the wire shipped
 /// five <c>IsFrozen</c> flags, three <c>RequireImmutability</c> flags and a derived <c>HasDeclarations</c>,
 /// while the numbers a reader actually wants were nowhere: a retry count and a timeout live behind a method on
 /// a variable reference, so they serialized as an empty wrapper. Nobody could learn from a journal that a step
@@ -59,10 +59,10 @@ public record DebugStepState
     public string? MaxRetriesVariable { get; init; }
 
     /// <summary>Gets how long the step may run for, when that was fixed when the run was planned.</summary>
-    public System.TimeSpan? TimeOut { get; init; }
+    public System.TimeSpan? Timeout { get; init; }
 
     /// <summary>Gets the variable the timeout is read from, when a test pinned it to one.</summary>
-    public string? TimeOutVariable { get; init; }
+    public string? TimeoutVariable { get; init; }
 
     /// <summary>
     /// Gets the exception types this step is allowed to throw without failing the run.

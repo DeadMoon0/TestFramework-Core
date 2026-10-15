@@ -31,9 +31,9 @@ public sealed class DebugExecutionLayerTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new PrepareStep())
-            .Name("prepare-one")
+            .Label("prepare-one")
             .Trigger(new PrepareStep())
-            .Name("prepare-two")
+            .Label("prepare-two")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
@@ -52,9 +52,9 @@ public sealed class DebugExecutionLayerTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ActStep())
-            .Name("act-one")
+            .Label("act-one")
             .Trigger(new ActStep())
-            .Name("act-two")
+            .Label("act-two")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();
@@ -73,7 +73,7 @@ public sealed class DebugExecutionLayerTests
 
         Timeline timeline = Timeline.Create()
             .Trigger(new ActStep())
-            .Name("only")
+            .Label("only")
             .Build();
 
         await timeline.SetupRun(new DebuggerServiceProvider(debugger)).RunAsync();

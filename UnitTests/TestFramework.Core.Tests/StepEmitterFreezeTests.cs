@@ -25,7 +25,7 @@ public class StepEmitterFreezeTests
     {
         Timeline timeline = Timeline.Create()
             .Trigger(new NoopStep())
-            .Name("only")
+            .Label("only")
             .Build();
 
         StepEmitter emitter = timeline.MainStage.Steps.Single();

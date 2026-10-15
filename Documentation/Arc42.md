@@ -207,7 +207,7 @@ classDiagram
         +Build() Timeline
     }
     class ITimelineBuilderModifier {
-        +WithTimeOut(TimeSpan) ITimelineBuilderModifier
+        +WithTimeout(TimeSpan) ITimelineBuilderModifier
         +WithRetry(int, CalcDelay) ITimelineBuilderModifier
     }
     class TimelineRunBuilder {
@@ -235,7 +235,7 @@ classDiagram
         <<abstract>>
         +string Name
         +RetryOptions RetryOptions
-        +TimeOutOptions TimeOutOptions
+        +TimeoutOptions TimeoutOptions
         +DeclareIO(StepIOContract)
     }
     class Step~TResult~ {
@@ -684,7 +684,7 @@ public class MyFirstTest(ITestOutputHelper output)
         Timeline timeline = Timeline.Create()
             .SetVariable("greeting", Var.Const("Hello World"))
             .Trigger(new MyCustomStep())
-                .WithTimeOut(TimeSpan.FromSeconds(30))
+                .WithTimeout(TimeSpan.FromSeconds(30))
                 .WithRetry(2, CalcDelays.Exponential)
             .Build();
 

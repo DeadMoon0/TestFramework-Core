@@ -55,7 +55,7 @@ public sealed class ExceptionRenderingTests
     public async Task AFailedRunReportsTheCauseOfAPlainStepException()
     {
         TimelineRun run = await Timeline.Create()
-            .Trigger(new WrappingStep()).Name("wraps")
+            .Trigger(new WrappingStep()).Label("wraps")
             .Build()
             .SetupRun()
             .RunAsync();

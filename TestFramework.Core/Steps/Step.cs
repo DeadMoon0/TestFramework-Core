@@ -154,10 +154,10 @@ public abstract class StepGeneric : IFreezable
     /// <summary>
     /// Gets the timeout configuration for the step.
     /// </summary>
-    public TimeOutOptions TimeOutOptions { get; init; } = new TimeOutOptions();
+    public TimeoutOptions TimeoutOptions { get; init; } = new TimeoutOptions();
 
     /// <summary>
-    /// Gets the label configuration for the step. Prefer the fluent <c>Name(...)</c> modifier when authoring timelines.
+    /// Gets the label configuration for the step. Prefer the fluent <c>Label(...)</c> modifier when authoring timelines.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public LabelOptions LabelOptions { get; init; } = new LabelOptions();
@@ -223,7 +223,7 @@ public abstract class StepGeneric : IFreezable
     {
         from.RetryOptions.CloneTo(RetryOptions);
         from.ErrorHandlingOptions.CloneTo(ErrorHandlingOptions);
-        from.TimeOutOptions.CloneTo(TimeOutOptions);
+        from.TimeoutOptions.CloneTo(TimeoutOptions);
         from.LabelOptions.CloneTo(LabelOptions);
         from.ExecutionOptions.CloneTo(ExecutionOptions);
         from.ResultOptions.CloneTo(ResultOptions);

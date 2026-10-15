@@ -11,10 +11,10 @@ namespace TestFramework.Core.Timelines.Builder.TimelineBuilder.Actions;
 /// Adds the fluent modifier for configuring step timeouts.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface ITimeOutModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
+public interface ITimeoutModAction<TStepResultContext> : IImplementedByCore where TStepResultContext : StepResultContext
 {
     /// <summary>
     /// Sets the timeout for the current typed step.
     /// </summary>
-    ITimelineBuilderModifier<TStepResultContext> WithTimeOut(VariableReference<TimeSpan> timeout);
+    ITimelineBuilderModifier<TStepResultContext> WithTimeout(VariableReference<TimeSpan> timeout);
 }

@@ -15,7 +15,7 @@ public class CoreSample
 
     private static readonly Timeline _timeline = Timeline.Create()
         .SetVariable("name", Var.Const(InputValue))
-        .Transform("greeting", Var.Ref<string>("name"), name => $"Hello {name}")
+        .Transform(Var.Ref<string>("name"), "greeting", name => $"Hello {name}")
         .AssertVariable(Var.Ref<string>("greeting"), greeting => greeting == $"Hello {InputValue}")
         .Build();
 

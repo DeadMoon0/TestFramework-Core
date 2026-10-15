@@ -26,7 +26,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
     public async Task AFinishedRunStillSaysWhatItDecided()
     {
         Timeline timeline = Timeline.Create()
-            .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Name("records")
+            .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Label("records")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
@@ -45,7 +45,7 @@ public class EffectiveSettingsTests(ITestOutputHelper output)
         // §2: everything under a run freezes when its part is done. A record that could still be written
         // after the run finished would be a snapshot that changes after it was handed over.
         Timeline timeline = Timeline.Create()
-            .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Name("records")
+            .Trigger(new RecordingStep("ui.browser", "Browser", "chromium")).Label("records")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();

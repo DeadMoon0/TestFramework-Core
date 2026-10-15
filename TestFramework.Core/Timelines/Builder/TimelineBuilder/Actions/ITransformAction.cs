@@ -18,10 +18,10 @@ public interface ITransformAction : IImplementedByCore
     /// <summary>
     /// Adds a synchronous variable transformation.
     /// </summary>
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, TTo> transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, TTo> transformer);
 
     /// <summary>
     /// Adds an asynchronous variable transformation.
     /// </summary>
-    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableIdentifier toVariable, VariableReference<TFrom> fromVariable, Func<TFrom?, Task<TTo>> transformer);
+    public ITimelineBuilderModifier<EmptyStepResultContext> Transform<TFrom, TTo>(VariableReference<TFrom> fromVariable, VariableIdentifier toVariable, Func<TFrom?, Task<TTo>> transformer);
 }

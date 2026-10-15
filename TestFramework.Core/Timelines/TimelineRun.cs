@@ -124,7 +124,7 @@ public class TimelineRun : IFreezable
     /// <summary>
     /// Returns the single step with the given label.
     /// </summary>
-    /// <param name="label">The label assigned through <c>Name(...)</c>.</param>
+    /// <param name="label">The label assigned through <c>Label(...)</c>.</param>
     /// <returns>A handle for the matched step.</returns>
     /// <exception cref="StepLabelNotFoundException">Thrown when no step matches the label.</exception>
     /// <exception cref="StepLabelAmbiguousException">Thrown when more than one step matches the label.</exception>
@@ -140,7 +140,7 @@ public class TimelineRun : IFreezable
     /// <summary>
     /// Returns all step instances with the given label.
     /// </summary>
-    /// <param name="label">The label assigned through <c>Name(...)</c>.</param>
+    /// <param name="label">The label assigned through <c>Label(...)</c>.</param>
     /// <returns>All matching step handles.</returns>
     /// <exception cref="StepLabelNotFoundException">Thrown when no step matches the label.</exception>
     public IReadOnlyList<StepHandle> Steps(string label)

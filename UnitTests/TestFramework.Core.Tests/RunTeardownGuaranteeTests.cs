@@ -69,7 +69,7 @@ public sealed class RunTeardownGuaranteeTests
             .RegisterArtifact("owned", new RecordingReference(recorder))
             .SetupArtifact("owned")
             .Trigger(new FailingStep())
-            .Name("flaky")
+            .Label("flaky")
             .WithRetry(Var.Ref<int>("retries"), _ => TimeSpan.Zero)
             .Build();
 
@@ -88,7 +88,7 @@ public sealed class RunTeardownGuaranteeTests
         Timeline timeline = Timeline.Create()
             .SetVariable("retries", Var.Const(1))
             .Trigger(new FailingStep())
-            .Name("flaky")
+            .Label("flaky")
             .WithRetry(Var.Ref<int>("retries"), _ => TimeSpan.Zero)
             .Build();
 
@@ -103,7 +103,7 @@ public sealed class RunTeardownGuaranteeTests
             .RegisterArtifact("owned", new RecordingReference(recorder))
             .SetupArtifact("owned")
             .Trigger(new RecordingStep(recorder, "work"))
-            .Name("work")
+            .Label("work")
             .Build();
 
     private sealed class DebuggerServiceProvider(IRunDebugger debugger) : IServiceProvider

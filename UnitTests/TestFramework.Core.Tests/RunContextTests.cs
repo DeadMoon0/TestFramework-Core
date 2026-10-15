@@ -50,7 +50,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         Recorder recorder = new Recorder();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new DeadlineReadingStep(recorder)).WithTimeOut(TimeSpan.FromSeconds(30)).Name("reads-its-deadline")
+            .Trigger(new DeadlineReadingStep(recorder)).WithTimeout(TimeSpan.FromSeconds(30)).Label("reads-its-deadline")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
@@ -77,7 +77,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         Recorder recorder = new Recorder();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ValueReadingStep(ValueRef.For(sql.Name, "orders-db", ValueNames.ConnectionString), recorder)).Name("reads-a-value")
+            .Trigger(new ValueReadingStep(ValueRef.For(sql.Name, "orders-db", ValueNames.ConnectionString), recorder)).Label("reads-a-value")
             .Build();
 
         TimelineRun run = await timeline
@@ -101,7 +101,7 @@ public class RunContextTests(ITestOutputHelper output) : IDisposable
         Recorder recorder = new Recorder();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new CountingStep(recorder)).Name("never-runs")
+            .Trigger(new CountingStep(recorder)).Label("never-runs")
             .Build();
 
         FrameworkConfigurationException failure = await Assert.ThrowsAsync<FrameworkConfigurationException>(

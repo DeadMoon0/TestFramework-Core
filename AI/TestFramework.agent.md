@@ -238,8 +238,8 @@ Use this as the default example shape when the user asks for a good TestFramewor
 private const string InputValue = "  hello world  ";
 
 private static readonly Timeline _timeline = Timeline.Create()
-	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine("prepare")).Name("prepare"))
-	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Name("normalize"))
+	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine("prepare")).Label("prepare"))
+	.Trigger(SimpleExt.Trigger.Action(() => Console.WriteLine(InputValue.Trim())).Label("normalize"))
 	.Build();
 
 [Fact]

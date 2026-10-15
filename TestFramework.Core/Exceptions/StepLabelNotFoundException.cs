@@ -18,7 +18,7 @@ public class StepLabelNotFoundException : TimelineFrameworkException
             $"No step with label '{label}' was found.",
             new[]
             {
-                $"Call .Name(\"{label}\") on the step you want to inspect.",
+                $"Call .Label(\"{label}\") on the step you want to inspect.",
                 "Use Step(label) only when exactly one step should match.",
                 "Use Steps(label) when the label can appear multiple times."
             },

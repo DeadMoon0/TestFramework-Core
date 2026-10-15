@@ -61,7 +61,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         Interlocked.Exchange(ref starts, 0);
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
@@ -89,7 +89,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         SourceProvider services = new SourceProvider(new PlaceholderSource());
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
@@ -114,7 +114,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             await PersistentEnvironmentContext<EmulatorSetup>.CreateAsync();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep("test.emulator", "downstream")).Name("reads")
+            .Trigger(new ReadingStep("test.emulator", "downstream")).Label("reads")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
@@ -135,7 +135,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
         Interlocked.Exchange(ref teardowns, 0);
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep()).Name("reads")
+            .Trigger(new ReadingStep()).Label("reads")
             .Build();
 
         await using PersistentEnvironmentContext<EmulatorSetup> persistent =
@@ -164,7 +164,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             await PersistentEnvironmentContext<DeclaringSetup>.CreateAsync();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
+            .Trigger(new ReadingStep(Declared.Name, "named")).Label("reads")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(null, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();
@@ -187,7 +187,7 @@ public class PersistentEnvironmentResourceTests(ITestOutputHelper output)
             await PersistentEnvironmentContext<DeclaringSetup>.CreateAsync();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(new ReadingStep(Declared.Name, "named")).Name("reads")
+            .Trigger(new ReadingStep(Declared.Name, "named")).Label("reads")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(services, output.WriteLine).SetEnv(persistent.CreateEnvironment()).RunAsync();

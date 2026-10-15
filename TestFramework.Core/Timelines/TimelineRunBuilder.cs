@@ -327,8 +327,8 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             Parallelization = step.ExecutionOptions.ParallelizationMode,
             MaxRetries = Fixed(step.RetryOptions.MaxRetryCount),
             MaxRetriesVariable = PinnedTo(step.RetryOptions.MaxRetryCount),
-            TimeOut = Fixed(step.TimeOutOptions.TimeOut),
-            TimeOutVariable = PinnedTo(step.TimeOutOptions.TimeOut),
+            Timeout = Fixed(step.TimeoutOptions.Timeout),
+            TimeoutVariable = PinnedTo(step.TimeoutOptions.Timeout),
             IgnoredExceptions = [.. step.ErrorHandlingOptions.IgnoreExceptionTypes.Select(type => type.Name)],
             Inputs = [.. step.IOContract.Inputs.Select(Describe)],
             Outputs = [.. step.IOContract.Outputs.Select(Describe)]

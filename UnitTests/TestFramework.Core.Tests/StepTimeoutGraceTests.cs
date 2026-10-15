@@ -29,7 +29,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         // what the step was actually waiting for.
         Timeline timeline = Timeline.Create()
             .Trigger(new CooperativeStep("waiting for the warehouse to answer"))
-                .WithTimeOut(TimeSpan.FromMilliseconds(300)).Name("cooperative")
+                .WithTimeout(TimeSpan.FromMilliseconds(300)).Label("cooperative")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
@@ -56,7 +56,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
 
         Timeline timeline = Timeline.Create()
             .Trigger(new StubbornStep(release))
-                .WithTimeOut(TimeSpan.FromMilliseconds(300)).Name("stubborn")
+                .WithTimeout(TimeSpan.FromMilliseconds(300)).Label("stubborn")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();
@@ -83,7 +83,7 @@ public class StepTimeoutGraceTests(ITestOutputHelper output)
         ExpiryReportingStep step = new ExpiryReportingStep();
 
         Timeline timeline = Timeline.Create()
-            .Trigger(step).WithTimeOut(TimeSpan.FromMilliseconds(200)).Name("expires")
+            .Trigger(step).WithTimeout(TimeSpan.FromMilliseconds(200)).Label("expires")
             .Build();
 
         TimelineRun run = await timeline.SetupRun(writeLine: output.WriteLine).RunAsync();

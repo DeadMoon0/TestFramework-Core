@@ -65,7 +65,7 @@ public class NamingTests
     {
         ArgumentException exception = Assert.Throws<ArgumentException>(() => Timeline.Create()
             .SetVariable("user", Var.Const("Ada"))
-            .Name(" "));
+            .Label(" "));
 
         Assert.Contains("label", exception.ParamName ?? string.Empty, System.StringComparison.OrdinalIgnoreCase);
     }

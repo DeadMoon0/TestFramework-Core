@@ -18,7 +18,7 @@ public class StepLabelAmbiguousException : TimelineFrameworkException
             new[]
             {
                 $"Use Steps(\"{label}\") to retrieve all matching step instances.",
-                "Give repeated steps distinct .Name(...) values when you need single-step lookup.",
+                "Give repeated steps distinct .Label(...) values when you need single-step lookup.",
                 "Check whether the label is being reused inside a ForEach or repeated composition block."
             },
             new List<string>
