@@ -4,7 +4,7 @@
 [![NuGet Version](https://img.shields.io/nuget/v/TestFramework.Simple?label=nuget%20TestFramework.Simple)](https://www.nuget.org/packages/TestFramework.Simple)
 
 
-# TestFramework Core
+# TestFramework-Core
 
 TestFramework is a timeline-based framework for integration-style tests.
 You define test workflows once (build phase), execute them with run-specific inputs (run phase), and validate immutable results (result phase).
