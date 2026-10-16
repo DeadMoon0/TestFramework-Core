@@ -101,52 +101,64 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         EnsureNotAlreadyUsed(nameof(RunAsync));
         _hasRun = true;
 
-        IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
-            ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
-            : _serviceProvider;
-
-        // Composed and validated before anything runs: a route to a value nothing offers, or two resources
-        // waiting on each other, is a sentence at plan time rather than a step timing out later against an
-        // address nobody supplied.
-        RunResources resources = RunResources.Compose(runServiceProvider, _environment, _writeGate.Unrestricted, logger);
-
-        // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
-        // which is the same values without the ability to write them.
-        _resourcePublishing = new ResourcePublishing(resources.Values);
-
-        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
-        IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
-        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger) { Environment = _environment };
-
-        await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
-        await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
-
-        // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
-        // would be a different instance per stage if the caller registered it as transient, and evidence
-        // it gathered in one stage would be lost by the next.
-        var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), resources.Resolution);
-
-        // What lets a watching consumer ask this run for a fresh look at itself. Installed here
-        // because this is the first point both halves exist: what the caller registered to capture
-        // with, and the stores to capture into. The evidence budget is the observers', deliberately -
-        // a capture is the same act as the one an observer performs, and two numbers for one thing
-        // would be two numbers to keep in agreement.
-        _debuggingSession.EnableWidgetCapture(
-            WidgetCaptureSources.For(runServiceProvider),
-            () => RunContext.Ambient(
-                runServiceProvider,
-                newRun.VariableStore,
-                newRun.ArtifactStore,
-                logger,
-                resources.Resolution,
-                _debuggingSession.RunCancellationToken,
-                StepObservers.EvidenceBudget),
-            logger);
-        var totalStopwatch = Stopwatch.StartNew();
+        TimelineRun? newRun = null;
+        bool sessionStarted = false;
+        bool runningSignalled = false;
         bool runTransitionCompleted = false;
+        var totalStopwatch = Stopwatch.StartNew();
+
+        // Everything after the builder is spent sits inside the try. Composing resources, planning stages and
+        // resolving the caller's observers all call code that can throw, and a throw there used to leave the
+        // debugger pipe and the journal open for the life of the process, and a watching UI with a run that
+        // never finished.
         try
         {
+            IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
+                ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
+                : _serviceProvider;
+
+            // Composed and validated before anything runs: a route to a value nothing offers, or two resources
+            // waiting on each other, is a sentence at plan time rather than a step timing out later against an
+            // address nobody supplied.
+            RunResources resources = RunResources.Compose(runServiceProvider, _environment, _writeGate.Unrestricted, logger);
+
+            // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
+            // which is the same values without the ability to write them.
+            _resourcePublishing = new ResourcePublishing(resources.Values);
+
+            FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
+            IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
+            newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger) { Environment = _environment };
+
+            // Marked before the await: a session whose start was attempted is closed like one that started.
+            sessionStarted = true;
+            await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
+            await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
+
+            // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
+            // would be a different instance per stage if the caller registered it as transient, and evidence
+            // it gathered in one stage would be lost by the next.
+            var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), resources.Resolution);
+
+            // What lets a watching consumer ask this run for a fresh look at itself. Installed here
+            // because this is the first point both halves exist: what the caller registered to capture
+            // with, and the stores to capture into. The evidence budget is the observers', deliberately -
+            // a capture is the same act as the one an observer performs, and two numbers for one thing
+            // would be two numbers to keep in agreement.
+            _debuggingSession.EnableWidgetCapture(
+                WidgetCaptureSources.For(runServiceProvider),
+                () => RunContext.Ambient(
+                    runServiceProvider,
+                    newRun.VariableStore,
+                    newRun.ArtifactStore,
+                    logger,
+                    resources.Resolution,
+                    _debuggingSession.RunCancellationToken,
+                    StepObservers.EvidenceBudget),
+                logger);
+
             await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Running, DebugLifecycleState.Initialized);
+            runningSignalled = true;
             logger.Log(new TimelineRunHeaderLogEvent(
                 DateTime.UtcNow,
                 [.. _newVariableStore.GetAll().Select(entry => (entry.Key, entry.Value))],
@@ -213,8 +225,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         finally
         {
             totalStopwatch.Stop();
-            if (!runTransitionCompleted)
-                await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Error, DebugLifecycleState.Running);
+            if (sessionStarted && !runTransitionCompleted)
+            {
+                await _debuggingSession.TransitionRunAsync(
+                    DebugLifecycleState.Error,
+                    runningSignalled ? DebugLifecycleState.Running : DebugLifecycleState.Initialized);
+            }
 
             (int failures, Exception? firstFailure) = _debuggingSession.DebuggerFailures;
             if (failures > 0)
@@ -223,9 +239,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             // Inside the finally: a run that did not come back normally is still over, and what it
             // hands out must still be a snapshot rather than stores that take writes. Before the session
             // closes, so there is no moment when the stores take a write whose signal has nowhere to go.
-            newRun.Freeze();
+            newRun?.Freeze();
 
-            await _debuggingSession.FinishSessionAsync();
+            if (sessionStarted)
+                await _debuggingSession.FinishSessionAsync();
+            else
+                await _debuggingSession.AbandonUnstartedSessionAsync();
             _ownedDebuggerResources?.Dispose();
 
             // Last: the debugger resources above may have been resolved from these services.

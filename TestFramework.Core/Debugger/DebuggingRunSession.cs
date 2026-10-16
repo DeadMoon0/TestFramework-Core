@@ -477,14 +477,27 @@ internal class DebuggingRunSession
     {
         Task finished = EnqueueAndAwait(() => Debugger.SignalTimelineRunFinishedAsync(SessionId));
 
+        await CloseQueueAsync().ConfigureAwait(false);
+        await finished.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Closes a session whose run failed before the session started.
+    /// </summary>
+    /// <remarks>
+    /// Nothing to finish: a watching UI never saw the run begin, and a "finished" for a run it does not know
+    /// is noise. What the session may still have queued - log lines from planning the run - is delivered.
+    /// </remarks>
+    internal Task AbandonUnstartedSessionAsync() => CloseQueueAsync();
+
+    private async Task CloseQueueAsync()
+    {
         Interlocked.Exchange(ref writerCompleted, 1);
         signalQueue.Writer.TryComplete();
 
         Task? drain = Volatile.Read(ref drainTask);
         if (drain is not null)
             await drain.ConfigureAwait(false);
-
-        await finished.ConfigureAwait(false);
     }
 
     /// <summary>
