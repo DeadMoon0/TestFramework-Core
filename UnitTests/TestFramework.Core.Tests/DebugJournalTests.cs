@@ -53,14 +53,15 @@ public sealed class DebugJournalTests : IDisposable
     private void ArmJournal()
     {
         Directory.CreateDirectory(journalRoot);
+        File.WriteAllText(Path.Combine(journalRoot, DebugJournal.RecordingMarkerName), string.Empty);
         DebugJournal.ResetForTests();
     }
 
     [Fact]
-    public async Task WithoutTheMarkerDirectoryNothingIsWrittenAtAll()
+    public async Task WithoutTheJournalFolderNothingIsWrittenAtAll()
     {
-        // The load-bearing promise: a machine that never installed the UI must not pay for it. The
-        // marker is absent here, so the run must not create it or anything under it.
+        // The load-bearing promise: a machine that never installed the UI must not pay for it. Not
+        // even the folder exists here, so the run must not create it or anything under it.
         Assert.False(Directory.Exists(journalRoot));
         Assert.False(DebugJournal.IsEnabled);
 
@@ -74,7 +75,37 @@ public sealed class DebugJournalTests : IDisposable
     }
 
     [Fact]
-    public async Task WithTheMarkerDirectoryARunIsRecorded()
+    public async Task AJournalFolderWithoutTheMarkerRecordsNothing()
+    {
+        // Recording switched off keeps the runs recorded so far: the folder stays, only the marker
+        // goes. So the folder alone must not be read as recording being on.
+        Directory.CreateDirectory(journalRoot);
+        DebugJournal.ResetForTests();
+
+        Assert.False(DebugJournal.IsEnabled);
+
+        JournalRunDebugger debugger = new();
+        Assert.False(debugger.IsCapturing);
+
+        await EmitRunAsync(debugger, "session-off");
+        debugger.Dispose();
+
+        Assert.Empty(JournalFiles());
+        Assert.Empty(MetadataFiles());
+        Assert.False(File.Exists(DebugJournal.RecordingMarker));
+    }
+
+    [Fact]
+    public void TheMarkerInsideTheJournalFolderSwitchesRecordingOn()
+    {
+        ArmJournal();
+
+        Assert.True(DebugJournal.IsEnabled);
+        Assert.Equal(Path.Combine(journalRoot, "recording.on"), DebugJournal.RecordingMarker);
+    }
+
+    [Fact]
+    public async Task WithTheMarkerARunIsRecorded()
     {
         ArmJournal();
 

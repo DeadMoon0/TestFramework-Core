@@ -12,17 +12,24 @@ namespace TestFramework.Core.Debugger;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The gate is the existence of the journal root, which the launcher creates before it starts the
-/// UI. That keeps the promise that a missing UI costs a run nothing: a machine that has never had
-/// the tool performs one directory check per process and never touches the disk again, and there is
-/// no configuration step — installing the tool is what switches on the durability the tool needs.
+/// The gate is the existence of a marker file, <see cref="RecordingMarkerName"/>, inside the journal
+/// root. The tool creates it — the launcher once per machine, and the UI's recording switch after
+/// that — and Core only ever reads it. That keeps the promise that a missing UI costs a run nothing:
+/// a machine that has never had the tool performs one file check per process and never touches the
+/// disk again, and there is no configuration step — installing the tool is what switches on the
+/// durability the tool needs.
+/// </para>
+/// <para>
+/// A file inside the root, rather than the root itself, because the root also holds the recorded
+/// runs. With the folder as the switch, turning recording off meant deleting every run recorded so
+/// far; with the marker, the folder and its history can stay while recording is off.
 /// </para>
 /// <para>
 /// The profile root, deliberately not <c>AppData</c>, because the gate is a handshake between two
-/// processes that know nothing about each other: the tool creates the folder, and this check runs in
+/// processes that know nothing about each other: the tool creates the marker, and this check runs in
 /// somebody's test host. Writes under <c>AppData</c> are the ones Windows virtualizes for a
 /// <em>packaged</em> application, into a per-package store no unpackaged process can see — so a
-/// packaged tool would create the folder, this check would go on finding nothing, and run recording
+/// packaged tool would create the marker, this check would go on finding nothing, and run recording
 /// would read as switched off on every machine with nothing reporting a failure. Outside
 /// <c>AppData</c> that cannot happen to it.
 /// </para>
@@ -51,6 +58,13 @@ public static class DebugJournal
 
     private const string JournalFolderName = "Debug";
     private const string RunsFolderName = "runs";
+
+    /// <summary>
+    /// The file inside <see cref="Root"/> whose existence switches run recording on. Its content is
+    /// never read.
+    /// </summary>
+    public const string RecordingMarkerName = "recording.on";
+
     private const int DefaultRetainedRuns = 50;
 
     private static readonly object StateLock = new();
@@ -78,6 +92,9 @@ public static class DebugJournal
         }
     }
 
+    /// <summary>The marker file that switches run recording on, whether or not it exists.</summary>
+    public static string RecordingMarker => Path.Combine(Root, RecordingMarkerName);
+
     /// <summary>The directory holding recorded runs and their metadata sidecars.</summary>
     public static string RunsDirectory => Path.Combine(Root, RunsFolderName);
 
@@ -101,10 +118,10 @@ public static class DebugJournal
 
             resolvedRoot = ResolveRoot();
 
-            // One directory check per process. Deliberately not created here: creating it would arm
+            // One file check per process. Deliberately not created here: creating it would arm
             // journalling on every machine that ever ran a test, which is exactly what the marker
             // exists to avoid.
-            resolvedEnabled = Directory.Exists(resolvedRoot);
+            resolvedEnabled = File.Exists(Path.Combine(resolvedRoot, RecordingMarkerName));
             resolved = true;
         }
     }

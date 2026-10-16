@@ -9,8 +9,8 @@ namespace TestFramework.Core.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Journalling is armed by a folder existing, and that folder is created on any machine where the
-/// tool has been installed. A test that asserts which debuggers are attached therefore passes or
+/// Journalling is armed by a marker file existing, and that marker is created on any machine where
+/// the tool has been installed. A test that asserts which debuggers are attached therefore passes or
 /// fails according to whether the developer running it has the UI — which is not a property of the
 /// code under test.
 /// </para>
