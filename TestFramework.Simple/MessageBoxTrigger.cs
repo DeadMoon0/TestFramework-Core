@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
@@ -13,9 +12,13 @@ using TestFramework.Core.Variables;
 namespace TestFramework.Simple;
 
 /// <summary>
-/// Displays a Windows message box during timeline execution.
+/// Displays a message box during timeline execution, where somebody can answer it.
 /// </summary>
-[SupportedOSPlatform("windows")]
+/// <remarks>
+/// Callable on every platform. By default the dialog is shown on an interactive Windows session that is not a
+/// build agent; <c>TESTFRAMEWORK_MESSAGEBOX</c> can turn it off, or on for a build agent, but nothing shows a
+/// dialog off Windows. Where it is not shown, the step logs the message and why, and the run carries on.
+/// </remarks>
 public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<string> caption) : Step<EmptyStepResultContext>
 {
     /// <summary>

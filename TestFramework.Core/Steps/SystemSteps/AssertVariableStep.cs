@@ -52,7 +52,6 @@ internal class AssertVariableStep<T>(VariableReference<T> variable, Func<T?, boo
         return EmptyStepResultContext.Instance;
     }
 
-    private static string Describe(T? value) => value?.ToString() ?? "null";
 
     public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
 

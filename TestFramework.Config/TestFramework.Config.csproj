@@ -10,7 +10,7 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline;Config</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
-		<Description>An easy to use utility for managing your configs inside the TestFramework timeline.</Description>
+		<Description>Configuration for TestFramework runs: one config instance per run, read by every package through the same reader.</Description>
 		<Version>0.4.0</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>

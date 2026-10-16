@@ -27,7 +27,6 @@ public class MessageBoxTriggerTests
         => Assert.Equal(shown, MessageBoxDisplay.Decide(switchValue, interactive, onCi, onWindows).Show);
 
     [Fact]
-    [SupportedOSPlatform("windows")]
     public async Task Execute_HandsTheResolvedMessageAndCaptionToItsPresenter()
     {
         List<(string Text, string Caption)> calls = [];
@@ -52,7 +51,6 @@ public class MessageBoxTriggerTests
     }
 
     [Fact]
-    [SupportedOSPlatform("windows")]
     public async Task Clone_KeepsThePresenter()
     {
         List<string> calls = [];
@@ -86,18 +84,15 @@ public class MessageBoxTriggerTests
     }
 
     [Fact]
-    public void MessageBoxTrigger_IsMarkedAsWindowsOnly()
+    public void MessageBoxTrigger_CanBeCalledOnEveryPlatform()
     {
-        SupportedOSPlatformAttribute? attribute = typeof(MessageBoxTrigger).GetCustomAttributes(typeof(SupportedOSPlatformAttribute), false)
-            .OfType<SupportedOSPlatformAttribute>()
-            .SingleOrDefault();
-
-        Assert.NotNull(attribute);
-        Assert.Equal("windows", attribute!.PlatformName);
+        // Off Windows the step logs instead of showing, so a platform mark would only force every caller
+        // into an OperatingSystem.IsWindows() guard that protects nothing.
+        Assert.Empty(typeof(MessageBoxTrigger).GetCustomAttributes(typeof(SupportedOSPlatformAttribute), false));
+        Assert.Empty(typeof(SimpleTrigger).GetMethods().Where(method => method.IsDefined(typeof(SupportedOSPlatformAttribute), false)));
     }
 
     [Fact]
-    [SupportedOSPlatform("windows")]
     public void DeclareIO_AddsMessageAndCaptionInputs()
     {
         MessageBoxTrigger trigger = new(Var.Ref<string>("msg"), Var.Ref<string>("caption"));
@@ -122,7 +117,6 @@ public class MessageBoxTriggerTests
     }
 
     [Fact]
-    [SupportedOSPlatform("windows")]
     public void Clone_PreservesStepOptions()
     {
         MessageBoxTrigger original = new(Var.Ref<string>("msg"), Var.Ref<string>("caption"));

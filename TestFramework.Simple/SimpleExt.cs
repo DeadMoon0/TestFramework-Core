@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.Versioning;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Variables;
@@ -111,7 +110,6 @@ public sealed class SimpleTrigger
     /// <param name="msg">The variable or constant that supplies the message body.</param>
     /// <param name="caption">The variable or constant that supplies the window caption.</param>
     /// <returns>A trigger that displays the supplied values in a Windows message box.</returns>
-    [SupportedOSPlatform("windows")]
     public MessageBoxTrigger MessageBox(VariableReference<string> msg, VariableReference<string> caption)
     {
         return new MessageBoxTrigger(msg, caption);
@@ -122,7 +120,6 @@ public sealed class SimpleTrigger
     /// </summary>
     /// <param name="msg">The variable or constant that supplies the message body.</param>
     /// <returns>A trigger that displays the supplied message in a Windows message box.</returns>
-    [SupportedOSPlatform("windows")]
     public MessageBoxTrigger MessageBox(VariableReference<string> msg)
     {
         return MessageBox(msg, "MessageBox");

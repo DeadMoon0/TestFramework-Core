@@ -10,13 +10,13 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
-		<Description>A wrapper for simple tasks the Timeline should perform. Like C# Actions, MessageBoxes</Description>
+		<Description>Inline C# actions and a message box for TestFramework timelines, so a one-line action needs no step type of its own.</Description>
 		<Version>0.4.0</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>Needs TestFramework.Core 0.7.0. MessageBox shows its dialog only in an interactive session that is not a build agent and logs the message otherwise; MessageBoxTrigger.Invoker is gone. SimpleTrigger is sealed and reached only through SimpleExt.Trigger, and Action refuses a constant or a repeated name while the timeline is built instead of failing mid-run.</PackageReleaseNotes>
+		<PackageReleaseNotes>Needs TestFramework.Core 0.7.0. MessageBox shows its dialog only in an interactive session that is not a build agent and logs the message otherwise; MessageBoxTrigger.Invoker is gone, and MessageBox is no longer marked Windows-only, so callers need no platform guard. SimpleTrigger is sealed and reached only through SimpleExt.Trigger, and Action refuses a constant or a repeated name while the timeline is built instead of failing mid-run.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>

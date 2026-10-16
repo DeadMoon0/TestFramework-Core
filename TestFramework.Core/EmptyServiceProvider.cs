@@ -9,7 +9,7 @@ namespace TestFramework.Core;
 /// <para>
 /// A <see cref="Debug"/> warning is written whenever a service is requested so that missing
 /// registrations are visible during development.  Use
-/// <c>ConfigInstance.BuildServiceProvider()</c> from <c>TestFrameworkConfig</c> for real
+/// <c>ConfigInstance.BuildServiceProvider()</c> from the TestFramework.Config package for real
 /// service resolution.
 /// </para>
 /// </summary>
