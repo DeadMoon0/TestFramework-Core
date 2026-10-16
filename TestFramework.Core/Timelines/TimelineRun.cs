@@ -18,10 +18,10 @@ namespace TestFramework.Core.Timelines;
 /// <summary>
 /// Represents the immutable result of executing a built timeline.
 /// </summary>
-public class TimelineRun : IFreezable
+public class TimelineRun
 {
     /// <summary>
-    /// Gets a value indicating whether the run result has been frozen against further mutation.
+    /// Gets a value indicating whether the run has finished and its result is a snapshot.
     /// </summary>
     public bool IsFrozen { get; private set; }
 
@@ -33,11 +33,17 @@ public class TimelineRun : IFreezable
     /// environment state and widgets - because they all ask the run's one gate. Before, this listed a freeze per
     /// store, and a channel nobody added to the list stayed writable on a finished run.
     /// </remarks>
-    public void Freeze()
+    /// <para>
+    /// Internal, like the stores' own end: a run is finished by the engine that ran it, never by whoever holds
+    /// the result. A public <c>Freeze()</c> here was a second, caller-reachable way to end a run.
+    /// </para>
+    internal void Freeze()
     {
         IsFrozen = true;
         _writeGate.Finish(_logger ?? new ScopedLogger(null));
         Stages.Freeze();
+        foreach (StageInstance stage in Stages)
+            stage.Freeze();
     }
 
     /// <summary>

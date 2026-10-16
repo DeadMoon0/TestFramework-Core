@@ -29,7 +29,7 @@ public class StepInstance<TStep, TStepResultContext> : StepInstanceGeneric where
 /// <summary>
 /// Represents a runtime instance of a step and the results recorded across its executions and retries.
 /// </summary>
-public class StepInstanceGeneric : IFreezable
+public class StepInstanceGeneric
 {
     /// <summary>
     /// Gets a value indicating whether the step instance has been frozen against further mutation.
@@ -39,9 +39,12 @@ public class StepInstanceGeneric : IFreezable
     /// <summary>
     /// Freezes the step instance and its retry results against further mutation.
     /// </summary>
-    public void Freeze()
+    internal void Freeze()
     {
         RetryResults.Freeze();
+        foreach (StepResultGeneric attempt in RetryResults)
+            attempt.Freeze();
+
         IsFrozen = true;
     }
 

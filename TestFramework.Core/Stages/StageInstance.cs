@@ -6,7 +6,7 @@ namespace TestFramework.Core.Stages;
 /// <summary>
 /// Represents a runtime instance of a stage and the step instances it contains.
 /// </summary>
-public class StageInstance : IFreezable
+public class StageInstance
 {
     /// <summary>
     /// Gets a value indicating whether the stage instance has been frozen against further mutation.
@@ -16,7 +16,7 @@ public class StageInstance : IFreezable
     /// <summary>
     /// Freezes the stage instance, its result, and its stage definition.
     /// </summary>
-    public void Freeze()
+    internal void Freeze()
     {
         IsFrozen = true;
         Result.Freeze();

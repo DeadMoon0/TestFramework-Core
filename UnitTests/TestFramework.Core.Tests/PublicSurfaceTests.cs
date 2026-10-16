@@ -110,6 +110,30 @@ public class PublicSurfaceTests
     }
 
     [Fact]
+    public void ARunsResultIsFinishedByTheEngineAlone()
+    {
+        // Damage: a caller holding a run, a stage or a step result could end it early, or rewrite what an
+        // attempt recorded, and the record of the run would no longer be the record of what ran.
+        System.Type[] runOwned =
+        [
+            typeof(Timelines.TimelineRun),
+            typeof(Stages.StageInstance),
+            typeof(Stages.StageResult),
+            typeof(StepInstanceGeneric),
+            typeof(StepResultGeneric),
+        ];
+
+        foreach (System.Type type in runOwned)
+        {
+            Assert.False(typeof(IFreezable).IsAssignableFrom(type), $"{type.Name} must not be IFreezable.");
+            Assert.Null(type.GetMethod("Freeze", BindingFlags.Public | BindingFlags.Instance));
+            Assert.All(
+                type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(property => property.DeclaringType == type),
+                property => Assert.False(property.SetMethod?.IsPublic ?? false, $"{type.Name}.{property.Name} has a public setter."));
+        }
+    }
+
+    [Fact]
     public void AnArtifactChangesOnlyThroughTheStore()
     {
         // Damage: an artifact mutated on the instance skips the check that the writing attempt is still

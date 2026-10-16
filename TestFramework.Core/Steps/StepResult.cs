@@ -1,5 +1,5 @@
 ﻿using System;
-using TestFramework.Core;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Steps;
 
@@ -49,7 +49,7 @@ public class StepResult<TResult> : StepResultGeneric
 /// <summary>
 /// Represents the untyped result of a single step attempt, including state and exception details.
 /// </summary>
-public class StepResultGeneric : IFreezable
+public class StepResultGeneric
 {
     /// <summary>
     /// Gets a value indicating whether the step result has been frozen against further mutation.
@@ -59,35 +59,35 @@ public class StepResultGeneric : IFreezable
     /// <summary>
     /// Freezes the step result against further mutation.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    internal void Freeze() { IsFrozen = true; }
 
     private object? _result = null;
 
     /// <summary>
     /// Gets or sets the untyped result value produced by the step attempt.
     /// </summary>
-    public object? Result { get => _result; set { ((IFreezable)this).EnsureNotFrozen(); _result = value; } }
+    public object? Result { get => _result; internal set { EnsureOpen(); _result = value; } }
 
     private StepState _state = StepState.NotRun;
 
     /// <summary>
     /// Gets or sets the execution state of the step attempt.
     /// </summary>
-    public StepState State { get => _state; set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
+    public StepState State { get => _state; internal set { EnsureOpen(); _state = value; } }
 
     private Exception? _exception = null;
 
     /// <summary>
     /// Gets or sets the exception captured for the step attempt, when one exists.
     /// </summary>
-    public Exception? Exception { get => _exception; set { ((IFreezable)this).EnsureNotFrozen(); _exception = value; } }
+    public Exception? Exception { get => _exception; internal set { EnsureOpen(); _exception = value; } }
 
     private TimeSpan _timeSpent = TimeSpan.Zero;
 
     /// <summary>
     /// Gets or sets the total elapsed time spent executing the step attempt.
     /// </summary>
-    public TimeSpan TimeSpent { get => _timeSpent; set { ((IFreezable)this).EnsureNotFrozen(); _timeSpent = value; } }
+    public TimeSpan TimeSpent { get => _timeSpent; internal set { EnsureOpen(); _timeSpent = value; } }
 
     private string? _skipReason = null;
 
@@ -99,5 +99,11 @@ public class StepResultGeneric : IFreezable
     /// it - an earlier stage failed, a step this one depends on failed, the run was cancelled - so the reader is
     /// sent to the cause instead of left with a step that simply has no state.
     /// </remarks>
-    public string? SkipReason { get => _skipReason; set { ((IFreezable)this).EnsureNotFrozen(); _skipReason = value; } }
+    public string? SkipReason { get => _skipReason; internal set { EnsureOpen(); _skipReason = value; } }
+
+    private void EnsureOpen()
+    {
+        if (IsFrozen)
+            throw new FrameworkStateException("This result belongs to a run that has finished, so it cannot be changed any more.");
+    }
 }

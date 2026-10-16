@@ -1,4 +1,4 @@
-﻿using TestFramework.Core;
+﻿using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Stages;
 
@@ -32,7 +32,7 @@ public enum StageState
 /// <summary>
 /// Represents the result state of a stage execution.
 /// </summary>
-public class StageResult : IFreezable
+public class StageResult
 {
     /// <summary>
     /// Gets a value indicating whether the stage result has been frozen against further mutation.
@@ -42,12 +42,18 @@ public class StageResult : IFreezable
     /// <summary>
     /// Freezes the stage result against further mutation.
     /// </summary>
-    public void Freeze() { IsFrozen = true; }
+    internal void Freeze() { IsFrozen = true; }
 
     private StageState _state = StageState.NotRun;
 
     /// <summary>
     /// Gets or sets the execution state of the stage.
     /// </summary>
-    public StageState State { get => _state; set { ((IFreezable)this).EnsureNotFrozen(); _state = value; } }
+    public StageState State { get => _state; internal set { EnsureOpen(); _state = value; } }
+
+    private void EnsureOpen()
+    {
+        if (IsFrozen)
+            throw new FrameworkStateException("This result belongs to a run that has finished, so it cannot be changed any more.");
+    }
 }
