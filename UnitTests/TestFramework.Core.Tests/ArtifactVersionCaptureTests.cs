@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Exceptions;
@@ -42,6 +43,40 @@ public class ArtifactVersionCaptureTests
 
         Assert.Contains("not held by this run's store", refusal.Message);
         Assert.Equal(1, instance.VersionCount);
+    }
+
+    [Fact]
+    public async Task VersionsCapturedAtTheSameTime_AreAllKept()
+    {
+        // Two steps of one stage can version the same artifact at once when neither declares it, so the
+        // planner has no reason to order them. Every capture is evidence; none may be lost to the race.
+        const int writers = 8;
+        const int capturesEach = 500;
+        RunContext context = RunContext.Detached();
+        ArtifactInstance<CaptureTestArtifactDescriber, CaptureTestArtifactData, CaptureTestArtifactReference> instance =
+            context.Artifacts.Add<CaptureTestArtifactDescriber, CaptureTestArtifactData, CaptureTestArtifactReference>(
+                "contended", new CaptureTestArtifactReference(), new CaptureTestArtifactData());
+
+        using Barrier start = new(writers);
+        Task[] running = new Task[writers];
+        for (int writer = 0; writer < writers; writer++)
+        {
+            running[writer] = Task.Factory.StartNew(() =>
+            {
+                start.SignalAndWait();
+                for (int capture = 0; capture < capturesEach; capture++)
+                {
+                    context.Artifacts.CaptureVersion(instance, new CaptureTestArtifactData());
+
+                    // A reader during the writes must always see a whole list.
+                    _ = instance.Last;
+                }
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        await Task.WhenAll(running);
+
+        Assert.Equal(1 + (writers * capturesEach), instance.VersionCount);
     }
 
     [Fact]

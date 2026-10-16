@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Runner;
 
@@ -100,14 +102,17 @@ public class ArtifactInstance<TArtifactDescriber, TArtifactData, TArtifactRefere
 /// </summary>
 public class ArtifactInstanceGeneric
 {
-    private readonly FreezableCollection<ArtifactDataGeneric> _dataVersions = [];
+    // Swapped whole rather than mutated: two steps versioning one artifact at once would otherwise race a
+    // plain list and lose a version, and a reader would see a list mid-change. Every read takes one snapshot,
+    // so an index and a count always describe the same versions.
+    private ImmutableList<ArtifactDataGeneric> _dataVersions = ImmutableList<ArtifactDataGeneric>.Empty;
 
     /// <summary>
     /// Gets an artifact data version by index.
     /// </summary>
     public ArtifactDataGeneric this[int index]
     {
-        get { return _dataVersions.ElementAt(index); }
+        get { return Versions[index]; }
     }
 
     /// <summary>
@@ -117,8 +122,9 @@ public class ArtifactInstanceGeneric
     {
         get
         {
-            return _dataVersions.FirstOrDefault(x => x.Identifier == identifier)
-                ?? throw new ArtifactVersionNotFoundException(Identifier, identifier, _dataVersions.Select(x => x.Identifier).ToArray());
+            ImmutableList<ArtifactDataGeneric> versions = Versions;
+            return versions.FirstOrDefault(x => x.Identifier == identifier)
+                ?? throw new ArtifactVersionNotFoundException(Identifier, identifier, versions.Select(x => x.Identifier).ToArray());
         }
     }
 
@@ -135,7 +141,9 @@ public class ArtifactInstanceGeneric
     /// <summary>
     /// Gets the number of data versions stored for the artifact.
     /// </summary>
-    public int VersionCount { get => _dataVersions.Count; }
+    public int VersionCount { get => Versions.Count; }
+
+    private ImmutableList<ArtifactDataGeneric> Versions => Volatile.Read(ref _dataVersions);
 
     /// <summary>
     /// Gets the artifact identifier.
@@ -152,7 +160,7 @@ public class ArtifactInstanceGeneric
     /// </summary>
     public ArtifactReferenceGeneric Reference { get; }
 
-    private ArtifactState _state = ArtifactState.NotSetup;
+    private volatile ArtifactState _state = ArtifactState.NotSetup;
 
     /// <summary>
     /// Gets the current lifecycle state of the artifact instance.
@@ -221,7 +229,7 @@ public class ArtifactInstanceGeneric
         _state = state;
 
         // Construction, not a write: there is no store yet, and nothing to tell about it.
-        if (firstVersionData is not null) _dataVersions.Add(firstVersionData);
+        if (firstVersionData is not null) _dataVersions = _dataVersions.Add(firstVersionData);
     }
 
     /// <summary>
@@ -237,13 +245,14 @@ public class ArtifactInstanceGeneric
     {
         ArgumentNullException.ThrowIfNull(ticket);
 
-        _dataVersions.Add(data);
+        ImmutableInterlocked.Update(ref _dataVersions, static (versions, added) => versions.Add(added), data);
     }
 
     private ArtifactDataGeneric TryGetBoundaryVersion(bool first)
     {
-        if (_dataVersions.Count > 0)
-            return first ? _dataVersions.First() : _dataVersions.Last();
+        ImmutableList<ArtifactDataGeneric> versions = Versions;
+        if (versions.Count > 0)
+            return first ? versions[0] : versions[versions.Count - 1];
 
         return State switch
         {
