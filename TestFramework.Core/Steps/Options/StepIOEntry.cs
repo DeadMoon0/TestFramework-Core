@@ -13,12 +13,13 @@ namespace TestFramework.Core.Steps.Options;
 /// </remarks>
 public sealed record StepIOEntry
 {
-    internal StepIOEntry(string key, StepIOKind kind, bool required, Type? declaredType)
+    internal StepIOEntry(string key, StepIOKind kind, bool required, Type? declaredType, bool isExclusive = false)
     {
         this.Key = key;
         this.Kind = kind;
         this.Required = required;
         this.DeclaredType = declaredType;
+        this.IsExclusive = isExclusive;
     }
 
     /// <summary>
@@ -41,4 +42,10 @@ public sealed record StepIOEntry
     /// matching producer declare a type, the validator checks that the producer type is assignable to the input type.
     /// </summary>
     public Type? DeclaredType { get; }
+
+    /// <summary>
+    /// For an output: whether the step owns it, so no other producer in the timeline - another step, or a value
+    /// the run was set up with - may produce it too. Checked while the run is planned.
+    /// </summary>
+    public bool IsExclusive { get; }
 }

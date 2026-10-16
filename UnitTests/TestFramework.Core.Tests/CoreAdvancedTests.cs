@@ -43,6 +43,47 @@ public class CoreAdvancedTests
     }
 
     [Fact]
+    public void AnOutputAStepOwns_CannotBeProducedByASecondStep()
+    {
+        // Ownership is the point: the second producer would orphan whatever the first one made.
+        TestStep owner = new("owner");
+        owner.IOContract.ExclusiveOutput(new VariableIdentifier("workspace"), typeof(string));
+        TestStep second = new("second");
+        second.IOContract.Output(new VariableIdentifier("workspace"));
+
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(
+            () => IOContractValidator.Validate([owner, second], [], []));
+
+        Assert.Contains("'workspace'", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("'owner'", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("'second'", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnOutputAStepOwns_CannotAlsoComeFromTheRunsSetup()
+    {
+        TestStep owner = new("owner");
+        owner.IOContract.ExclusiveOutput(new VariableIdentifier("workspace"), typeof(string));
+
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(
+            () => IOContractValidator.Validate([owner], ["workspace"], []));
+
+        Assert.Contains("AddVariable", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnOrdinaryOutput_MayStillBeProducedTwice()
+    {
+        // Overwriting a variable is normal; only an owned one is protected.
+        TestStep first = new("first");
+        first.IOContract.Output(new VariableIdentifier("count"));
+        TestStep second = new("second");
+        second.IOContract.Output(new VariableIdentifier("count"));
+
+        IOContractValidator.Validate([first, second], ["count"], []);
+    }
+
+    [Fact]
     public void Validate_ThrowsWhenAVariableReadImmutablyIsWrittenAfterwards()
     {
         // The immutability rule lives only in the tracker: a declared IO contract says nothing about

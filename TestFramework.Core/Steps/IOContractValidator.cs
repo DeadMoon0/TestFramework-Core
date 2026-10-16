@@ -95,8 +95,14 @@ internal static class IOContractValidator
             foreach (var output in contract.Outputs)
             {
                 var lookup = output.Kind == StepIOKind.Variable ? knownVars : knownArtifacts;
+
+                // An output a step owns has one producer. Anything else - a later step, or a value the run was set
+                // up with - is a second owner, and the overwrite that would otherwise follow is the mistake.
+                if (lookup.TryGetValue(output.Key, out KnownContractValue? earlier) && (output.IsExclusive || earlier.IsExclusive))
+                    throw ExclusiveOutputClaimedTwice(output.Key, earlier, stepName, output.IsExclusive);
+
                 // Last declared producer wins (mirrors linear overwrite semantics)
-                lookup[output.Key] = KnownContractValue.FromStep(output.Key, output.DeclaredType, stepName);
+                lookup[output.Key] = KnownContractValue.FromStep(output.Key, output.DeclaredType, stepName, output.IsExclusive);
             }
 
             executedStepNames.Add(stepName);
@@ -163,10 +169,23 @@ internal static class IOContractValidator
         return new string(buffer);
     }
 
-    private sealed record KnownContractValue(string Key, Type? DeclaredType, string? SourceStepName, bool IsExternal)
+    private static FrameworkConfigurationException ExclusiveOutputClaimedTwice(string key, KnownContractValue earlier, string stepName, bool laterIsOwner)
     {
-        public static KnownContractValue External(string key) => new(key, null, null, true);
+        string first = earlier.IsExternal ? "the run's setup (AddVariable)" : $"step '{earlier.SourceStepName}'";
+        string owner = laterIsOwner ? $"step '{stepName}'" : first;
 
-        public static KnownContractValue FromStep(string key, Type? declaredType, string sourceStepName) => new(key, declaredType, sourceStepName, false);
+        return new FrameworkConfigurationException(
+            $"'{key}' is produced by {first} and again by step '{stepName}', but {owner} owns it: only one producer in a timeline may write it.")
+        {
+            RecoverySteps = ["Keep one producer of the value and remove the other.", "When the second one is meant to be separate, give it its own name."],
+        };
+    }
+
+    private sealed record KnownContractValue(string Key, Type? DeclaredType, string? SourceStepName, bool IsExternal, bool IsExclusive)
+    {
+        public static KnownContractValue External(string key) => new(key, null, null, true, false);
+
+        public static KnownContractValue FromStep(string key, Type? declaredType, string sourceStepName, bool isExclusive)
+            => new(key, declaredType, sourceStepName, false, isExclusive);
     }
 }

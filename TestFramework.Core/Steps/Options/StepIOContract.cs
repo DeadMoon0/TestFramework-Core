@@ -135,6 +135,23 @@ public class StepIOContract : IFreezable
         => this.Add(this.outputs, Variable(identifier), StepIOKind.Variable, true, Type(declaredType));
 
     /// <summary>
+    /// Declares that the step writes a variable it owns: no other producer in the timeline may write it.
+    /// </summary>
+    /// <remarks>
+    /// For a value whose second producer would be a mistake rather than an overwrite - a directory the step
+    /// creates and later deletes, a resource it names for the run. Two producers of an exclusive output are
+    /// refused while the run is planned, naming both, instead of the second one silently winning.
+    /// </remarks>
+    /// <param name="identifier">The variable.</param>
+    /// <param name="declaredType">The type it writes.</param>
+    /// <returns>This contract.</returns>
+    public StepIOContract ExclusiveOutput(VariableIdentifier identifier, Type declaredType)
+    {
+        this.outputs.Add(new StepIOEntry(Variable(identifier), StepIOKind.Variable, true, Type(declaredType), isExclusive: true));
+        return this;
+    }
+
+    /// <summary>
     /// Declares that the step may write a variable, without saying its type.
     /// </summary>
     /// <param name="identifier">The variable.</param>
