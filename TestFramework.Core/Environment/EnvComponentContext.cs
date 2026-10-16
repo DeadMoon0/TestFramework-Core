@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Runner;
 
@@ -67,12 +68,15 @@ public class EnvComponentContext
     /// <summary>
     /// Gets the raw state for the given component identifier.
     /// </summary>
-    public object? GetState(EnvComponentIdentifier identifier) => _states[identifier];
+    /// <exception cref="FrameworkConfigurationException">The run has no such component.</exception>
+    public object? GetState(EnvComponentIdentifier identifier)
+        => _states.TryGetValue(identifier, out object? state) ? state : throw NoSuchComponent(identifier);
 
     /// <summary>
     /// Gets the typed state for the given component identifier.
     /// </summary>
-    public T? GetState<T>(EnvComponentIdentifier identifier) => (T?)_states[identifier];
+    /// <exception cref="FrameworkConfigurationException">The run has no such component.</exception>
+    public T? GetState<T>(EnvComponentIdentifier identifier) => (T?)GetState(identifier);
 
     /// <summary>
     /// Attempts to get the raw state for the given component identifier.
@@ -99,8 +103,20 @@ public class EnvComponentContext
     /// </summary>
     /// <param name="identifier">Which component.</param>
     /// <returns>Its scope in this run.</returns>
-    /// <exception cref="KeyNotFoundException">The run has no such component.</exception>
-    public EnvComponentScope ScopeOf(EnvComponentIdentifier identifier) => _scopes[identifier];
+    /// <exception cref="FrameworkConfigurationException">The run has no such component.</exception>
+    public EnvComponentScope ScopeOf(EnvComponentIdentifier identifier)
+        => _scopes.TryGetValue(identifier, out EnvComponentScope scope) ? scope : throw NoSuchComponent(identifier);
+
+    private FrameworkConfigurationException NoSuchComponent(EnvComponentIdentifier identifier)
+    {
+        IReadOnlyCollection<EnvComponentIdentifier> created = CreatedComponents;
+        string available = created.Count == 0 ? "none" : string.Join(", ", created.Select(component => $"'{component}'"));
+
+        return new FrameworkConfigurationException($"This run has no environment component '{identifier}'. Components it created: {available}.")
+        {
+            RecoverySteps = ["Ask with an identifier from the list above, or use TryGetState / TryGetScope when the component is optional."],
+        };
+    }
 
     /// <summary>
     /// Whether the run owns this component, for a caller that may be asking about one it does not have.

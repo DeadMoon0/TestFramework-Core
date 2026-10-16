@@ -59,13 +59,15 @@ public class RetryOptions : IFreezable
     /// <summary>
     /// Gets or sets the maximum number of retries allowed for the step.
     /// </summary>
+    /// <remarks>Defaults to 0: a step runs once unless it asks for retries. The default is part of the contract.</remarks>
     public VariableReference<int> MaxRetryCount { get => _maxRetryCount; set { ((IFreezable)this).EnsureNotFrozen(); _maxRetryCount = value; } }
 
-    private VariableReference<CalcDelay> _calcDelay = Var.Const<CalcDelay>((i) => TimeSpan.FromSeconds(Math.Pow(2, i)));
+    private VariableReference<CalcDelay> _calcDelay = Var.Const(CalcDelays.Exponential);
 
     /// <summary>
     /// Gets or sets the retry delay strategy.
     /// </summary>
+    /// <remarks>Defaults to <see cref="CalcDelays.Exponential"/>: 2^iteration seconds. The default is part of the contract.</remarks>
     public VariableReference<CalcDelay> CalcDelay { get => _calcDelay; set { ((IFreezable)this).EnsureNotFrozen(); _calcDelay = value; } }
 
     /// <summary>

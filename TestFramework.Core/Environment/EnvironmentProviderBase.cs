@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Environment;
 
@@ -130,12 +131,21 @@ public abstract class EnvironmentProviderBase : IEnvironmentProvider
     /// <summary>
     /// Gets a registered environment component by identifier.
     /// </summary>
+    /// <exception cref="FrameworkConfigurationException">No component with that identifier was registered.</exception>
     public EnvComponent GetComponent(EnvComponentIdentifier identifier)
     {
         if (_components.TryGetValue(identifier, out EnvComponent? component))
             return component;
 
-        throw new KeyNotFoundException($"No environment component with identifier '{identifier}' was registered.");
+        string registered = _components.Count == 0
+            ? "none"
+            : string.Join(", ", _components.Keys.Select(id => $"'{id}'"));
+
+        throw new FrameworkConfigurationException(
+            $"No environment component with identifier '{identifier}' was registered with {GetType().Name}. Registered: {registered}.")
+        {
+            RecoverySteps = ["Register the component with this environment, or ask for one of the identifiers listed above."],
+        };
     }
 
     private static bool MatchesArtifactType(Type mappedType, Type artifactType)

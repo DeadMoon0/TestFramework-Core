@@ -39,6 +39,7 @@ public class ResultOptions : IFreezable
     /// <param name="target">The target options instance.</param>
     public void CloneTo(ResultOptions target)
     {
+        target.ResultBindings.Clear();
         foreach (ResultBinding binding in ResultBindings)
             target.ResultBindings.Add(binding);
     }

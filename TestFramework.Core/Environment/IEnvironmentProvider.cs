@@ -17,7 +17,8 @@ public interface IEnvironmentProvider
     /// Resolves the environment components needed for the provided artifacts and requirements.
     /// </summary>
     /// <param name="artifacts">Artifacts already available for the run.</param>
-    /// <param name="requirements">The environment requirements declared by the steps in the run.</param>
+    /// <param name="requirements">The requirements routed to this environment: the resources it declared, and every
+    /// resource of a kind it provides wholesale (<see cref="ProvidesEveryResourceOf"/>). Each carries its resolved kind.</param>
     /// <returns>The identifiers of the environment components that should be available for the run.</returns>
     IReadOnlyCollection<EnvComponentIdentifier> ResolveComponents(IEnumerable<ArtifactInstanceGeneric> artifacts, IEnumerable<EnvironmentRequirement> requirements);
 

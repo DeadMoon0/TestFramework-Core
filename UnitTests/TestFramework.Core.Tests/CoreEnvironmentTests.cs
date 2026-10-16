@@ -5,10 +5,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
+using TestFramework.Core.Debugger;
 using TestFramework.Core.Environment;
 using TestFramework.Core.Environment.Graph;
 using TestFramework.Core.Exceptions;
 using TestFramework.Core.Logging;
+using TestFramework.Core.Runner;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Steps.Options;
 using TestFramework.Core.Timelines;
@@ -18,6 +20,29 @@ namespace TestFramework.Core.Tests;
 
 public class CoreEnvironmentTests
 {
+    [Fact]
+    public void AnEnvironmentAskedForAComponentItNeverRegistered_NamesTheOnesItHas()
+    {
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(
+            () => new TestEnvironment().GetComponent(new EnvComponentIdentifier("database")));
+
+        Assert.Contains("'database'", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("'network', 'container', 'volume'", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARunAskedForAComponentItNeverCreated_SaysWhatItCreated()
+    {
+        DebuggingRunSession session = new DebuggingRunSession(new EmptyRunDebugger());
+        EnvComponentContext context = new EnvComponentContext(new RunWriteGate().Unrestricted, ScopedLogger.CreateWithDebuggerSession(session));
+
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(
+            () => context.ScopeOf(new EnvComponentIdentifier("database")));
+
+        Assert.Contains("'database'", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("created: none", refusal.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SetEnv_CreatesOnlyRequiredComponents_InDependencyOrder_AndCleansUpInReverse()
     {

@@ -116,14 +116,10 @@ internal class DebuggingRunSession
 
         CancellationReason = reason;
 
-        try
-        {
-            runCancellation.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // The run finished while the request was in flight; nothing left to stop.
-        }
+        // Never disposed, deliberately: it has no timer and no linked tokens, so disposing frees nothing, and
+        // the token is read until the very end of the run - a request arriving after the run finished must
+        // still be a no-op rather than an ObjectDisposedException.
+        runCancellation.Cancel();
     }
 
     /// <summary>

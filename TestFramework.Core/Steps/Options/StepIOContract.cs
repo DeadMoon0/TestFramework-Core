@@ -175,6 +175,8 @@ public class StepIOContract : IFreezable
     {
         ArgumentNullException.ThrowIfNull(target);
 
+        target.inputs.Clear();
+        target.outputs.Clear();
         foreach (StepIOEntry input in this.inputs) target.inputs.Add(input);
         foreach (StepIOEntry output in this.outputs) target.outputs.Add(output);
     }

@@ -21,6 +21,22 @@ public sealed class StepIOContractTests
     }
 
     [Fact]
+    public void AClonedContractDeclaresExactlyWhatItsOriginalDeclares()
+    {
+        // A clone lands on a step that may already carry declarations of its own; appending would make the
+        // copy depend on more than the original does.
+        StepIOContract original = new();
+        original.Input(Var.Ref<int>(new VariableIdentifier("count")));
+        StepIOContract clone = new();
+        clone.Input(Var.Ref<string>(new VariableIdentifier("stale")));
+
+        original.CloneTo(clone);
+
+        Assert.Equal(original.Inputs, clone.Inputs);
+        Assert.Empty(clone.Outputs);
+    }
+
+    [Fact]
     public void AReferenceHoldingAConstantDeclaresNothing()
     {
         // There is no variable to depend on; every step used to guard this by hand before reaching for Identifier!.
