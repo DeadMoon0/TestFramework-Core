@@ -62,7 +62,8 @@ flowchart LR
 
 ## 2. Freezable Pattern
 
-Every domain object implements `IFreezable`. Once `Freeze()` is called, mutations throw `FrameworkStateException`.
+Definitions — steps, stages, timelines and their options — implement `IFreezable`. They are frozen when
+they are built, and a mutation afterwards throws `FrameworkStateException`.
 
 The contract is [`IFreezable`](../TestFramework.Core/IFreezable.cs): `IsFrozen`, `Freeze()`, and a check that throws once frozen.
 
@@ -73,7 +74,16 @@ The contract is [`IFreezable`](../TestFramework.Core/IFreezable.cs): `IsFrozen`,
 | `FreezableCollection<T>` | `ICollection<T>` — freezes itself and any `IFreezable` items recursively. |
 | `FreezableDictionary<TKey, TValue>` | `IDictionary<TKey, TValue>` — freezes values recursively if they are `IFreezable`. |
 
-**Why it matters:** After a Timeline is built, its structure is frozen. After a Run completes, every `StepResult`, `StageInstance`, `VariableStore`, and `ArtifactStore` is frozen — the result is an immutable snapshot of the entire execution.
+**A run is finished, not frozen.** Its live state — variables, artifacts, run state, effective settings,
+resource values, environment state and widgets — is not frozen object by object. One
+[`RunWriteGate`](../TestFramework.Core/Runner/RunWriteGate.cs) per run decides whether a write still counts:
+every write needs a ticket only that gate mints, and `Finish` closes every channel at once when the run's
+cleanup has run. That is why `VariableStore` and `ArtifactStore` are not `IFreezable`. A channel added later
+cannot be forgotten at the end of the run, because it cannot be written without the gate.
+
+**Why it matters:** After a Timeline is built, its structure is frozen. After a Run completes, its results and
+stores are a snapshot of the execution: nothing — not a late write from an abandoned attempt, not a caller
+holding the run — can change what it recorded.
 
 ---
 

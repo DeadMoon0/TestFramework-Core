@@ -240,7 +240,7 @@ classDiagram
     }
     class Step~TResult~ {
         <<abstract>>
-        +Execute(sp, vs, as, log, ct) Task~TResult~
+        +Execute(RunContext context) Task~TResult~
     }
     class Event~TEvent_TResult~ {
         <<abstract>>
@@ -374,8 +374,8 @@ sequenceDiagram
 
     TRB->>CR: RunStage(MainStage)
     loop Each step
-        CR->>Step: Execute(sp, vs, as, log, ct)
-        Step->>VS: GetVariable / SetVariable
+        CR->>Step: Execute(context)
+        Step->>VS: context.Variables — Get / Set
         Step-->>CR: StepResult
         alt Retry on error
             CR->>CR: Wait CalcDelay(iteration)
@@ -397,20 +397,35 @@ sequenceDiagram
     participant CR as CoreRunner
     participant Step as Step
 
-    Note over CR: Attempt 1
-    CR->>Step: Execute(cts 30 s)
+    Note over CR: Attempt 1 — deadline 30 s
+    CR->>Step: Execute(context)
     Step-->>CR: Exception
+    CR->>CR: end attempt 1 at the write gate
     CR->>CR: CalcDelay(1) → wait 2 s
 
-    Note over CR: Attempt 2
-    CR->>Step: Execute(cts 30 s)
-    Step-->>CR: Exception
+    Note over CR: Attempt 2 — deadline 30 s
+    CR->>Step: Execute(context)
+    Note over CR,Step: deadline fires → context.Deadline.Token cancelled
+    CR->>CR: grace window 3 s (a tenth, clamped to 1–5 s)
+    Step-->>CR: own exception inside the window — kept as the attempt's account
+    CR->>CR: end attempt 2 at the write gate
     CR->>CR: CalcDelay(2) → wait 4 s
 
     Note over CR: Attempt 3 (final)
-    CR->>Step: Execute(cts 30 s)
+    CR->>Step: Execute(context)
     Step-->>CR: Result OK — State = Complete
 ```
+
+Each attempt runs against one `StepDeadline`: the token the step receives and the clock that says
+whether its time ran out are the same deadline, so a step is never told it has time it does not have.
+When the deadline fires — or the whole run is stopped — the runner waits a short grace window for the
+step to stop on its own. Whatever the step throws inside that window is kept as its account; only a
+step still running after the window gets the generic timeout sentence, which then says that its own
+explanation was lost. A step with no deadline still gets the one-second floor when the run is stopped.
+
+Ending an attempt closes it at the run's write gate. An attempt that never stopped keeps running in
+the background, but its writes to the run's stores are refused from that point, so a retry never
+races the attempt it replaces.
 
 ### 6.3 Scenario: Conditional & ForEach Preprocessing
 
