@@ -132,13 +132,28 @@ public class ArtifactStore
     /// <summary>
     /// Adds or replaces an artifact instance in the store.
     /// </summary>
+    /// <remarks>
+    /// An instance another run's store already holds is refused, for the reason a version capture of one is:
+    /// held twice, one artifact would be versioned, assigned and torn down by two runs' gates, and whichever
+    /// run cleaned up second would deconstruct a resource the other still reads.
+    /// </remarks>
     /// <param name="instance">The artifact.</param>
+    /// <exception cref="FrameworkConfigurationException">Another run's store already holds the instance.</exception>
     public void AddArtifact(ArtifactInstanceGeneric instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
+        if (instance.IsHeldElsewhere(syncRoot))
+            throw HeldByAnotherRun(instance);
+
         this.Write(instance.Identifier, ticket => this.Hold(instance, ticket), instance);
     }
+
+    private static FrameworkConfigurationException HeldByAnotherRun(ArtifactInstanceGeneric instance)
+        => new($"Artifact '{instance.Identifier.Identifier}' is already held by another run's store, so this run may not hold it too.")
+        {
+            RecoverySteps = ["Register the artifact on this run from its reference, so this run gets an instance of its own."],
+        };
 
     /// <summary>
     /// Adds a version to an artifact this store holds.
@@ -348,6 +363,10 @@ public class ArtifactStore
                     "Artifact '{0}' is being replaced while its resource is set up. The previous instance's cleanup no longer runs; whatever it created is now this run's responsibility to explain.",
                     instance.Identifier.Identifier);
             }
+
+            // Checked again here, under the lock, so two runs racing to hold one instance cannot both win.
+            if (!instance.TryHoldIn(syncRoot))
+                throw HeldByAnotherRun(instance);
 
             _artifacts[instance.Identifier] = instance;
         }

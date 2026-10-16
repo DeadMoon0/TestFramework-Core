@@ -162,6 +162,26 @@ public class ArtifactInstanceGeneric
 
     private volatile ArtifactState _state = ArtifactState.NotSetup;
 
+    // The store that holds this instance, once one does. Every view of one run's store shares the same
+    // identity, so an attempt's view and the run's own agree; another run's store does not.
+    private object? _heldBy;
+
+    /// <summary>
+    /// Records that <paramref name="store"/> holds this instance.
+    /// </summary>
+    /// <param name="store">The holding store's identity.</param>
+    /// <returns>False when a different store already holds it.</returns>
+    internal bool TryHoldIn(object store)
+    {
+        object? holder = Interlocked.CompareExchange(ref _heldBy, store, null);
+        return holder is null || ReferenceEquals(holder, store);
+    }
+
+    /// <summary>Whether a store other than <paramref name="store"/> already holds this instance.</summary>
+    /// <param name="store">The asking store's identity.</param>
+    internal bool IsHeldElsewhere(object store)
+        => Volatile.Read(ref _heldBy) is { } holder && !ReferenceEquals(holder, store);
+
     /// <summary>
     /// Gets the current lifecycle state of the artifact instance.
     /// </summary>

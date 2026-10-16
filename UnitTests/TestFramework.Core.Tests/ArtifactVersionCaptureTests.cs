@@ -46,6 +46,24 @@ public class ArtifactVersionCaptureTests
     }
 
     [Fact]
+    public void AnInstanceAnotherRunsStoreHolds_CannotBeAddedToThisRun()
+    {
+        // Held twice, one artifact would be torn down by two runs, and the second cleanup would remove a
+        // resource the first run still reads.
+        RunContext ownerRun = RunContext.Detached();
+        RunContext otherRun = RunContext.Detached();
+        ArtifactInstance<CaptureTestArtifactDescriber, CaptureTestArtifactData, CaptureTestArtifactReference> instance =
+            ownerRun.Artifacts.Add<CaptureTestArtifactDescriber, CaptureTestArtifactData, CaptureTestArtifactReference>(
+                "owned", new CaptureTestArtifactReference(), new CaptureTestArtifactData());
+
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(
+            () => otherRun.Artifacts.AddArtifact(instance));
+
+        Assert.Contains("'owned'", refusal.Message);
+        Assert.Contains("another run", refusal.Message);
+    }
+
+    [Fact]
     public async Task VersionsCapturedAtTheSameTime_AreAllKept()
     {
         // Two steps of one stage can version the same artifact at once when neither declares it, so the
