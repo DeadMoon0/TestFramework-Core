@@ -113,49 +113,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         // never finished.
         try
         {
-            IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
-                ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
-                : _serviceProvider;
-
-            // Composed and validated before anything runs: a route to a value nothing offers, or two resources
-            // waiting on each other, is a sentence at plan time rather than a step timing out later against an
-            // address nobody supplied.
-            RunResources resources = RunResources.Compose(runServiceProvider, _environment, _writeGate.Unrestricted, logger);
-
-            // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
-            // which is the same values without the ability to write them.
-            _resourcePublishing = new ResourcePublishing(resources.Values);
-
-            FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
-            IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
-            newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger) { Environment = _environment };
+            RunPlan plan = PlanRun();
+            newRun = plan.Run;
 
             // Marked before the await: a session whose start was attempted is closed like one that started.
             sessionStarted = true;
-            await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
-            await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
-
-            // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
-            // would be a different instance per stage if the caller registered it as transient, and evidence
-            // it gathered in one stage would be lost by the next.
-            var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), resources.Resolution);
-
-            // What lets a watching consumer ask this run for a fresh look at itself. Installed here
-            // because this is the first point both halves exist: what the caller registered to capture
-            // with, and the stores to capture into. The evidence budget is the observers', deliberately -
-            // a capture is the same act as the one an observer performs, and two numbers for one thing
-            // would be two numbers to keep in agreement.
-            _debuggingSession.EnableWidgetCapture(
-                WidgetCaptureSources.For(runServiceProvider),
-                () => RunContext.Ambient(
-                    runServiceProvider,
-                    newRun.VariableStore,
-                    newRun.ArtifactStore,
-                    logger,
-                    resources.Resolution,
-                    _debuggingSession.RunCancellationToken,
-                    StepObservers.EvidenceBudget),
-                logger);
+            CoreRunner coreRunner = await StartSessionAsync(plan);
 
             await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Running, DebugLifecycleState.Initialized);
             runningSignalled = true;
@@ -164,53 +127,12 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 [.. _newVariableStore.GetAll().Select(entry => (entry.Key, entry.Value))],
                 [.. _newArtifactStore.GetAll().Select(instance => (instance.Identifier, instance))],
                 newRun.Stages,
-                mainStageSteps));
+                plan.MainStageSteps));
             string? failedStageName = null;
 
             foreach (var stage in newRun.Stages)
             {
-                // A cancelled run skips the work it has not started, and so does a run whose earlier stage
-                // failed: a Pre-Setup that could not build the environment makes every Main Stage step fail
-                // against something that is not there, and that cascade of downstream errors is what buries
-                // the one failure worth reading. Both always reach teardown - deconstructing artifacts and
-                // tearing down environment components is precisely what killing the process would have
-                // skipped.
-                if ((_debuggingSession.IsCancellationRequested || failedStageName is not null) && !stage.Stage.IsCleanupStage)
-                {
-                    string reason = failedStageName is not null
-                        ? $"The {failedStageName} failed, so the {stage.Stage.Name} never ran."
-                        : CoreRunner.CancelledReason(_debuggingSession, $"the {stage.Stage.Name} began");
-
-                    logger.LogWarning("Stage '{0}' was skipped. {1}", stage.Stage.Name, reason);
-                    stage.Result.State = StageState.Skipped;
-                    await CoreRunner.SkipUnrunStepsAsync(stage, reason, _debuggingSession);
-                    await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
-                    continue;
-                }
-
-                await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Running, DebugLifecycleState.Initialized);
-                logger.Log(new EnterStageLogEvent(stage));
-
-                using var _ = logger.EnterIndentScope();
-                var stageStopwatch = Stopwatch.StartNew();
-                try
-                {
-                    await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
-                }
-                catch (Exception exception)
-                {
-                    // The runner records every step's own failure as that step's result, so reaching this
-                    // means the runner itself failed. The stage is over either way; what must not happen is
-                    // the loop ending with it, because the stage after the last one is the run's teardown.
-                    logger.LogError("Stage '{0}' ended because the runner failed, so the run goes straight to its Cleanup stage.\n{1}", stage.Stage.Name, exception.ToString());
-                    stage.Result.State = StageState.Error;
-                    await CoreRunner.SkipUnrunStepsAsync(stage, $"The runner failed during the {stage.Stage.Name} before this step started.", _debuggingSession);
-                }
-                stageStopwatch.Stop();
-                logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
-                await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
-
-                if (stage.Result.State != StageState.Complete)
+                if (await RunOrSkipStageAsync(stage, failedStageName, coreRunner, plan.Services, newRun))
                     failedStageName ??= stage.Stage.Name;
             }
 
@@ -252,6 +174,130 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
                 await DisposeServicesAsync();
         }
         return newRun;
+    }
+
+    /// <summary>
+    /// What a run is made of once it is planned: the services it runs with, its resources, the run itself
+    /// and the Main Stage's steps.
+    /// </summary>
+    private sealed record RunPlan(IServiceProvider Services, RunResources Resources, TimelineRun Run, IReadOnlyList<StepGeneric> MainStageSteps);
+
+    /// <summary>
+    /// Composes the run's resources, plans its stages, validates what they read and write, and builds the
+    /// run - everything that happens before a debugger hears of it.
+    /// </summary>
+    private RunPlan PlanRun()
+    {
+        IServiceProvider runServiceProvider = _environment is IRunScopedServiceProviderFactory scopedServiceProviderFactory
+            ? scopedServiceProviderFactory.CreateRunScopedServiceProvider(_serviceProvider)
+            : _serviceProvider;
+
+        // Composed and validated before anything runs: a route to a value nothing offers, or two resources
+        // waiting on each other, is a sentence at plan time rather than a step timing out later against an
+        // address nobody supplied.
+        RunResources resources = RunResources.Compose(runServiceProvider, _environment, _writeGate.Unrestricted, logger);
+
+        // Kept so the environment steps can publish into it. Everything else in the run reads the resolution,
+        // which is the same values without the ability to write them.
+        _resourcePublishing = new ResourcePublishing(resources.Values);
+
+        FreezableCollection<StageInstance> stages = PreProcessStages(_newArtifactStore, _newVariableStore, resources, out IReadOnlyList<StepGeneric> mainStageSteps, out VariableTracker variableTracker);
+        IOContractValidator.Validate(mainStageSteps, _externalVariables, _externalArtifacts, variableTracker);
+        TimelineRun newRun = new TimelineRun(_timeline, stages, _newArtifactStore, _newVariableStore, _environmentContext, resources.Resolution, _writeGate, logger) { Environment = _environment };
+
+        return new RunPlan(runServiceProvider, resources, newRun, mainStageSteps);
+    }
+
+    /// <summary>
+    /// Opens the debugging session on a planned run and readies what its stages run with.
+    /// </summary>
+    /// <returns>The runner the stages are run by.</returns>
+    private async Task<CoreRunner> StartSessionAsync(RunPlan plan)
+    {
+        TimelineRun newRun = plan.Run;
+        IServiceProvider runServiceProvider = plan.Services;
+
+        await _debuggingSession.InitSessionAsync(BuildRunStructure(newRun));
+        await _debuggingSession.TransitionRunAsync(DebugLifecycleState.Initialized);
+
+        // Resolved once for the whole run, the way debuggers are: an observer that is asked for per stage
+        // would be a different instance per stage if the caller registered it as transient, and evidence
+        // it gathered in one stage would be lost by the next.
+        var coreRunner = new CoreRunner(StepObservers.For(runServiceProvider), plan.Resources.Resolution);
+
+        // What lets a watching consumer ask this run for a fresh look at itself. Installed here
+        // because this is the first point both halves exist: what the caller registered to capture
+        // with, and the stores to capture into. The evidence budget is the observers', deliberately -
+        // a capture is the same act as the one an observer performs, and two numbers for one thing
+        // would be two numbers to keep in agreement.
+        _debuggingSession.EnableWidgetCapture(
+            WidgetCaptureSources.For(runServiceProvider),
+            () => RunContext.Ambient(
+                runServiceProvider,
+                newRun.VariableStore,
+                newRun.ArtifactStore,
+                logger,
+                plan.Resources.Resolution,
+                _debuggingSession.RunCancellationToken,
+                StepObservers.EvidenceBudget),
+            logger);
+
+        return coreRunner;
+    }
+
+    /// <summary>
+    /// Runs one stage, or skips it when the run was stopped or an earlier stage failed.
+    /// </summary>
+    /// <param name="stage">The stage.</param>
+    /// <param name="failedStageName">The first stage that failed so far, if any.</param>
+    /// <param name="coreRunner">The runner the stage is run by.</param>
+    /// <param name="runServiceProvider">The services the run runs with.</param>
+    /// <param name="newRun">The run.</param>
+    /// <returns>True when the stage ran and did not complete; a skipped stage is not a failed one.</returns>
+    private async Task<bool> RunOrSkipStageAsync(StageInstance stage, string? failedStageName, CoreRunner coreRunner, IServiceProvider runServiceProvider, TimelineRun newRun)
+    {
+        // A cancelled run skips the work it has not started, and so does a run whose earlier stage
+        // failed: a Pre-Setup that could not build the environment makes every Main Stage step fail
+        // against something that is not there, and that cascade of downstream errors is what buries
+        // the one failure worth reading. Both always reach teardown - deconstructing artifacts and
+        // tearing down environment components is precisely what killing the process would have
+        // skipped.
+        if ((_debuggingSession.IsCancellationRequested || failedStageName is not null) && !stage.Stage.IsCleanupStage)
+        {
+            string reason = failedStageName is not null
+                ? $"The {failedStageName} failed, so the {stage.Stage.Name} never ran."
+                : CoreRunner.CancelledReason(_debuggingSession, $"the {stage.Stage.Name} began");
+
+            logger.LogWarning("Stage '{0}' was skipped. {1}", stage.Stage.Name, reason);
+            stage.Result.State = StageState.Skipped;
+            await CoreRunner.SkipUnrunStepsAsync(stage, reason, _debuggingSession);
+            await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
+            return false;
+        }
+
+        await _debuggingSession.TransitionStageAsync(stage.Stage.Name, DebugLifecycleState.Running, DebugLifecycleState.Initialized);
+        logger.Log(new EnterStageLogEvent(stage));
+
+        using var _ = logger.EnterIndentScope();
+        var stageStopwatch = Stopwatch.StartNew();
+        try
+        {
+            await coreRunner.RunStage(stage, runServiceProvider, logger, newRun.VariableStore, newRun.ArtifactStore, _debuggingSession);
+        }
+        catch (Exception exception)
+        {
+            // The runner records every step's own failure as that step's result, so reaching this
+            // means the runner itself failed. The stage is over either way; what must not happen is
+            // the loop ending with it, because the stage after the last one is the run's teardown.
+            logger.LogError("Stage '{0}' ended because the runner failed, so the run goes straight to its Cleanup stage.\n{1}", stage.Stage.Name, exception.ToString());
+            stage.Result.State = StageState.Error;
+            await CoreRunner.SkipUnrunStepsAsync(stage, $"The runner failed during the {stage.Stage.Name} before this step started.", _debuggingSession);
+        }
+        stageStopwatch.Stop();
+        logger.Log(new StageSummaryLogEvent(stage, stageStopwatch.Elapsed));
+        await _debuggingSession.TransitionStageAsync(stage.Stage.Name, stage.Result.State == StageState.Complete ? DebugLifecycleState.Complete : DebugLifecycleState.Error, DebugLifecycleState.Running);
+
+        return stage.Result.State != StageState.Complete;
     }
 
     private async Task DisposeServicesAsync()
@@ -444,15 +490,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
             {
                 foreach (var step in stepEmitter.Emit(artifactStore, variableStore, variableTracker, artifactTracker, null))
                 {
-                    step.Step.DeclareIO(step.Step.IOContract);
-                    if (step.Step is SetupArtifactStep setup)
-                        setup.DeclareHeldReferenceIO(artifactStore);
-                    DeclareRetryInputs(step.Step);
-                    foreach (ResultBinding binding in step.Step.ResultOptions.ResultBindings)
-                    {
-                        if (!step.Step.IOContract.Outputs.Any(output => output.Key == binding.Variable.Identifier && output.Kind == StepIOKind.Variable))
-                            step.Step.IOContract.OptionalOutput(binding.Variable, binding.DeclaredType);
-                    }
+                    DeclareStepIO(step.Step, artifactStore);
                     if (step.RedirectToCleanUp)
                         bufferedCleanupSteps.Add(step.Step);
                     else if (step.RunInPreSetupStage)
@@ -480,19 +518,7 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         foreach (StepGeneric step in bufferedCleanupSteps)
             cleanUpStage.Steps.Add(step);
 
-        // Always append DeconstructAllArtifactsStep as the very last cleanup step,
-        // after all IHasCleanupStep contributions. Errors are ignored so cleanup
-        // continues even if individual artifact deconstruction fails.
-        var deconstructStep = new DeconstructAllArtifactsStep();
-        deconstructStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
-        cleanUpStage.Steps.Add(deconstructStep);
-
-        if (_environment is not null)
-        {
-            var deconstructEnvStep = new DeconstructEnvComponentsStep(_environment, _environmentContext);
-            deconstructEnvStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
-            cleanUpStage.Steps.Add(deconstructEnvStep);
-        }
+        AddTeardownSteps(cleanUpStage);
 
         mainStageSteps = mainStage.Steps.ToList();
 
@@ -508,6 +534,42 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
         stageInstances.Add(new StageInstance(cleanUpStage));
 
         return stageInstances;
+    }
+
+    /// <summary>
+    /// Declares everything an emitted step reads and writes, so the run can check it before anything starts.
+    /// </summary>
+    private static void DeclareStepIO(StepGeneric step, ArtifactStore artifactStore)
+    {
+        step.DeclareIO(step.IOContract);
+        if (step is SetupArtifactStep setup)
+            setup.DeclareHeldReferenceIO(artifactStore);
+        DeclareRetryInputs(step);
+        foreach (ResultBinding binding in step.ResultOptions.ResultBindings)
+        {
+            if (!step.IOContract.Outputs.Any(output => output.Key == binding.Variable.Identifier && output.Kind == StepIOKind.Variable))
+                step.IOContract.OptionalOutput(binding.Variable, binding.DeclaredType);
+        }
+    }
+
+    /// <summary>
+    /// Ends the cleanup stage with the run's own teardown: the artifacts, then the environment.
+    /// </summary>
+    private void AddTeardownSteps(Stage cleanUpStage)
+    {
+        // Always append DeconstructAllArtifactsStep as the very last cleanup step,
+        // after all IHasCleanupStep contributions. Errors are ignored so cleanup
+        // continues even if individual artifact deconstruction fails.
+        var deconstructStep = new DeconstructAllArtifactsStep();
+        deconstructStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
+        cleanUpStage.Steps.Add(deconstructStep);
+
+        if (_environment is not null)
+        {
+            var deconstructEnvStep = new DeconstructEnvComponentsStep(_environment, _environmentContext);
+            deconstructEnvStep.ErrorHandlingOptions.IgnoreExceptionTypes.Add(typeof(Exception));
+            cleanUpStage.Steps.Add(deconstructEnvStep);
+        }
     }
 
     public ITimelineRunBuilder AddArtifact<TArtifactDescriber, TArtifactData, TArtifactReference>(ArtifactIdentifier identifier, ArtifactReference<TArtifactReference, TArtifactDescriber, TArtifactData> reference, ArtifactData<TArtifactData, TArtifactDescriber, TArtifactReference> data)
