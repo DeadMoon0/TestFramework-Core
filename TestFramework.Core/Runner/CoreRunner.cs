@@ -445,7 +445,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             // The step has been told to stop; now it gets a short while to say what it was doing. A step
             // that answers within the grace window has its own account surfaced, which is the whole
             // reason packages used to under-cut their deadlines by hand.
-            TimeSpan grace = StepDeadline.GraceFor(timeout);
+            TimeSpan grace = runStopped ? StepDeadline.GraceForRunStop(timeout) : StepDeadline.GraceFor(timeout);
             GraceOutcome graced = executionTask is null
                 ? new GraceOutcome(true, null)
                 : await AwaitGraceAsync(executionTask, grace);
@@ -532,8 +532,9 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
     /// <returns>Whether the attempt stopped, and what it said if it said anything.</returns>
     private static async Task<GraceOutcome> AwaitGraceAsync(Task executionTask, TimeSpan grace)
     {
+        // No window is still a look: an attempt that has already finished has already said what it had to say.
         if (grace <= TimeSpan.Zero)
-            return new GraceOutcome(executionTask.IsCompleted, null);
+            return executionTask.IsCompleted ? new GraceOutcome(true, OwnAccount(executionTask)) : new GraceOutcome(false, null);
 
         // Decided by which task finished, never by what was thrown: a step's own account is very often a
         // TimeoutException itself, so using the wait's own timeout exception as the signal made the two
@@ -543,11 +544,12 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         if (!ReferenceEquals(finished, executionTask))
             return new GraceOutcome(false, null);
 
-        // A cancellation is not an account of anything; only a real failure is worth surfacing.
-        return new GraceOutcome(
-            true,
-            executionTask.Exception?.InnerExceptions.FirstOrDefault(static inner => inner is not OperationCanceledException));
+        return new GraceOutcome(true, OwnAccount(executionTask));
     }
+
+    // A cancellation is not an account of anything; only a real failure is worth surfacing.
+    private static Exception? OwnAccount(Task finishedAttempt)
+        => finishedAttempt.Exception?.InnerExceptions.FirstOrDefault(static inner => inner is not OperationCanceledException);
 
     /// <summary>
     /// What the grace window found: whether the attempt stopped, and anything it said on the way out.

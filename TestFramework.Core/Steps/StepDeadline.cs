@@ -186,6 +186,19 @@ public sealed class StepDeadline
         return TimeSpan.FromMilliseconds(Math.Clamp(tenth, 1_000, 5_000));
     }
 
+    /// <summary>
+    /// The grace window a step gets after the whole run was stopped, to say what it was doing.
+    /// </summary>
+    /// <remarks>
+    /// The step's own window when it has a deadline, and the one-second floor when it has none. An unbounded
+    /// step has no timeout to take a tenth of, but it still deserves the moment to explain itself: without it,
+    /// a step that stopped cooperatively and said why was reported as nothing more than "cancelled".
+    /// </remarks>
+    /// <param name="total">The step's timeout.</param>
+    /// <returns>The grace window.</returns>
+    internal static TimeSpan GraceForRunStop(TimeSpan total)
+        => IsBounded(total) ? GraceFor(total) : TimeSpan.FromMilliseconds(1_000);
+
     private static bool IsBounded(TimeSpan total)
         => total > TimeSpan.Zero && total != Timeout.InfiniteTimeSpan;
 }

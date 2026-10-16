@@ -62,6 +62,33 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AnUnboundedStepStoppedWithTheRunKeepsItsOwnAccount()
+    {
+        // A step without a deadline used to get no grace window at all when the run was stopped, so what it
+        // said on the way out was replaced by the generic "stopped because the run was cancelled".
+        StoppingDebugger debugger = new();
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Timeline timeline = Timeline.Create()
+            .Trigger(new ExplainsWhenStoppedStep(started))
+                .WithTimeout(Timeout.InfiniteTimeSpan).Label("waiting")
+            .Build();
+
+        Task<TimelineRun> running = timeline
+            .SetupRun(new DebuggerServiceProvider(debugger), output.WriteLine)
+            .RunAsync();
+
+        await started.Task;
+        debugger.Stop("the test asked");
+
+        TimelineRun run = await running;
+        StepResultGeneric result = ((StepInstanceGeneric)run.Step("waiting")).RetryResults.Last();
+
+        Assert.Equal(StepState.Error, result.State);
+        Assert.Equal(ExplainsWhenStoppedStep.Account, result.Exception?.Message);
+    }
+
+    [Fact]
     public async Task AFailingUserCleanupStepDoesNotCancelTheRestOfTeardown()
     {
         // Cleanup steps run in sequential layers ahead of the engine's own deconstruct steps, and a failed
@@ -332,6 +359,38 @@ public class RunTeardownAndCancellationTests(ITestOutputHelper output)
         }
 
         public override Step<EmptyStepResultContext> Clone() => new BlockUntilCancelledStep(started).WithClonedOptions(this);
+
+        public override void DeclareIO(StepIOContract contract)
+        {
+        }
+
+        public override StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> GetInstance() => new(this);
+    }
+
+    private sealed class ExplainsWhenStoppedStep(TaskCompletionSource started) : Step<EmptyStepResultContext>
+    {
+        internal const string Account = "The queue 'orders' never received a message.";
+
+        public override string Name => "Explains when stopped";
+        public override string Description => "Waits for its token, then says what it was waiting for.";
+        public override bool DoesReturn => false;
+
+        public override async Task<EmptyStepResultContext?> Execute(RunContext context)
+        {
+            started.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, context.Deadline.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw new InvalidOperationException(Account);
+            }
+
+            return EmptyStepResultContext.Instance;
+        }
+
+        public override Step<EmptyStepResultContext> Clone() => new ExplainsWhenStoppedStep(started).WithClonedOptions(this);
 
         public override void DeclareIO(StepIOContract contract)
         {
