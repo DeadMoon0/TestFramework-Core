@@ -12,8 +12,8 @@ namespace TestFramework.Simple.Tests;
 /// <remarks>
 /// <para>
 /// These live in Core (<see cref="StepConventions"/>) and every package calls them on its own assembly: a
-/// rule only Core's suite enforces is a rule only Core follows. This package had no such suite until the
-/// release audit looked for one - it ships beside Core rather than as one of the packs that were migrated,
+/// rule only Core's suite enforces is a rule only Core follows. This package had no such suite until
+/// someone looked for one - it ships beside Core rather than as one of the packs that were migrated,
 /// and being off that list quietly meant being off this one.
 /// </para>
 /// <para>

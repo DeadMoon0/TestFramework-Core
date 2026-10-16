@@ -7,8 +7,7 @@ using Xunit.Abstractions;
 namespace TestFramework.Core.Tests;
 
 /// <summary>
-/// Salvaged from <c>TestFramework-FrictionAudit/T002_ErrorRecoveryScenarios.cs</c>, the one file in
-/// that unversioned audit folder with real assertions.
+/// Salvaged from an early, unversioned scenario collection: the one file in it with real assertions.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -155,7 +155,7 @@ public class StepDisciplineTests(ITestOutputHelper output)
         // The exempt name is derived from the assembly, not matched against a pattern. It used to be "any
         // name ending in .Tests", which is wider than the rule: a grant to another package's suite lets that
         // suite reach what every other suite cannot, which is the same private handshake the rule forbids
-        // between packages. Three of those were found by hand in the release audit because nothing here
+        // between packages. Three of those were found by reading the grants by hand, because nothing here
         // could see them, and this is what stops the check widening back.
         IReadOnlyList<string> granted = StepConventions.GrantsBeyondItsOwnSuite("TestFramework.Core", [target]);
 

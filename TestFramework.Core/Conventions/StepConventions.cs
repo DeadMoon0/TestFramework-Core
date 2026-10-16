@@ -73,7 +73,7 @@ public static partial class StepConventions
     /// <strong>It used to exempt any name ending in <c>.Tests</c>, and that was wider than the rule.</strong>
     /// A grant to <em>another</em> package's suite is the same private handshake one level down: it lets one
     /// suite reach what every other suite cannot, and it hides the same missing surface. Three lived in that
-    /// gap until the release audit read them by hand - one dead, one wanting a surface that already existed
+    /// gap until someone read the grants by hand - one dead, one wanting a surface that already existed
     /// (<c>RunContext.Detached</c>), and one that was simply seven tests sitting in the wrong suite. Deriving
     /// the exempt name from the assembly instead of accepting a pattern is what closes it: there is one legal
     /// grant per package and this can name it, so a check nobody can widen replaces a rule nobody enforced.
