@@ -11,7 +11,6 @@ public class ArtifactNotFoundException : TimelineFrameworkException
 {
     private readonly string _artifactName;
     private readonly IReadOnlyList<string> _declaredArtifacts;
-    private readonly int? _stepIndex;
 
     /// <summary>
     /// Gets the name of the missing artifact.
@@ -28,11 +27,9 @@ public class ArtifactNotFoundException : TimelineFrameworkException
     /// </summary>
     /// <param name="artifactName">Name of the artifact that was not found</param>
     /// <param name="registeredArtifacts">List of artifacts that are available</param>
-    /// <param name="stepIndex">Index of the step where the error occurred</param>
     internal ArtifactNotFoundException(
         string artifactName,
-        IReadOnlyList<string> registeredArtifacts,
-        int? stepIndex = null)
+        IReadOnlyList<string> registeredArtifacts)
         : base(
             $"Artifact '{artifactName}' was not declared for this run.",
             new[]
@@ -48,6 +45,5 @@ public class ArtifactNotFoundException : TimelineFrameworkException
     {
         _artifactName = artifactName;
         _declaredArtifacts = registeredArtifacts;
-        _stepIndex = stepIndex;
     }
 }

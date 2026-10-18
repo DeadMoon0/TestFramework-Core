@@ -72,7 +72,6 @@ public class IOContractTypeViolationException(
             steps.Add($"Update step '{producerStepName}' to output the correct type or add a Transform() step to convert to {input.DeclaredType?.Name}");
         }
 
-        steps.Add("See ERROR-HANDLING.md for IO contract pattern documentation");
         return steps;
     }
 

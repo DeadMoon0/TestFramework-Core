@@ -107,14 +107,29 @@ using TestFramework.Core.Timelines;
 
 private static readonly Timeline _timeline = Timeline.Create().Build();
 
-var provider = ConfigInstance
+ConfigInstance config = ConfigInstance
 	.Create()
-	.BuildServiceProvider();
+	.Build();
 
-TimelineRun run = await _timeline.SetupRun(provider).RunAsync();
+TimelineRun run = await _timeline.SetupRun(config).RunAsync();
 
 run.EnsureRanToCompletion();
 ```
+
+`SetupRun(ConfigInstance)` builds the run's service provider and hands it to the run, which disposes it when
+it ends. Pass a provider you built yourself to `SetupRun(IServiceProvider)` only when you mean to keep and
+dispose it.
+
+### What A Step Reads: `Configured<T>`
+
+A package that owns a kind of resource registers a `ConfigShape<TConfig>` for it - usually from its own
+`Load…Config()` extension through `AddConfigShape<TShape, TConfig>()`. The shape says which section holds
+the entries, how to read one, and which values the run publishes for it. Registering the same shape twice is
+a no-op; a second, different shape for the same record is refused.
+
+Inside a step, `context.Configured<TConfig>(identifier)` returns the resource's configuration as this run
+knows it - read from configuration, or published by an environment that started the resource. Both come
+from `using TestFramework.Config;`.
 
 ## API Summary
 
@@ -123,7 +138,10 @@ run.EnsureRanToCompletion();
 - `OverrideConfig(...)`: replace/add config values
 - `AddService(...)`: register dependencies
 - `Build()`: materialize a reusable `ConfigInstance`
-- `BuildServiceProvider()`: build a `ServiceProvider` for `SetupRun(...)`. **The caller owns the returned provider and must dispose it** — it holds every singleton it created. The return type is the concrete `ServiceProvider`, not `IServiceProvider`, so the compiler can point that out.
+- `SetupRun(ConfigInstance)`: start a run that builds, owns and disposes its service provider
+- `AddConfigShape<TShape, TConfig>()`: register how a package reads one kind of resource
+- `context.Configured<TConfig>(identifier)`: read a resource's configuration inside a step
+- `BuildServiceProvider()`: build a `ServiceProvider` for `SetupRun(IServiceProvider)`. **The caller owns the returned provider and must dispose it** — it holds every singleton it created. The return type is the concrete `ServiceProvider`, not `IServiceProvider`, so the compiler can point that out.
 
 ## Error Contract
 

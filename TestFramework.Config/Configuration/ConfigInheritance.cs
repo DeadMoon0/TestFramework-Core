@@ -48,7 +48,7 @@ public static class ConfigInheritance
         ArgumentNullException.ThrowIfNull(declared);
 
         PropertyInfo[] properties = InheritedPropertiesOf<TConfig>();
-        Dictionary<string, TConfig> resolved = new Dictionary<string, TConfig>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, TConfig> resolved = new Dictionary<string, TConfig>(StringComparer.Ordinal);
 
         foreach (string identifier in declared.Keys)
         {
@@ -71,7 +71,7 @@ public static class ConfigInheritance
             return already;
         }
 
-        if (chain.Contains(identifier, StringComparer.OrdinalIgnoreCase))
+        if (chain.Contains(identifier, StringComparer.Ordinal))
         {
             throw new FrameworkConfigurationException(
                 $"The configuration entry '{identifier}' inherits from itself: {string.Join(" -> ", chain.Append(identifier))}.")
@@ -165,11 +165,11 @@ public static class ConfigInheritance
     private static bool TryFind<TConfig>(IReadOnlyDictionary<string, TConfig> declared, string identifier, out TConfig? config)
         where TConfig : class
     {
-        // Identifiers are matched the way configuration matches them everywhere in the family, which is not
-        // necessarily how the dictionary handed in was built.
+        // Identifiers are matched the way the family matches them everywhere - exactly, case included - which is
+        // not necessarily how the dictionary handed in was built.
         foreach ((string key, TConfig candidate) in declared)
         {
-            if (string.Equals(key, identifier, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(key, identifier, StringComparison.Ordinal))
             {
                 config = candidate;
 

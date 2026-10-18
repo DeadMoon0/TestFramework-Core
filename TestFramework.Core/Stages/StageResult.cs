@@ -1,6 +1,4 @@
-﻿using TestFramework.Core.Exceptions;
-
-namespace TestFramework.Core.Stages;
+﻿namespace TestFramework.Core.Stages;
 
 /// <summary>
 /// Represents the execution state of a stage.
@@ -51,9 +49,5 @@ public class StageResult
     /// </summary>
     public StageState State { get => _state; internal set { EnsureOpen(); _state = value; } }
 
-    private void EnsureOpen()
-    {
-        if (IsFrozen)
-            throw new FrameworkStateException("This result belongs to a run that has finished, so it cannot be changed any more.");
-    }
+    private void EnsureOpen() => FinalResult.EnsureOpen(IsFrozen);
 }

@@ -114,7 +114,8 @@ sitting in front of the run.
 - It shows the dialog only where somebody can answer it: an interactive Windows session that is not a build
   agent (`CI` or `TF_BUILD` set). Anywhere else the step logs the message instead, so an agent with nobody to
   click OK does not sit on a modal window until the step times out.
-- `TESTFRAMEWORK_MESSAGEBOX=off` never shows the dialog and `on` always does, wherever the run is.
+- On Windows, `TESTFRAMEWORK_MESSAGEBOX=off` never shows the dialog and `on` always does, build agent or not.
+  Off Windows there is no dialog to show, whatever the switch says; the step logs the message.
 - Prefer `Message(...)` — the same shape, logged rather than shown — when you need a cross-platform
   step, or `Action(...)` for arbitrary inline work.
 

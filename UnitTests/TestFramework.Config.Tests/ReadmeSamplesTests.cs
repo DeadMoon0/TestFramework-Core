@@ -77,14 +77,14 @@ public class ReadmeSamplesTests
     }
 
     [Fact]
-    public async Task IntegrationWithTimelineRuns_UsesBuiltServiceProvider()
+    public async Task IntegrationWithTimelineRuns_HandsTheConfigurationToTheRun()
     {
         Timeline timeline = Timeline.Create().Build();
-        IServiceProvider provider = ConfigInstance
+        ConfigInstance config = ConfigInstance
             .Create()
-            .BuildServiceProvider();
+            .Build();
 
-        TimelineRun run = await timeline.SetupRun(provider).RunAsync();
+        TimelineRun run = await timeline.SetupRun(config).RunAsync();
 
         run.EnsureRanToCompletion();
     }

@@ -11,8 +11,6 @@ public class MissingVariableException : TimelineFrameworkException
 {
     private readonly string _variableName;
     private readonly IReadOnlyDictionary<string, object?> _availableVariables;
-    private readonly int? _stepIndex;
-    private readonly string? _stepName;
 
     /// <summary>
     /// Gets the name of the missing variable.
@@ -29,13 +27,9 @@ public class MissingVariableException : TimelineFrameworkException
     /// </summary>
     /// <param name="variableName">Name of the variable that was not found</param>
     /// <param name="availableVariables">Dictionary of variables that are available</param>
-    /// <param name="stepIndex">Index of the step where the error occurred</param>
-    /// <param name="stepName">Name of the step where the error occurred</param>
     internal MissingVariableException(
         string variableName,
-        IReadOnlyDictionary<string, object?> availableVariables,
-        int? stepIndex = null,
-        string? stepName = null)
+        IReadOnlyDictionary<string, object?> availableVariables)
         : base(
             $"Variable '{variableName}' was never set in this timeline.",
             new[]
@@ -52,7 +46,5 @@ public class MissingVariableException : TimelineFrameworkException
     {
         _variableName = variableName;
         _availableVariables = availableVariables;
-        _stepIndex = stepIndex;
-        _stepName = stepName;
     }
 }

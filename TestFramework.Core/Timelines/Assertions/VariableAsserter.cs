@@ -75,11 +75,11 @@ public class VariableAsserter<T>
     /// A variable that was never set has no value, and handing <c>default</c> on as if it were one is how
     /// <c>Be(0)</c>, <c>Be(false)</c> and <c>BeNull()</c> used to pass for data that did not exist. Only
     /// <see cref="NotExist"/> passes for a missing variable; every assertion about its value fails first,
-    /// with the reason <see cref="Exist"/> gives.
+    /// with the reason <see cref="Exist"/> gives. Internal so the type-specific assertions in
+    /// <see cref="VariableAssertions"/> go through the same check.
     /// </remarks>
     /// <param name="assertion">The assertion being made, for the failure message.</param>
     /// <returns>The value asserter, or <see langword="null"/> once the missing value has been reported.</returns>
-    /// <remarks>Internal so the type-specific assertions in <see cref="VariableAssertions"/> go through the same check.</remarks>
     internal ValueAsserter<T>? ValueOrFail([System.Runtime.CompilerServices.CallerMemberName] string assertion = "")
     {
         if (_exists)

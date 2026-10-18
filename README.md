@@ -215,8 +215,8 @@ These APIs are valid but are not the recommended starting point for new consumer
 
 ### Visible Scaffolding
 
-Some public interfaces are currently exposed because the fluent builder is composed from many action interfaces.
-They are part of the visible package surface today, but they are not the recommended mental model for learning Core.
+Some public interfaces are visible because the fluent builder is composed from many action interfaces.
+They can be used as types but not implemented outside Core, and they are not the recommended mental model for learning it.
 When in doubt, follow the `Timeline.Create()` path and the runnable showroom examples first.
 
 ## Documentation Map

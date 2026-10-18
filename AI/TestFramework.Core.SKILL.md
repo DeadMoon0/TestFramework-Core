@@ -137,8 +137,9 @@
     - Core expects explicit artifact lifecycle operations instead of hidden file or database handling.
 
     Evidence model:
-    - run.Widgets.Publish(new Widget { Kind, Name, Form, Bytes or Text, Summary }) records a file the run
-      produced - a screenshot, a document, a log - attributed to the step and attempt that produced it.
+    - Inside a step, context.Widgets.Publish(new Widget { Kind, Name, Form, Bytes or Text, Summary }) records a
+      file the run produced - a screenshot, a document, a log - attributed to the step and attempt that
+      produced it. A finished TimelineRun has no Widgets member; publishing happens while the step runs.
     - WidgetKinds.Screenshot / Document / LogStream are the kinds the family produces; Kind is a string,
       so a package may introduce its own.
     - Publish returns the written path or null, and never throws.

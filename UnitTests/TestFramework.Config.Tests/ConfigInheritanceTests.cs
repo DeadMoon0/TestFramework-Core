@@ -33,6 +33,29 @@ public class ConfigInheritanceTests
     }
 
     [Fact]
+    public void TwoEntriesWhoseNamesDifferOnlyInCaseStayTwoEntries()
+    {
+        // Identifiers are exact everywhere in the family; merging these would leave one silently missing.
+        IReadOnlyDictionary<string, Entry> resolved = Resolve(
+            ("shop", new Entry { Browser = "firefox" }),
+            ("Shop", new Entry { Browser = "webkit" }));
+
+        Assert.Equal("firefox", resolved["shop"].Browser);
+        Assert.Equal("webkit", resolved["Shop"].Browser);
+    }
+
+    [Fact]
+    public void AChildThatNamesItsParentInAnotherCaseIsRefusedWithTheEntriesThatExist()
+    {
+        FrameworkConfigurationException refusal = Assert.Throws<FrameworkConfigurationException>(() => Resolve(
+            ("shop", new Entry { Browser = "firefox" }),
+            ("shop-mobile", new Entry { BasedOn = "Shop" })));
+
+        Assert.Contains("'Shop' is not declared", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("shop", refusal.AvailableOptions);
+    }
+
+    [Fact]
     public void AChildTakesOverEverythingItDidNotState()
     {
         IReadOnlyDictionary<string, Entry> resolved = Resolve(
@@ -131,7 +154,7 @@ public class ConfigInheritanceTests
 
     private static IReadOnlyDictionary<string, Entry> Resolve(params (string Identifier, Entry Config)[] entries)
     {
-        Dictionary<string, Entry> declared = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Entry> declared = new Dictionary<string, Entry>(StringComparer.Ordinal);
 
         foreach ((string identifier, Entry config) in entries)
         {

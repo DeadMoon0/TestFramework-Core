@@ -80,7 +80,6 @@ public class IOContractViolationException(
             steps.Add("Use RegisterArtifact() or SetupArtifact() in an earlier step");
         }
 
-        steps.Add("See ERROR-HANDLING.md for IO contract pattern documentation");
         return steps;
     }
 }

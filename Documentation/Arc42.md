@@ -31,7 +31,7 @@
 
 **Core responsibility:** Provide a reproducible, structured test run that:
 
-- Executes steps sequentially with configurable retry and timeout logic
+- Executes steps in dependency layers - parallel within a layer - with configurable retry and timeout logic
 - Transports typed values between steps via a variable store
 - Automatically sets up and tears down artifacts (files, DB records, blobs…)
 - Produces an immutable result after execution, ready for assertion
@@ -372,8 +372,8 @@ sequenceDiagram
     TRB->>VAL: Validate(steps, vars, artifacts)
     VAL-->>TRB: OK / IOContractViolation
 
-    TRB->>CR: RunStage(MainStage)
-    loop Each step
+    TRB->>CR: RunStage(Main stage)
+    loop Each layer, its steps in parallel
         CR->>Step: Execute(context)
         Step->>VS: context.Variables — Get / Set
         Step-->>CR: StepResult
@@ -382,7 +382,7 @@ sequenceDiagram
             CR->>Step: Execute again
         end
     end
-    TRB->>CR: RunStage(CleanupStage)
+    TRB->>CR: RunStage(Cleanup stage, IsCleanupStage)
     TRB->>TR: freeze → TimelineRun
 
     Test->>TR: .EnsureRanToCompletion()

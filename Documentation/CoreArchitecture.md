@@ -109,7 +109,7 @@ See [`PreProcessableStage`](../TestFramework.Core/Stages/PreProcessableStage.cs)
 
 ### 3.3 Builder: Fluent API
 
-The builder is a composite of **12 action interfaces** + **3 modifier interfaces**:
+The builder is a composite of small **action interfaces** (one per verb) and **modifier interfaces** (one per option a verb accepts), all implemented by Core alone:
 
 ```mermaid
 classDiagram
@@ -356,10 +356,12 @@ These are `internal` step implementations used by the builder:
 
 ### 5.7 Execution Engine (CoreRunner)
 
-The `CoreRunner` executes a single stage:
+The `CoreRunner` executes a single stage, layer by layer. The planner groups the stage's steps into layers
+from their declared inputs and outputs: a layer's steps run in parallel (unless a step opts out), and a
+layer starts only when the one before it has finished. For each step in a layer:
 
 ```
-For each StepInstance in stage:
+For each StepInstance in the layer:
   │
   ├─ Retry loop (iteration = 1..MaxRetryCount+1)
   │   ├─ If iteration > 1: await CalcDelay(iteration)
@@ -373,11 +375,12 @@ For each StepInstance in stage:
   │       └─ Otherwise → State = Error
   │   └─ Freeze StepResult, add to RetryResults
   │
-  ├─ If last State != Complete → Stage.Result.State = Error, return
   └─ Freeze StepInstance
 ```
 
-The stage processes steps **sequentially** — each step completes (including all retries) before the next begins. If any step ultimately fails, the stage is marked `Error` and execution stops.
+If any step of a layer ultimately fails, the stage is marked `Error`. An ordinary stage stops there and
+records its unrun steps as `Skipped`; the Cleanup stage carries on with its later layers, because they are
+the run's own teardown.
 
 ---
 
@@ -499,7 +502,7 @@ Validation errors:
 | `IOContractTypeViolationException` | Producer and consumer both declare a type and they are incompatible |
 | `CannotSetImmutableVariableException` | A variable read through an ImmutableVariable is written later |
 
-`VariableTracker` and `ArtifactTracker` remain part of the public `StepEmitter.Emit` signature so that
+`VariableTracker` and `ArtifactTracker` remain part of the internal `StepEmitter.Emit` signature so that
 emitters can record what they touch, but they no longer validate anything themselves.
 
 ---

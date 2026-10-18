@@ -118,8 +118,6 @@ public class MessageBoxTrigger(VariableReference<string> msg, VariableReference<
     /// <summary>
     /// Shows the configured Windows message box.
     /// </summary>
-    /// <returns>A completed task because the trigger does not produce a value.</returns>
-    /// <remarks>This trigger requires Windows because it calls <c>user32.dll</c>.</remarks>
     /// <param name="context">What this step is given.</param>
     /// <returns>The step's result.</returns>
     public override Task<EmptyStepResultContext?> Execute(RunContext context)

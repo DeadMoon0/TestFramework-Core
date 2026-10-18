@@ -1,5 +1,4 @@
 ﻿using System;
-using TestFramework.Core.Exceptions;
 
 namespace TestFramework.Core.Steps;
 
@@ -101,9 +100,5 @@ public class StepResultGeneric
     /// </remarks>
     public string? SkipReason { get => _skipReason; internal set { EnsureOpen(); _skipReason = value; } }
 
-    private void EnsureOpen()
-    {
-        if (IsFrozen)
-            throw new FrameworkStateException("This result belongs to a run that has finished, so it cannot be changed any more.");
-    }
+    private void EnsureOpen() => FinalResult.EnsureOpen(IsFrozen);
 }
