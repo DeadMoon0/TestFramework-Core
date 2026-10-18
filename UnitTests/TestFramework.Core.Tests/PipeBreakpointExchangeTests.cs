@@ -237,7 +237,7 @@ public sealed class PipeBreakpointExchangeTests
             {
                 await server.WaitForConnectionAsync(cancellationToken);
 
-                PipeProtocolStream framing = new(server);
+                PipeProtocolStream framing = new(server, new EnvelopeSequence());
 
                 while (!cancellationToken.IsCancellationRequested)
                 {

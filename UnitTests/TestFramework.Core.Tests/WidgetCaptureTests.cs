@@ -594,7 +594,7 @@ public sealed class WidgetCaptureTests : IDisposable
             {
                 await server.WaitForConnectionAsync(cancellationToken);
 
-                PipeProtocolStream framing = new(server);
+                PipeProtocolStream framing = new(server, new EnvelopeSequence());
                 connected.TrySetResult(framing);
 
                 while (!cancellationToken.IsCancellationRequested)

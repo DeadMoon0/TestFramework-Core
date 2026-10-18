@@ -23,6 +23,12 @@ internal sealed class PipeClient : IDisposable
     private readonly object stateLock = new();
     private NamedPipeClientStream? pipeClient;
     private PipeProtocolStream? stream;
+
+    /// <summary>
+    /// Numbers every frame this client sends, across reconnects. Sent with each frame so a consumer can spot
+    /// gaps and drop what it has already seen when the run replays.
+    /// </summary>
+    private readonly EnvelopeSequence sequence = new();
     private bool disposed;
 
     /// <summary>
@@ -328,7 +334,7 @@ internal sealed class PipeClient : IDisposable
                 return false;
             }
 
-            PipeProtocolStream connectedStream = new(candidate);
+            PipeProtocolStream connectedStream = new(candidate, sequence);
             CancellationTokenSource loopCancellation = new();
 
             lock (stateLock)

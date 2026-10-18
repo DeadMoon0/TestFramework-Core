@@ -90,6 +90,30 @@ public sealed class PipeProtocolStreamTests
     }
 
     [Fact]
+    public async Task ARunThatConnectsAgainKeepsNumberingWhereItLeftOff()
+    {
+        // A consumer drops every frame numbered at or below the last it saw. Numbering per connection
+        // restarted at 1 after a reconnect, so everything the run sent afterwards was dropped as already seen.
+        EnvelopeSequence sequence = new();
+
+        long first = await SendOverANewConnection(sequence);
+        long second = await SendOverANewConnection(sequence);
+
+        Assert.True(second > first, $"after reconnecting the run numbered a frame {second}, having sent {first} before");
+    }
+
+    private static async Task<long> SendOverANewConnection(EnvelopeSequence sequence)
+    {
+        using System.IO.Pipes.AnonymousPipeServerStream writer = new(System.IO.Pipes.PipeDirection.Out);
+        using System.IO.Pipes.AnonymousPipeClientStream reader = new(System.IO.Pipes.PipeDirection.In, writer.ClientSafePipeHandle);
+
+        await new PipeProtocolStream(writer, sequence).SendSignalAsync(new PipeTimelineRunFinishedSignal { SessionId = "session-1" });
+        DebugEnvelope? envelope = await new PipeProtocolStream(reader, new EnvelopeSequence()).WaitEnvelopeAsync();
+
+        return Assert.IsType<DebugEnvelope>(envelope).Seq;
+    }
+
+    [Fact]
     public Task PipeSignalFactory_RejectsUnsupportedSignalKind()
     {
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>

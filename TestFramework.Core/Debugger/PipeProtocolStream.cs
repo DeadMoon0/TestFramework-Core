@@ -7,15 +7,9 @@ using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class PipeProtocolStream(PipeStream stream)
+internal sealed class PipeProtocolStream(PipeStream stream, EnvelopeSequence sequence)
 {
     private readonly SemaphoreSlim sendLock = new(1, 1);
-
-    /// <summary>
-    /// One connection carries one run, so a per-connection counter is also per-session. Sent with
-    /// every frame so a consumer can spot gaps and drop duplicates when replaying.
-    /// </summary>
-    private long sequence;
 
     internal bool PipeIsDead { get; private set; }
 
@@ -31,7 +25,7 @@ internal sealed class PipeProtocolStream(PipeStream stream)
             lockAcquired = true;
 
             byte[] buffer = DebugEnvelopeCodec.EncodeFrame(
-                DebugEnvelopeCodec.Wrap(signal, Interlocked.Increment(ref sequence)));
+                DebugEnvelopeCodec.Wrap(signal, sequence.Next()));
 
             // A UI that stops reading applies backpressure through the pipe buffer. Without a bound
             // here every subsequent signal would queue behind this write for the rest of the run.
