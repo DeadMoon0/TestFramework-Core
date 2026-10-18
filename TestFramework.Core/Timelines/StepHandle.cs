@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Steps;
 using TestFramework.Core.Timelines.Assertions;
@@ -36,7 +37,7 @@ public class StepHandle
     /// <summary>
     /// Gets all retry-attempt results for the step.
     /// </summary>
-    public IFreezableCollection<StepResultGeneric> RetryResults => _instance.RetryResults;
+    public IReadOnlyList<StepResultGeneric> RetryResults => _instance.RetryResults;
 
     /// <summary>
     /// Gets the underlying step definition.

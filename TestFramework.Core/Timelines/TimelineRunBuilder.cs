@@ -409,15 +409,17 @@ internal class TimelineRunBuilder : ITimelineRunBuilder
     };
 
     /// <summary>
-    /// The value behind a reference, when it is a constant.
+    /// The value behind a reference, when it is a plain constant.
     /// </summary>
     /// <remarks>
-    /// Constants are read without touching the store, which is what makes this safe to call while the run is
-    /// still being planned. A reference to a variable is deliberately not read: the variable may be written by
-    /// an earlier step, and reading it now would either throw or report a default as if it were the policy.
+    /// Only a constant nobody transformed is read, which is what makes this safe while the run is still being
+    /// planned. A variable is not read: an earlier step may write it, and reading it now would either throw or
+    /// report a default as if it were the policy. A transformed constant is not read either - the transform is
+    /// caller code that may throw or read variables, and running it here would fail a run only when a debugger
+    /// watches it.
     /// </remarks>
     private static T? Fixed<T>(VariableReference<T> reference)
-        => reference.HasIdentifier ? default : reference.GetValue(null!);
+        => reference is ConstVariable<T> constant && constant.TryGetPlainValue(out T? value) ? value : default;
 
     private static string? PinnedTo<T>(VariableReference<T> reference) => reference.Identifier?.Identifier;
 

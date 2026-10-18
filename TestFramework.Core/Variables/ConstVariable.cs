@@ -32,6 +32,19 @@ public class ConstVariable<T> : VariableReference<T>
 
     private readonly VariableTransform[] _transforms;
 
+    /// <summary>
+    /// The value, when it is known without running anything: a constant nobody transformed.
+    /// </summary>
+    /// <remarks>
+    /// A transform is caller code and may read variables, so it runs where the run's store exists - never while
+    /// the run is still being planned.
+    /// </remarks>
+    internal bool TryGetPlainValue(out T? value)
+    {
+        value = _transforms.Length == 0 ? (T?)Value : default;
+        return _transforms.Length == 0;
+    }
+
     internal ConstVariable(object? value, VariableTransform[]? transforms = null)
     {
         Value = value;

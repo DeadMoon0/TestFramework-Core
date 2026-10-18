@@ -14,7 +14,7 @@ internal class TimelineRunHeaderLogEvent(
     DateTime startedAt,
     List<(VariableIdentifier Id, object? Value)> variables,
     List<(ArtifactIdentifier Id, ArtifactInstanceGeneric Instance)> artifacts,
-    IFreezableCollection<StageInstance> stages,
+    IReadOnlyList<StageInstance> stages,
     IReadOnlyList<StepGeneric> mainStageSteps) : LogEvent
 {
     private const string Border = "══════════════════════════════════════════════════";

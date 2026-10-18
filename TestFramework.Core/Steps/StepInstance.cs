@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace TestFramework.Core.Steps;
 
@@ -12,12 +13,13 @@ public class StepInstance<TStep, TStepResultContext> : StepInstanceGeneric where
     /// <summary>
     /// Gets the typed retry results recorded for the step instance.
     /// </summary>
-    public new IFreezableCollection<StepResult<TStepResultContext>> RetryResults { get => base.RetryResults.Cast<StepResult<TStepResultContext>>(); }
+    public new IReadOnlyList<StepResult<TStepResultContext>> RetryResults => [.. base.RetryResults.Cast<StepResult<TStepResultContext>>()];
 
     /// <summary>
     /// Gets the last typed retry result recorded for the step instance.
     /// </summary>
-    public new StepResult<TStepResultContext> LastResult { get => (StepResult<TStepResultContext>)base.RetryResults.Last(); }
+    /// <exception cref="Exceptions.FrameworkStateException">The step has no result yet, because it has not run.</exception>
+    public new StepResult<TStepResultContext> LastResult => (StepResult<TStepResultContext>)base.LastResult;
 
     /// <summary>
     /// Initializes a new typed step instance for the provided step definition.
@@ -41,8 +43,8 @@ public class StepInstanceGeneric
     /// </summary>
     internal void Freeze()
     {
-        RetryResults.Freeze();
-        foreach (StepResultGeneric attempt in RetryResults)
+        _retryResults.Freeze();
+        foreach (StepResultGeneric attempt in _retryResults)
             attempt.Freeze();
 
         IsFrozen = true;
@@ -56,7 +58,18 @@ public class StepInstanceGeneric
     /// <summary>
     /// Gets the recorded results for each execution attempt of the step.
     /// </summary>
-    public IFreezableCollection<StepResultGeneric> RetryResults { get; } = new FreezableCollection<StepResultGeneric>();
+    /// <remarks>
+    /// Read-only to everyone but the runner: a result is recorded by the engine that produced it, and a
+    /// collection that let a reader add one was a second road into a finished run.
+    /// </remarks>
+    public IReadOnlyList<StepResultGeneric> RetryResults => _retryResults;
+
+    private readonly FreezableCollection<StepResultGeneric> _retryResults = new();
+
+    /// <summary>
+    /// Records the result of one attempt. Refused once the step is frozen.
+    /// </summary>
+    internal void AddResult(StepResultGeneric result) => _retryResults.Add(result);
 
     /// <summary>
     /// Gets the last recorded execution result for the step.

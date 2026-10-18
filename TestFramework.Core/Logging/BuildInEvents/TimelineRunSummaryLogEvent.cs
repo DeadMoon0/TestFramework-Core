@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Collections.Generic;
+using System;
 using System.Linq;
 using TestFramework.Core.Logging;
 using TestFramework.Core.Stages;
@@ -7,7 +8,7 @@ using TestFramework.Core.Debugger;
 
 namespace TestFramework.Core.Logging.BuildInEvents;
 
-internal class TimelineRunSummaryLogEvent(IFreezableCollection<StageInstance> stages, TimeSpan elapsed) : LogEvent
+internal class TimelineRunSummaryLogEvent(IReadOnlyList<StageInstance> stages, TimeSpan elapsed) : LogEvent
 {
     /// <summary>
     /// Nothing. This event narrates the console: the transitions behind it are all on the transport.

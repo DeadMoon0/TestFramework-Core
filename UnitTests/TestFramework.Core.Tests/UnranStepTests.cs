@@ -23,6 +23,18 @@ namespace TestFramework.Core.Tests;
 public sealed class UnranStepTests
 {
     [Fact]
+    public void AStepThatHasNotRunSaysSoWhenItsTypedResultIsRead()
+    {
+        // Every runtime instance is a typed one, so the typed property is what a caller holding a step's
+        // instance reaches - and it threw the bare "Sequence contains no elements" the untyped one no longer did.
+        StepInstance<Step<EmptyStepResultContext>, EmptyStepResultContext> instance = new NoOpStep().GetInstance();
+
+        FrameworkStateException refusal = Assert.Throws<FrameworkStateException>(() => instance.LastResult);
+
+        Assert.Contains("has not run", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AStepOfAStageSkippedAfterAFailedPreSetupIsSkippedAndSaysWhy()
     {
         TimelineRun run = await Timeline.Create()

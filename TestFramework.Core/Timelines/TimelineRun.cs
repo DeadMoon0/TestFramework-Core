@@ -41,8 +41,8 @@ public class TimelineRun
     {
         IsFrozen = true;
         _writeGate.Finish(_logger ?? new ScopedLogger(null));
-        Stages.Freeze();
-        foreach (StageInstance stage in Stages)
+        _stages.Freeze();
+        foreach (StageInstance stage in _stages)
             stage.Freeze();
     }
 
@@ -94,7 +94,9 @@ public class TimelineRun
     /// <summary>
     /// Gets the executed stages and their step instances.
     /// </summary>
-    public IFreezableCollection<StageInstance> Stages { get; }
+    public IReadOnlyList<StageInstance> Stages => _stages;
+
+    private readonly FreezableCollection<StageInstance> _stages;
 
     private readonly ScopedLogger? _logger;
 
@@ -102,7 +104,7 @@ public class TimelineRun
     {
         _writeGate = writeGate;
         Timeline = timeline;
-        Stages = stages;
+        _stages = stages;
         ArtifactStore = artifactStore;
         VariableStore = variableStore;
         EnvironmentContext = environmentContext;

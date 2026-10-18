@@ -5,9 +5,9 @@ using System;
 
 namespace TestFramework.Core;
 
-internal class FreezableCollection<T> : IFreezableCollection<T>, IReadOnlyCollection<T>
+internal class FreezableCollection<T> : IFreezableCollection<T>, IReadOnlyList<T>
 {
-    private readonly ICollection<T> _collection = [];
+    private readonly List<T> _collection = [];
 
     public int Count => _collection.Count;
 
@@ -20,6 +20,8 @@ internal class FreezableCollection<T> : IFreezableCollection<T>, IReadOnlyCollec
     {
         _collection = [.. collection];
     }
+
+    public T this[int index] => _collection[index];
 
     public void Add(T item)
     {

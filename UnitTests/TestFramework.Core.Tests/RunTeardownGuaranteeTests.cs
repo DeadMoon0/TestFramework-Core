@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using TestFramework.Core.Artifacts;
 using TestFramework.Core.Debugger;
@@ -98,6 +99,48 @@ public sealed class RunTeardownGuaranteeTests
         Assert.True(run.IsFrozen);
     }
 
+    [Fact]
+    public async Task AStepTheRunnerFailedAroundIsShownToTheDebuggerAsFailed()
+    {
+        // The runner fails after the attempt, deciding whether to retry. The step is recorded as failed
+        // in the run; a watching UI must see the same, not a step that stays running for the rest of the
+        // session.
+        TransitionRecorder debugger = new();
+
+        TimelineRun run = await Timeline.Create()
+            .Trigger(new FailingStep())
+            .Label("flaky")
+            .WithRetry(Var.Const(0).Transform<int>(_ => throw new InvalidOperationException("The retry count could not be read.")), _ => TimeSpan.Zero)
+            .Build()
+            .SetupRun(new DebuggerServiceProvider(debugger))
+            .RunAsync();
+
+        Assert.Equal(StepState.Error, run.Step("flaky").State);
+        DebugEntityTransition failed = Assert.Single(debugger.Transitions, transition => transition.Failure?.Message.Contains("retry count", StringComparison.Ordinal) == true);
+        DebugEntityTransition last = debugger.Transitions.Last(transition => transition.EntityKind == DebugEntityKind.Step && transition.Stage == failed.Stage && transition.StepId == failed.StepId);
+        Assert.Equal(DebugLifecycleState.Error, last.State);
+    }
+
+    [Fact]
+    public async Task ARetryCountComputedFromAVariableRunsTheSameWhetherADebuggerWatchesOrNot()
+    {
+        // Describing the run for a debugger read every constant policy, transforms included, against no
+        // store at all: a count computed from a variable failed the run before it started - but only when a
+        // debugger was attached.
+        Timeline timeline = Timeline.Create()
+            .SetVariable("extra", 1)
+            .Trigger(new FailingStep())
+            .Label("flaky")
+            .WithRetry(Var.Const(0).Transform<int>((count, values) => count + (int)values[0]!, Var.Ref<int>("extra")), _ => TimeSpan.Zero)
+            .Build();
+
+        TimelineRun watched = await timeline.SetupRun(new DebuggerServiceProvider(new TransitionRecorder())).RunAsync();
+        TimelineRun unwatched = await timeline.SetupRun().RunAsync();
+
+        Assert.Equal(2, watched.Step("flaky").RetryResults.Count);
+        Assert.Equal(2, unwatched.Step("flaky").RetryResults.Count);
+    }
+
     private static Timeline OwnedArtifactTimeline(TeardownRecorder recorder)
         => Timeline.Create()
             .RegisterArtifact("owned", new RecordingReference(recorder))
@@ -130,6 +173,27 @@ public sealed class RunTeardownGuaranteeTests
         public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId) => failAtBreakpoint
             ? Task.FromException(new TaskCanceledException("The pipe closed while the step was held."))
             : Task.CompletedTask;
+    }
+
+    private sealed class TransitionRecorder : IRunDebugger
+    {
+        public List<DebugEntityTransition> Transitions { get; } = [];
+
+        public bool IsCapturing => true;
+
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition)
+        {
+            lock (Transitions)
+                Transitions.Add(transition);
+            return Task.CompletedTask;
+        }
+
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Task.CompletedTask;
+        public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Task.CompletedTask;
+        public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry) => Task.CompletedTask;
+        public Task SignalTimelineRunFinishedAsync(string sessionId) => Task.CompletedTask;
+        public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId) => Task.CompletedTask;
     }
 
     private sealed class TeardownRecorder

@@ -90,7 +90,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             if (step.IsFrozen || step.RetryResults.Count > 0)
                 continue;
 
-            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped, SkipReason = reason });
+            step.AddResult(new StepResultGeneric { State = StepState.Skipped, SkipReason = reason });
             step.Freeze();
 
             await debuggingSession.TransitionStepAsync(stage.Stage.Name, index, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
@@ -126,10 +126,19 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
             // What a step throws is already its result; reaching this means the runner failed around it -
             // deciding whether to retry, for instance. The step still gets an outcome, and the exception
             // goes with it, so the layer fails the ordinary way instead of taking the stage loop down and
-            // the Cleanup stage with it.
+            // the Cleanup stage with it. The debugger was last told the step is running, so it is told how
+            // the step ended - or a watching UI shows it running for the rest of the session.
             logger.LogError("The runner failed while handling step '{0}', so the step is recorded as failed.\n{1}", LabelOf(step), exception.ToString());
-            step.RetryResults.Add(new StepResultGeneric { State = StepState.Error, Exception = exception });
+            step.AddResult(new StepResultGeneric { State = StepState.Error, Exception = exception });
             step.Freeze();
+
+            await debuggingSession.TransitionStepAsync(
+                stageName,
+                stepIndex,
+                DebugLifecycleState.Error,
+                DebugLifecycleState.Running,
+                DebugLifecycleState.Error,
+                DebugFailureDetail.Capture(exception, step.RetryResults.Count, willRetry: false, wasSuppressed: false));
         }
     }
 
@@ -143,7 +152,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
         {
             // A skipped step still records an outcome, and why: a step with no result reads as one that
             // simply has no state, which sends the reader nowhere.
-            step.RetryResults.Add(new StepResultGeneric { State = StepState.Skipped, SkipReason = CancelledReason(debuggingSession, "this step started") });
+            step.AddResult(new StepResultGeneric { State = StepState.Skipped, SkipReason = CancelledReason(debuggingSession, "this step started") });
             step.Freeze();
 
             await debuggingSession.TransitionStepAsync(stageName, stepIndex, DebugLifecycleState.Skipped, DebugLifecycleState.Initialized);
@@ -190,7 +199,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
                 logger);
 
             StepResultGeneric stepResult = await ExecuteAttemptAsync(step, serviceProvider, logger, variableStore, artifactStore, scope, debuggingSession, stopToken);
-            step.RetryResults.Add(stepResult);
+            step.AddResult(stepResult);
 
             // A cancelled run gets no further attempts: retrying against a fired token is a string of
             // instant no-ops that reads like the step failing repeatedly. Teardown keeps its retries.
@@ -327,7 +336,7 @@ internal class CoreRunner(StepObservers observers, ValueResolution values)
 
             StepResultGeneric refused = new StepResultGeneric { State = StepState.Error, Exception = exception };
             refused.Freeze();
-            step.RetryResults.Add(refused);
+            step.AddResult(refused);
 
             await debuggingSession.TransitionStepAsync(
                 stageName,

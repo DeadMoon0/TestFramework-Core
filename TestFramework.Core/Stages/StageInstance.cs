@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using TestFramework.Core.Steps;
 
 namespace TestFramework.Core.Stages;
@@ -21,6 +22,9 @@ public class StageInstance
         IsFrozen = true;
         Result.Freeze();
         Stage.Freeze();
+        _steps.Freeze();
+        foreach (StepInstanceGeneric step in _steps)
+            step.Freeze();
     }
 
     /// <summary>
@@ -36,11 +40,13 @@ public class StageInstance
     /// <summary>
     /// Gets the runtime step instances contained in the stage.
     /// </summary>
-    public IFreezableCollection<StepInstanceGeneric> Steps { get; }
+    public IReadOnlyList<StepInstanceGeneric> Steps => _steps;
+
+    private readonly FreezableCollection<StepInstanceGeneric> _steps;
 
     internal StageInstance(Stage stage)
     {
         Stage = stage;
-        Steps = (FreezableCollection<StepInstanceGeneric>)[.. stage.Steps.Select(x => x.GetInstanceGeneric())];
+        _steps = (FreezableCollection<StepInstanceGeneric>)[.. stage.Steps.Select(x => x.GetInstanceGeneric())];
     }
 }

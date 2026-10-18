@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Collections.Generic;
+using System;
 using System.Linq;
 using System.Reflection;
 using TestFramework.Core.Conventions;
@@ -131,6 +132,13 @@ public class PublicSurfaceTests
                 type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(property => property.DeclaringType == type),
                 property => Assert.False(property.SetMethod?.IsPublic ?? false, $"{type.Name}.{property.Name} has a public setter."));
         }
+
+        // The collections a run hands out are read-only: an attempt is recorded, and a run finished, by the
+        // runner - a reader that could add a result or freeze a collection held a second road into both.
+        Assert.Equal(typeof(IReadOnlyList<Stages.StageInstance>), typeof(Timelines.TimelineRun).GetProperty(nameof(Timelines.TimelineRun.Stages))!.PropertyType);
+        Assert.Equal(typeof(IReadOnlyList<StepInstanceGeneric>), typeof(Stages.StageInstance).GetProperty(nameof(Stages.StageInstance.Steps))!.PropertyType);
+        Assert.Equal(typeof(IReadOnlyList<StepResultGeneric>), typeof(StepInstanceGeneric).GetProperty(nameof(StepInstanceGeneric.RetryResults))!.PropertyType);
+        Assert.Equal(typeof(IReadOnlyList<StepResultGeneric>), typeof(Timelines.StepHandle).GetProperty(nameof(Timelines.StepHandle.RetryResults))!.PropertyType);
     }
 
     [Fact]
