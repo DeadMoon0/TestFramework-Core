@@ -11,12 +11,12 @@
 		<PackageTags>Test;UnitTest;IntegrationTest;Framework;Fluent;Timeline</PackageTags>
 		<PackageIcon>Icon.png</PackageIcon>
 		<Description>The core package of the TestFramework ecosystem for building integration-style and end-to-end test workflows. Provides the timeline engine for steps, events, variables, artifacts, retries, timeouts, and assertions, and serves as the foundation for extension packages like Azure, LocalIO, and Simple.</Description>
-		<Version>0.7.0</Version>
+		<Version>0.7.1</Version>
 		<PackageProjectUrl>https://github.com/DeadMoon0/TestFramework-Core</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/DeadMoon0/TestFramework-Core.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>Copyright (c) DeadMoon0 2026</Copyright>
-		<PackageReleaseNotes>BREAKING - pass output.WriteLine to SetupRun instead of an ITestOutputHelper, and use CreateAsync instead of the blocking PersistentEnvironmentContext constructors. BREAKING - renamed: WithTimeOut is WithTimeout, Name(...) is Label(...), Transform takes (from, to, fn), and SetVariable takes a value while SetVariableFrom copies a variable. BREAKING - names are case-sensitive everywhere, public members use overloads instead of optional parameters (rebuild against this version), every exception derives from TimelineFrameworkException, and a run's Stages, Steps and RetryResults are read-only lists. An assertion on a variable that was never set now fails, and so does EnsureRanToCompletion for a step that never ran. New: a fresh environment per run through IRunScopedEnvironmentFactory, RunServices.Owned, VariableStore.SetSecretVariable and StepIOContract.ExclusiveOutput.</PackageReleaseNotes>
+		<PackageReleaseNotes>Checks made on a finished run - run.Step(...).Should() and the like - now reach the DebugUI, the run journal and the console instead of being dropped, so a run that proved something no longer shows as unproven. Nothing to change in tests. The next DebugUI release stops warning that such a run disconnected.</PackageReleaseNotes>
 	</PropertyGroup>
 
 	<ItemGroup>
