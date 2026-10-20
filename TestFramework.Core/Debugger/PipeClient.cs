@@ -268,14 +268,42 @@ internal sealed class PipeClient : IDisposable
         if (disposed)
             return;
 
+        // The lock is not disposed: a disposed client can still send one late signal (SignalAfterRunAsync), and a
+        // semaphore that never handed out its wait handle has nothing to release anyway.
         disposed = true;
         DisposeConnection();
-        connectionLock.Dispose();
     }
 
-    private async Task<bool> EnsureConnectedAsync()
+    /// <summary>
+    /// Sends one signal after the run is over and the client disposed, then lets the connection go again.
+    /// </summary>
+    /// <remarks>
+    /// Through this client and no new one, because the frame numbers are this client's: the UI drops a frame it
+    /// has already seen a higher number for, and a fresh client would start again at one. Connected for the one
+    /// signal and closed after it, so a finished run never holds one of the UI's connections open.
+    /// </remarks>
+    internal async Task SignalAfterRunAsync(IPipeSignal signal)
     {
-        if (disposed)
+        if (!await EnsureConnectedAsync(afterRun: true))
+            return;
+
+        PipeProtocolStream? currentStream = GetConnectedStream();
+        if (currentStream is null)
+            return;
+
+        try
+        {
+            await currentStream.SendSignalAsync(signal);
+        }
+        finally
+        {
+            DisposeConnection(currentStream);
+        }
+    }
+
+    private async Task<bool> EnsureConnectedAsync(bool afterRun = false)
+    {
+        if (disposed && !afterRun)
             return false;
 
         PipeDebuggerMode mode = PipeTransport.GetMode();
@@ -291,7 +319,7 @@ internal sealed class PipeClient : IDisposable
         await connectionLock.WaitAsync();
         try
         {
-            if (disposed)
+            if (disposed && !afterRun)
                 return false;
 
             if (IsKnownUnavailable(pipeName))

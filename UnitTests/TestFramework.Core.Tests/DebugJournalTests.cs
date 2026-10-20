@@ -120,6 +120,36 @@ public sealed class DebugJournalTests : IDisposable
     }
 
     [Fact]
+    public async Task ACheckAfterTheFinishIsAppendedToTheRunAndCounted()
+    {
+        // A recorded run is what a selected run is rebuilt from, so a check made on the finished run has to be
+        // in its journal - after the finish, numbered on from it, and counted in the sidecar.
+        ArmJournal();
+
+        JournalRunDebugger debugger = new();
+        await EmitRunAsync(debugger, "session-late");
+        debugger.Dispose();
+
+        await ((ISupportsLateAssertions)debugger).SignalLateAssertionAsync("session-late", new DebugAssertionEntry
+        {
+            TargetKind = DebugAssertionTargetKind.Variable,
+            Target = "answer",
+            AssertionName = "Be",
+            Arguments = [],
+            Succeeded = true,
+            Actual = new DebugValueDescription { Summary = "42", Shape = DebugValueShape.Scalar }
+        });
+
+        string[] lines = ReadLines(JournalFiles().Single());
+        DebugEnvelope[] envelopes = [.. lines.Select(DebugEnvelopeCodec.Deserialize)];
+
+        Assert.Equal(PipeSignalKind.TimelineRunFinished, envelopes[^2].Kind);
+        Assert.Equal(PipeSignalKind.Assertion, envelopes[^1].Kind);
+        Assert.True(envelopes[^1].Seq > envelopes[^2].Seq);
+        Assert.Equal(lines.Length, ReadMetadata(MetadataFiles().Single()).EventCount);
+    }
+
+    [Fact]
     public async Task EveryJournalLineIsAnEnvelopeThatReplaysToItsSignal()
     {
         // Journal lines and pipe frames are the same envelopes, which is what lets a replayed run

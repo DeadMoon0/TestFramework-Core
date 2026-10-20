@@ -10,7 +10,7 @@ using TestFramework.Core.Steps.Options;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, ISupportsWidgets
+internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, ISupportsWidgets, ISupportsLateAssertions
 {
     private const string DisableUnicodeOutEnvironmentVariable = "TestFramework_Disable_Unicode_Out";
     private const int PanelWidth = 95;
@@ -302,6 +302,22 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
         lock (renderGate)
         {
             HandleAssertion(entry);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Prints a check made after the run's summary was written, on its own lines beneath it.</summary>
+    /// <remarks>The summary box is closed by then, and reopening it would print the whole run twice.</remarks>
+    public Task SignalLateAssertionAsync(string sessionId, DebugAssertionEntry entry)
+    {
+        lock (renderGate)
+        {
+            int first = assertionLines.Count;
+            HandleAssertion(entry);
+
+            for (int index = first; index < assertionLines.Count; index++)
+                writer.WriteLine("{0}", assertionLines[index]);
         }
 
         return Task.CompletedTask;

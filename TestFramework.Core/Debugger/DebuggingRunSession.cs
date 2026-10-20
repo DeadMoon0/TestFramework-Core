@@ -451,16 +451,53 @@ internal class DebuggingRunSession
     }
 
     /// <summary>
-    /// Queues an assertion result for delivery, in order with the logs around it.
+    /// Queues an assertion result for delivery, in order with the logs around it - or, once the run has finished,
+    /// delivers it on its own.
     /// </summary>
+    /// <remarks>
+    /// Most checks are made against the run <c>RunAsync</c> returned, after the queue has closed, and they were
+    /// dropped there. A late one goes straight to the debuggers that take one, and waits for them: there is no
+    /// queue left to keep checks in order, and the test may end the moment the call returns.
+    /// </remarks>
     internal void PublishAssertion(DebugAssertionEntry entry)
     {
         DebugAssertionEntry entryWithTimestamp = entry.OccurredAtUtc == default
             ? entry with { OccurredAtUtc = DateTimeOffset.UtcNow }
             : entry;
 
-        Enqueue(() => Debugger.SignalAssertionAsync(SessionId, entryWithTimestamp));
+        if (!HasFinished)
+        {
+            Enqueue(() => Debugger.SignalAssertionAsync(SessionId, entryWithTimestamp));
+            return;
+        }
+
+        PublishLateAssertion(entryWithTimestamp);
     }
+
+    private void PublishLateAssertion(DebugAssertionEntry entry)
+    {
+        // A run that failed before its session started was never shown anywhere, so there is nothing to add to.
+        if (!sessionInitialized || Debugger is not ISupportsLateAssertions late)
+            return;
+
+        lock (lateGate)
+        {
+            try
+            {
+                // After whatever the run itself still had queued, so its finish is delivered first.
+                Volatile.Read(ref drainTask)?.GetAwaiter().GetResult();
+
+                late.SignalLateAssertionAsync(SessionId, entry).GetAwaiter().GetResult();
+            }
+            catch (Exception exception)
+            {
+                // Watching a run must never fail the test that watched it - and least of all on a check that held.
+                Debug.WriteLine(exception);
+            }
+        }
+    }
+
+    private readonly object lateGate = new();
 
     /// <summary>
     /// Delivers the finish signal and waits until the queue has drained, so everything the run

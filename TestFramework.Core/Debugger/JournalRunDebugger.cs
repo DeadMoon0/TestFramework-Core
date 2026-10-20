@@ -24,7 +24,7 @@ namespace TestFramework.Core.Debugger;
 /// </para>
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWidgets
+public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWidgets, ISupportsLateAssertions
 {
     private readonly object writeLock = new();
     private readonly bool enabled;
@@ -32,6 +32,7 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWid
     private StreamWriter? writer;
     private DebugRunMetadata? metadata;
     private string? metadataPath;
+    private string? journalPath;
     private long sequence;
     private long eventCount;
     private bool disposed;
@@ -134,6 +135,51 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWid
     }
 
     /// <summary>
+    /// Appends an assertion made after the run finished to that run's journal, and counts it.
+    /// </summary>
+    /// <remarks>
+    /// The journal is closed by then, but its file is where it was: reopened for the one line and closed again.
+    /// A recorded run is what a selected run is rebuilt from, so a check missing here would be missing from the
+    /// board the next time the run is opened, whatever the live connection delivered.
+    /// </remarks>
+    Task ISupportsLateAssertions.SignalLateAssertionAsync(string sessionId, DebugAssertionEntry entry)
+    {
+        if (!enabled)
+            return Task.CompletedTask;
+
+        try
+        {
+            lock (writeLock)
+            {
+                if (journalPath is null || metadata is null)
+                    return Task.CompletedTask;
+
+                DebugEnvelope envelope = DebugEnvelopeCodec.Wrap(
+                    new PipeAssertionSignal { SessionId = sessionId, Entry = entry },
+                    Interlocked.Increment(ref sequence));
+
+                using (StreamWriter late = new(
+                    new FileStream(journalPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite),
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+                {
+                    late.WriteLine(DebugEnvelopeCodec.Serialize(envelope));
+                }
+
+                eventCount++;
+                metadata = metadata with { EventCount = eventCount };
+                WriteMetadata();
+            }
+        }
+        catch (Exception e)
+        {
+            // As everywhere in the journal: an unwritable file never fails the test it only records.
+            System.Diagnostics.Debug.WriteLine(e);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Does nothing. The journal never pauses a run, and never records that one was asked about.
     /// </summary>
     /// <remarks>
@@ -174,8 +220,9 @@ public sealed class JournalRunDebugger : IRunDebugger, IDisposable, ISupportsWid
             {
                 // FileShare.ReadWrite so a consumer can tail the journal while the run is still
                 // writing it. Anything narrower makes a live run unreadable until it ends.
+                journalPath = Path.Combine(runs, journalFileName);
                 writer = new StreamWriter(
-                    new FileStream(Path.Combine(runs, journalFileName), FileMode.Create, FileAccess.Write, FileShare.ReadWrite),
+                    new FileStream(journalPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite),
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
                 {
                     AutoFlush = true

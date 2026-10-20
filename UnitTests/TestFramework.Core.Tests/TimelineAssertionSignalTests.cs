@@ -74,6 +74,100 @@ public sealed class TimelineAssertionSignalTests
         Assert.Empty(debugger.Assertions);
     }
 
+    [Fact]
+    public async Task ACheckOnTheFinishedRunIsReportedAfterTheFinish()
+    {
+        // The usual place for a check: on what RunAsync handed back, after the run has said it is done.
+        LateAssertionDebugger debugger = new();
+
+        TimelineRun run = await Timeline.Create()
+            .SetVariable("count", 6)
+            .Build()
+            .SetupRun(new DebuggerServiceProvider(debugger))
+            .RunAsync();
+
+        run.Variable<int>("count").Should().Be(6);
+
+        Assert.Equal(["finished", "late assertion"], debugger.Heard);
+        DebugAssertionEntry assertion = Assert.Single(debugger.LateAssertions);
+        Assert.True(assertion.Succeeded);
+        Assert.Contains("count", assertion.Target, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFailedCheckOnTheFinishedRunIsReportedBeforeItThrows()
+    {
+        LateAssertionDebugger debugger = new();
+
+        TimelineRun run = await Timeline.Create()
+            .SetVariable("count", 6)
+            .Build()
+            .SetupRun(new DebuggerServiceProvider(debugger))
+            .RunAsync();
+
+        Assert.ThrowsAny<Exception>(() => run.Variable<int>("count").Should().Be(7));
+
+        DebugAssertionEntry assertion = Assert.Single(debugger.LateAssertions);
+        Assert.False(assertion.Succeeded);
+        Assert.Contains("6", assertion.Actual.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADebuggerThatTakesNoLateChecksHearsNothingAfterTheFinish()
+    {
+        // A debugger written against IRunDebugger may rely on "finished" being the last thing it hears.
+        AssertionRecordingDebugger debugger = new();
+
+        TimelineRun run = await Timeline.Create()
+            .SetVariable("count", 6)
+            .Build()
+            .SetupRun(new DebuggerServiceProvider(debugger))
+            .RunAsync();
+
+        run.Variable<int>("count").Should().Be(6);
+
+        Assert.Empty(debugger.Assertions);
+    }
+
+    private sealed class LateAssertionDebugger : IRunDebugger, ISupportsLateAssertions
+    {
+        private readonly List<string> heard = [];
+        private readonly List<DebugAssertionEntry> lateAssertions = [];
+
+        internal IReadOnlyList<string> Heard => heard;
+
+        internal IReadOnlyList<DebugAssertionEntry> LateAssertions => lateAssertions;
+
+        public Task SignalInitTimelineRunAsync(string sessionId, DebugRunStart start) => Task.CompletedTask;
+
+        public Task SignalEntityTransitionAsync(string sessionId, DebugEntityTransition transition) => Task.CompletedTask;
+
+        public Task SignalValueUpdateAsync(string sessionId, DebugValueUpdate update) => Task.CompletedTask;
+
+        public Task SignalLogEntryAsync(string sessionId, DebugLogEntry entry) => Task.CompletedTask;
+
+        public Task SignalAssertionAsync(string sessionId, DebugAssertionEntry entry)
+        {
+            heard.Add("assertion");
+            return Task.CompletedTask;
+        }
+
+        public Task SignalLateAssertionAsync(string sessionId, DebugAssertionEntry entry)
+        {
+            heard.Add("late assertion");
+            lateAssertions.Add(entry);
+            return Task.CompletedTask;
+        }
+
+        public Task SignalTimelineRunFinishedAsync(string sessionId)
+        {
+            heard.Add("finished");
+            return Task.CompletedTask;
+        }
+
+        public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId) => Task.CompletedTask;
+    }
+
     private sealed class DebuggerServiceProvider(IRunDebugger debugger) : IServiceProvider
     {
         public object? GetService(Type serviceType)

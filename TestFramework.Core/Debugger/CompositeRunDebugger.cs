@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace TestFramework.Core.Debugger;
 
-internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog, ISupportsWidgets, ISupportsWidgetCaptureRequests
+internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellation, ISupportsRenderedLog, ISupportsWidgets, ISupportsWidgetCaptureRequests, ISupportsLateAssertions
 {
     /// <summary>
     /// Hands the run's capture handler to whichever child can be asked for evidence.
@@ -141,6 +141,12 @@ internal sealed class CompositeRunDebugger : IRunDebugger, ISupportsRunCancellat
 
     public Task SignalAndWaitBreakpointHitAsync(string sessionId, string stage, int stepId)
         => SignalAllAsync(debugger => debugger.SignalAndWaitBreakpointHitAsync(sessionId, stage, stepId));
+
+    /// <summary>Passes a late assertion to the debuggers that take one, and to no other.</summary>
+    public Task SignalLateAssertionAsync(string sessionId, DebugAssertionEntry entry)
+        => SignalAllAsync(debugger => debugger is ISupportsLateAssertions late
+            ? late.SignalLateAssertionAsync(sessionId, entry)
+            : Task.CompletedTask);
 
     private Task SignalAllAsync(DebuggerSignal signal)
     {

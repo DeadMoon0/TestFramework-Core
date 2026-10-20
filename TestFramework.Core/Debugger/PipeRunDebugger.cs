@@ -8,7 +8,7 @@ namespace TestFramework.Core.Debugger;
 /// Sends timeline debug signals over the built-in named-pipe transport to an attached debugger UI.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation, ISupportsWidgets, ISupportsWidgetCaptureRequests
+public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCancellation, ISupportsWidgets, ISupportsWidgetCaptureRequests, ISupportsLateAssertions
 {
     private readonly PipeClient client = new(PipeTransport.GetPipeName());
 
@@ -127,6 +127,14 @@ public sealed class PipeRunDebugger : IRunDebugger, IDisposable, ISupportsRunCan
             Entry = entry
         });
     }
+
+    /// <summary>Signals an assertion made after the run finished, on a connection opened for it.</summary>
+    Task ISupportsLateAssertions.SignalLateAssertionAsync(string sessionId, DebugAssertionEntry entry)
+        => client.SignalAfterRunAsync(new PipeAssertionSignal
+        {
+            SessionId = sessionId,
+            Entry = entry
+        });
 
     /// <summary>
     /// Signals that the active run finished.
