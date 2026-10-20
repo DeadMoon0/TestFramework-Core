@@ -327,11 +327,18 @@ internal sealed class OutputRunDebugger : IRunDebugger, ISupportsRenderedLog, IS
     {
         // Rendered here, from the check's name and arguments. The transport carries those; the sentence a
         // console prints about them is the console's own business.
-        assertionLines.Add($"{(entry.Succeeded ? "[PASS]" : "[FAIL]")} {entry.Target}  {Call(entry)}");
+        assertionLines.Add($"{(entry.Succeeded ? "[PASS]" : "[FAIL]")} {Subject(entry)}  {Call(entry)}");
 
         if (!entry.Succeeded)
             assertionLines.Add($"       {Comparison(entry)}");
     }
+
+    /// <summary>What was checked, as a console line names it: a name in quotes, an expression as written.</summary>
+    /// <remarks>The transport carries the bare name, because that is what a consumer matches; quoting it is printing.</remarks>
+    private static string Subject(DebugAssertionEntry entry)
+        => entry.TargetKind is DebugAssertionTargetKind.Variable or DebugAssertionTargetKind.Artifact or DebugAssertionTargetKind.Step
+            ? $"'{entry.Target}'"
+            : entry.Target;
 
     /// <summary>
     /// The check as it would be written in a test.

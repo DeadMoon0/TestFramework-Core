@@ -14,23 +14,30 @@ public class StepAsserter
     private readonly StepInstanceGeneric _step;
     private readonly ScopedLogger? _logger;
     private readonly string _display;
+    /// <summary>The name the run knows it by, unquoted: what a consumer matches the check against.</summary>
+    /// <remarks>
+    /// Kept apart from the quoted form the failure message uses. Reporting the quoted one is what kept a board
+    /// from ever tying a check made on a finished run to the value it checked - its values are keyed by name.
+    /// </remarks>
+    private readonly string _name;
 
     internal StepAsserter(StepInstanceGeneric step, ScopedLogger? logger = null)
     {
         _step = step;
         _logger = logger;
-        _display = step.Step.LabelOptions.Label is not null ? $"'{step.Step.LabelOptions.Label}'" : $"'{step.Step.Name}'";
+        _name = step.Step.LabelOptions.Label ?? step.Step.Name;
+        _display = $"'{_name}'";
     }
 
     private StepAsserter Pass(string assertion)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, [], true, ActualFor(assertion));
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _name, assertion, [], true, ActualFor(assertion));
         return this;
     }
 
     private StepAsserter Fail(string assertion, string reason)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _display, assertion, [], false, ActualFor(assertion));
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Step, _name, assertion, [], false, ActualFor(assertion));
         var message = $"Step {_display}: {assertion} failed \u2014 {reason}";
         AssertionFailure.Raise(_logger, message, static (text, site) => new StepAssertionException(text, site));
         return this;

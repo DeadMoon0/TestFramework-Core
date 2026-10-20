@@ -26,17 +26,32 @@ public class ValueAsserter<T>
     private readonly ScopedLogger? _logger;
     private readonly bool _secret;
 
+    /// <summary>What a check is reported against - by default the expression itself.</summary>
+    /// <remarks>
+    /// Apart from the expression the failure message reads, because a variable's value checks come through here:
+    /// they are reported as checks on that variable, by its bare name, so a consumer can tie them to it.
+    /// </remarks>
+    private readonly DebugAssertionTargetKind _targetKind;
+    private readonly string _target;
+
     internal ValueAsserter(T value, string expression, ScopedLogger? logger)
         : this(value, expression, logger, false)
     {
     }
 
     internal ValueAsserter(T value, string expression, ScopedLogger? logger, bool secret)
+        : this(value, expression, logger, secret, DebugAssertionTargetKind.Value, expression)
+    {
+    }
+
+    internal ValueAsserter(T value, string expression, ScopedLogger? logger, bool secret, DebugAssertionTargetKind targetKind, string target)
     {
         _secret = secret;
         _value = value;
         _expression = expression;
         _logger = logger;
+        _targetKind = targetKind;
+        _target = target;
     }
 
     // Wraps any value in a FormattableValue so string interpolation uses
@@ -53,7 +68,7 @@ public class ValueAsserter<T>
 
     internal ValueAsserter<T> Pass(string assertionName, params (string Name, object? Value)[] arguments)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), true, Shown());
+        _logger?.SignalAssertion(_targetKind, _target, assertionName, Shown(arguments), true, Shown());
         return this;
     }
 
@@ -66,7 +81,7 @@ public class ValueAsserter<T>
 
     internal ValueAsserter<T> Fail(string assertionName, string reason, params (string Name, object? Value)[] arguments)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Value, _expression, assertionName, Shown(arguments), false, Shown());
+        _logger?.SignalAssertion(_targetKind, _target, assertionName, Shown(arguments), false, Shown());
 
         // The thrown message is for whoever is reading a failed test, so it is rendered here - from the same
         // name and arguments the transport carries, rather than from a second string built beside them.

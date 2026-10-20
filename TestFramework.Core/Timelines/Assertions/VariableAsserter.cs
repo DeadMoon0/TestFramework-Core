@@ -14,6 +14,12 @@ public class VariableAsserter<T>
     private readonly T? _value;
     private readonly bool _exists;
     private readonly string _display;
+    /// <summary>The name the run knows it by, unquoted: what a consumer matches the check against.</summary>
+    /// <remarks>
+    /// Kept apart from the quoted form the failure message uses. Reporting the quoted one is what kept a board
+    /// from ever tying a check made on a finished run to the value it checked - its values are keyed by name.
+    /// </remarks>
+    private readonly string _name;
     private readonly ScopedLogger? _logger;
     private readonly bool _secret;
 
@@ -22,6 +28,7 @@ public class VariableAsserter<T>
         _secret = secret;
         _value = value;
         _exists = exists;
+        _name = name;
         _display = $"'{name}'";
         _logger = logger;
     }
@@ -31,13 +38,13 @@ public class VariableAsserter<T>
 
     private VariableAsserter<T> Pass(string assertion)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], true, _exists ? Shown : "<unset>");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _name, assertion, [], true, _exists ? Shown : "<unset>");
         return this;
     }
 
     private VariableAsserter<T> Fail(string assertion, string reason)
     {
-        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _display, assertion, [], false, _exists ? Shown : "<unset>");
+        _logger?.SignalAssertion(DebugAssertionTargetKind.Variable, _name, assertion, [], false, _exists ? Shown : "<unset>");
         var message = $"Variable {_display}: {assertion} failed \u2014 {reason}";
         AssertionFailure.Raise(_logger, message, static (text, site) => new ValueAssertionException(text, site));
         return this;
@@ -83,7 +90,7 @@ public class VariableAsserter<T>
     internal ValueAsserter<T>? ValueOrFail([System.Runtime.CompilerServices.CallerMemberName] string assertion = "")
     {
         if (_exists)
-            return new ValueAsserter<T>(_value!, _display, _logger, _secret);
+            return new ValueAsserter<T>(_value!, _display, _logger, _secret, DebugAssertionTargetKind.Variable, _name);
 
         Fail(assertion, "variable was not set");
         return null;

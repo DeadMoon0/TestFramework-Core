@@ -27,7 +27,7 @@ public sealed record DebugAssertionEntry
     /// <summary>Gets what kind of thing was checked.</summary>
     public DebugAssertionTargetKind TargetKind { get; init; }
 
-    /// <summary>Gets what was checked, by name — the expression, variable or artifact.</summary>
+    /// <summary>Gets what was checked: the bare name of a variable, artifact or step, or the text of an expression or a set of steps.</summary>
     public string Target { get; init; } = "";
 
     /// <summary>Gets the check's name, such as <c>Be</c>, <c>Contain</c> or <c>NotExist</c>.</summary>

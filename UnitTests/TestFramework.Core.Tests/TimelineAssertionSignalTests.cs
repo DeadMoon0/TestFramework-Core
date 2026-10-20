@@ -91,7 +91,26 @@ public sealed class TimelineAssertionSignalTests
         Assert.Equal(["finished", "late assertion"], debugger.Heard);
         DebugAssertionEntry assertion = Assert.Single(debugger.LateAssertions);
         Assert.True(assertion.Succeeded);
-        Assert.Contains("count", assertion.Target, StringComparison.Ordinal);
+        // The bare name, as the board keys the value: quoted, the check could never be tied to what it checked.
+        Assert.Equal("count", assertion.Target);
+    }
+
+    [Fact]
+    public async Task ACheckOnAStepNamesTheStepBareSoItCanBeFound()
+    {
+        LateAssertionDebugger debugger = new();
+
+        TimelineRun run = await Timeline.Create()
+            .SetVariable("count", 6).Label("seed")
+            .Build()
+            .SetupRun(new DebuggerServiceProvider(debugger))
+            .RunAsync();
+
+        run.Step("seed").Should().HaveCompleted();
+
+        DebugAssertionEntry assertion = Assert.Single(debugger.LateAssertions);
+        Assert.Equal(DebugAssertionTargetKind.Step, assertion.TargetKind);
+        Assert.Equal("seed", assertion.Target);
     }
 
     [Fact]
